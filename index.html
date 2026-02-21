@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>REMITOS/PEDIDOS</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+</head>
+
+<body>
+
+  <!-- ══════════ TOPBAR ══════════ -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="topbar-icon">🧾</div>
+      <div>
+        <div class="topbar-title">REMITOS/PEDIDOS</div>
+        <div class="topbar-sub">SISTEMA INTERNO</div>
+      </div>
+    </div>
+    <div class="badge-count" id="badgeCount">0 ítems</div>
+  </header>
+
+  <!-- ══════════ SCANNER MODAL ══════════ -->
+  <div class="s-overlay" id="scanOverlay" role="dialog" aria-modal="true">
+    <div class="s-modal">
+      <div class="s-head">
+        <div class="s-head-left">
+          <div class="s-dot"></div>
+          <span class="s-title">Escaneá el código de barras</span>
+        </div>
+        <button class="s-close" id="btnCloseScanner" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="s-viewport">
+        <div id="reader"></div>
+        <div class="s-frame">
+          <div class="s-box"><em></em>
+            <div class="s-laser"></div>
+          </div>
+        </div>
+      </div>
+      <div class="cam-err" id="camErr">
+        <div class="cam-err-icon">📷</div>
+        <p>No se pudo acceder a la cámara.</p>
+        <p>Ingresá el código manualmente.</p>
+      </div>
+      <p class="s-hint" id="sHint">Apuntá la cámara al código de barras del producto</p>
+      <button class="s-manual-btn" id="btnManualEntry">↩ &nbsp;Ingresarlo manualmente</button>
+    </div>
+  </div>
+
+  <!-- ══════════ MAIN ══════════ -->
+  <main class="page">
+
+    <!-- ─── 01: PRODUCTO ─── -->
+    <div class="sec">
+      <span class="sec-num">01</span>
+      <span class="sec-label">REMITO/PEDIDO</span>
+      <span class="sec-line"></span>
+    </div>
+
+    <div class="card">
+
+      <div class="field">
+        <label for="fSucursal">Sucursal emisora: <span style="color:var(--danger)">*</span></label>
+        <select id="fSucursal">
+          <option value="">Elegir sucursal...</option>
+          <option value="Hiper">Hiper</option>
+          <option value="Centro">Centro</option>
+          <option value="Ribera">Ribera</option>
+        </select>
+        <div class="ferr" id="eSucursal">Seleccioná una sucursal.</div>
+      </div>
+
+      <div class="field">
+        <label for="fConcepto">Concepto general del remito/pedido:</label>
+        <input type="text" id="fConcepto" placeholder="Ingresá el concepto" />
+        <div class="ferr" id="eConcepto">Ingresá un concepto general.</div>
+      </div>
+
+      <div class="field">
+        <label for="fBarcode">EAN del Producto: </label>
+        <div class="barcode-wrap">
+          <input type="text" id="fBarcode" placeholder="Escaneá, usá el lector o escribí el código" inputmode="numeric" autocomplete="off" />
+          <button class="scan-btn" id="btnOpenScanner" title="Escanear con cámara">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
+              <line x1="7" y1="8" x2="7" y2="16" />
+              <line x1="10" y1="8" x2="10" y2="16" />
+              <line x1="13" y1="8" x2="13" y2="16" />
+              <line x1="16.5" y1="8" x2="16.5" y2="16" />
+            </svg>
+          </button>
+        </div>
+        <div class="scanned-ok" id="scannedOk">✓ Código escaneado</div>
+      </div>
+
+      <!-- Tarjeta producto -->
+      <div class="product-card" id="productCard">
+        <div class="pc-header">
+          <div class="pc-dot"></div>
+          <span id="pcStateLabel">Buscando...</span>
+        </div>
+        <div class="pc-loading">
+          <div class="pc-spinner"></div><span>Consultando base de datos...</span>
+        </div>
+        <div class="pc-body">
+          <div class="pc-grid">
+            <div class="pc-field pc-field--full">
+              <div class="pc-field-label">Descripción</div>
+              <div class="pc-field-value" id="pcDescripcion">—</div>
+            </div>
+            <div class="pc-field pc-field--full">
+              <div class="pc-field-label">Proveedor</div>
+              <div class="pc-field-value" id="pcProveedor">—</div>
+            </div>
+            <div class="pc-field">
+              <div class="pc-field-label">Gramaje</div>
+              <div class="pc-field-value" id="pcGramaje">—</div>
+            </div>
+            <div class="pc-field">
+              <div class="pc-field-label">Unidades x bulto</div>
+              <div class="pc-field-value" id="pcUxb">—</div>
+            </div>
+          </div>
+        </div>
+        <div class="pc-notfound"><span>⚠️</span><span>Producto no encontrado — completá la descripción manualmente.</span></div>
+      </div>
+
+      <div class="field">
+        <label for="fDesc">Descripción del Producto: <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(se autocompleta)</span></label>
+        <input type="text" id="fDesc" placeholder="Descripción del producto" />
+        <div class="ferr" id="eDesc">Ingresá una descripción.</div>
+      </div>
+
+      <div class="qty-row">
+        <div class="field">
+          <label for="fQty">Cantidad del Producto: </label>
+          <input type="number" id="fQty" placeholder="0" min="1" step="1" inputmode="numeric" />
+          <div class="ferr" id="eQty">Cantidad ≥ 1</div>
+        </div>
+        <button class="btn-add" id="btnAdd" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          Agregar
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ─── 02: PEDIDO ─── -->
+    <div class="sec">
+      <span class="sec-num">02</span>
+      <span class="sec-label">Detalle</span>
+      <span class="sec-line"></span>
+    </div>
+
+    <div class="table-wrap" id="tableWrap">
+      <div class="table-empty" id="tableEmpty">
+        <div class="table-empty-icon">📋</div>
+        <div class="table-empty-text">Todavía no agregaste productos.<br />Escaneá o ingresá un código para empezar.</div>
+      </div>
+      <table id="orderTable" style="display:none">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Descripción</th>
+            <th>Gramaje</th>
+            <th>UxB</th>
+            <th style="text-align:center">Cant.</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="orderBody"></tbody>
+      </table>
+    </div>
+
+  </main>
+
+  <!-- ══════════ FOOTER ══════════ -->
+  <div class="footer-actions">
+    <button class="btn-export" id="btnExport" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
+      </svg>
+      Exportar Excel
+    </button>
+    <button class="btn-export" id="btnExportPDF" disabled style="color:whitesmoke;background-color: red;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v12m0 0l-4-4m4 4l4-4"></path>
+        <path d="M6 19h12"></path>
+      </svg>
+      Exportar PDF
+    </button>
+    <button class="btn-clear-order" id="btnClearOrder" disabled>Limpiar</button>
+  </div>
+
+  <!-- ══════════ TOAST ══════════ -->
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <div class="toast-dot" id="toastDot"></div>
+    <span id="toastMsg"></span>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+
+</html>
