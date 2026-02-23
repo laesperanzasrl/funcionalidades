@@ -242,11 +242,19 @@ async function cargarProductos() {
   }
 }
 
+// Strips leading zeros and returns a trimmed string for safe comparison
+function normalizeCode(val) {
+  if (val == null || val === '') return '';
+  return String(val).trim().replace(/^0+(?=\d)/, '');
+}
+
 async function fetchProducto(code) {
-  const codigo = parseInt(code);
-  return state.productos.find(p =>
-    p.EAN === codigo || p.INTERNO === codigo || String(p.EAN) === code
-  ) || null;
+  const normCode = normalizeCode(code);
+  return state.productos.find(p => {
+    const normEAN    = normalizeCode(p.EAN);
+    const normINT    = normalizeCode(p.INTERNO);
+    return normEAN === normCode || normINT === normCode;
+  }) || null;
 }
 
 // Clave única por producto para el carrito temporal
