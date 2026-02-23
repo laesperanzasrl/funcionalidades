@@ -63,6 +63,7 @@
   <!-- ══════════ SEARCH MODAL (diálogo centrado) ══════════ -->
   <div class="s-overlay s-overlay--dialog" id="searchOverlay" role="dialog" aria-modal="true" aria-label="Buscar producto">
     <div class="s-modal search-modal">
+
       <div class="s-head">
         <div class="s-head-left">
           <div class="s-dot s-dot--search"></div>
@@ -71,6 +72,7 @@
         <button class="s-close" id="btnCloseSearch" aria-label="Cerrar">✕</button>
       </div>
 
+      <!-- Cuerpo scrolleable -->
       <div class="search-modal-body">
 
         <div class="search-input-wrap">
@@ -116,13 +118,29 @@
         </div>
 
       </div>
+
+      <!-- ── Barra fija de confirmación del carrito ── -->
+      <div class="search-commit-bar" id="searchCommitBar">
+        <div class="scb-info">
+          <span class="scb-icon">🛒</span>
+          <span class="scb-label" id="scbLabel">0 productos seleccionados</span>
+        </div>
+        <button class="scb-btn" id="btnCommitSearch" disabled>
+          Agregar a la lista
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+               stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+      </div>
+
     </div>
   </div>
 
   <!-- ══════════ MAIN ══════════ -->
   <main class="page">
 
-    <!-- ─── 01: PRODUCTO ─── -->
     <div class="sec">
       <span class="sec-num">01</span>
       <span class="sec-label">REMITO/PEDIDO</span>
@@ -148,7 +166,6 @@
         <div class="ferr" id="eConcepto">Ingresá un concepto general.</div>
       </div>
 
-      <!-- ── Botones para encontrar producto ── -->
       <div class="field">
         <label>Agregar Producto:</label>
         <div class="action-btns">
@@ -171,7 +188,7 @@
         </div>
       </div>
 
-      <!-- Tarjeta producto -->
+      <!-- Tarjeta producto (scanner) -->
       <div class="product-card" id="productCard">
         <div class="pc-header">
           <div class="pc-dot"></div>
@@ -207,7 +224,7 @@
         </div>
       </div>
 
-      <!-- Fila de cantidad — solo aparece cuando hay producto confirmado -->
+      <!-- Cantidad (scanner) -->
       <div class="qty-row" id="qtyRow" style="display:none">
         <div class="field">
           <label for="fQty">Cantidad:</label>
@@ -225,7 +242,6 @@
 
     </div>
 
-    <!-- ─── 02: DETALLE ─── -->
     <div class="sec">
       <span class="sec-num">02</span>
       <span class="sec-label">Detalle</span>
@@ -274,7 +290,6 @@
     <button class="btn-clear-order" id="btnClearOrder" disabled>Limpiar</button>
   </div>
 
-  <!-- ══════════ TOAST ══════════ -->
   <div class="toast" id="toast" role="status" aria-live="polite">
     <div class="toast-dot" id="toastDot"></div>
     <span id="toastMsg"></span>
@@ -282,5 +297,4 @@
 
   <script src="./app.js"></script>
 </body>
-
 </html>
