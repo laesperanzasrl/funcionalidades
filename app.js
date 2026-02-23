@@ -1,78 +1,78 @@
 // ── Estado ──
 const state = {
-  order:          [],
+  order: [],
   currentProduct: null,
-  lookupTimer:    null,
-  scannerActive:  false,
-  html5QrCode:    null,
-  productos:      [],
-  searchField:    'all',
-  searchTimer:    null,
-  inputMode:      'cam',    // 'cam' | 'ext'
-  extDebounce:    null,     // timer for external scanner debounce
-  searchCart:     new Map(),
+  lookupTimer: null,
+  scannerActive: false,
+  html5QrCode: null,
+  productos: [],
+  searchField: 'all',
+  searchTimer: null,
+  inputMode: 'cam',    // 'cam' | 'ext'
+  extDebounce: null,     // timer for external scanner debounce
+  searchCart: new Map(),
 };
 
 // ── DOM ──
 const $ = (id) => document.getElementById(id);
 
 const els = {
-  fConcepto:        $('fConcepto'),
-  eConcepto:        $('eConcepto'),
-  fSucursal:        $('fSucursal'),
-  eSucursal:        $('eSucursal'),
-  productCard:      $('productCard'),
-  pcStateLabel:     $('pcStateLabel'),
-  pcDescripcion:    $('pcDescripcion'),
-  pcProveedor:      $('pcProveedor'),
-  pcGramaje:        $('pcGramaje'),
-  pcUxb:            $('pcUxb'),
-  btnClearProduct:  $('btnClearProduct'),
-  qtyRow:           $('qtyRow'),
-  fQty:             $('fQty'),
-  eQty:             $('eQty'),
-  btnAdd:           $('btnAdd'),
-  orderTable:       $('orderTable'),
-  orderBody:        $('orderBody'),
-  tableEmpty:       $('tableEmpty'),
-  btnExport:        $('btnExport'),
-  btnClearOrder:    $('btnClearOrder'),
-  badgeCount:       $('badgeCount'),
-  toast:            $('toast'),
-  toastMsg:         $('toastMsg'),
-  toastDot:         $('toastDot'),
+  fConcepto: $('fConcepto'),
+  eConcepto: $('eConcepto'),
+  fSucursal: $('fSucursal'),
+  eSucursal: $('eSucursal'),
+  productCard: $('productCard'),
+  pcStateLabel: $('pcStateLabel'),
+  pcDescripcion: $('pcDescripcion'),
+  pcProveedor: $('pcProveedor'),
+  pcGramaje: $('pcGramaje'),
+  pcUxb: $('pcUxb'),
+  btnClearProduct: $('btnClearProduct'),
+  qtyRow: $('qtyRow'),
+  fQty: $('fQty'),
+  eQty: $('eQty'),
+  btnAdd: $('btnAdd'),
+  orderTable: $('orderTable'),
+  orderBody: $('orderBody'),
+  tableEmpty: $('tableEmpty'),
+  btnExport: $('btnExport'),
+  btnClearOrder: $('btnClearOrder'),
+  badgeCount: $('badgeCount'),
+  toast: $('toast'),
+  toastMsg: $('toastMsg'),
+  toastDot: $('toastDot'),
   // scanner
-  scanOverlay:      $('scanOverlay'),
-  btnOpenScanner:   $('btnOpenScanner'),
-  btnCloseScanner:  $('btnCloseScanner'),
-  btnManualEntry:   $('btnManualEntry'),
-  camErr:           $('camErr'),
-  sHint:            $('sHint'),
+  scanOverlay: $('scanOverlay'),
+  btnOpenScanner: $('btnOpenScanner'),
+  btnCloseScanner: $('btnCloseScanner'),
+  btnManualEntry: $('btnManualEntry'),
+  camErr: $('camErr'),
+  sHint: $('sHint'),
   // search modal
-  searchOverlay:      $('searchOverlay'),
-  btnOpenSearch:      $('btnOpenSearch'),
-  btnCloseSearch:     $('btnCloseSearch'),
-  searchInput:        $('searchInput'),
-  btnClearSearch:     $('btnClearSearch'),
-  searchResults:      $('searchResults'),
-  searchStateEmpty:   $('searchStateEmpty'),
-  searchStateNone:    $('searchStateNone'),
-  searchTermDisplay:  $('searchTermDisplay'),
-  searchCount:        $('searchCount'),
+  searchOverlay: $('searchOverlay'),
+  btnOpenSearch: $('btnOpenSearch'),
+  btnCloseSearch: $('btnCloseSearch'),
+  searchInput: $('searchInput'),
+  btnClearSearch: $('btnClearSearch'),
+  searchResults: $('searchResults'),
+  searchStateEmpty: $('searchStateEmpty'),
+  searchStateNone: $('searchStateNone'),
+  searchTermDisplay: $('searchTermDisplay'),
+  searchCount: $('searchCount'),
   // carrito del modal
-  searchCommitBar:    $('searchCommitBar'),
-  scbLabel:           $('scbLabel'),
-  btnCommitSearch:    $('btnCommitSearch'),
+  searchCommitBar: $('searchCommitBar'),
+  scbLabel: $('scbLabel'),
+  btnCommitSearch: $('btnCommitSearch'),
   // mode switcher
-  modeTabCam:         $('modeTabCam'),
-  modeTabExt:         $('modeTabExt'),
-  panelCam:           $('panelCam'),
-  panelExt:           $('panelExt'),
-  extInput:           $('extInput'),
-  btnExtClear:        $('btnExtClear'),
-  extStatus:          $('extStatus'),
-  extStatusDot:       $('extStatusDot'),
-  extStatusText:      $('extStatusText'),
+  modeTabCam: $('modeTabCam'),
+  modeTabExt: $('modeTabExt'),
+  panelCam: $('panelCam'),
+  panelExt: $('panelExt'),
+  extInput: $('extInput'),
+  btnExtClear: $('btnExtClear'),
+  extStatus: $('extStatus'),
+  extStatusDot: $('extStatusDot'),
+  extStatusText: $('extStatusText'),
 };
 
 // ── Init ──
@@ -211,11 +211,11 @@ async function init() {
     // If ext mode is active and user isn't focused on qty or ext input,
     // redirect any printable key to the ext input automatically
     if (state.inputMode === 'ext'
-        && !els.searchOverlay.classList.contains('open')
-        && !els.scanOverlay.classList.contains('open')
-        && document.activeElement !== els.extInput
-        && document.activeElement !== els.fQty
-        && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      && !els.searchOverlay.classList.contains('open')
+      && !els.scanOverlay.classList.contains('open')
+      && document.activeElement !== els.extInput
+      && document.activeElement !== els.fQty
+      && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
       els.extInput.focus();
     }
   });
@@ -309,9 +309,9 @@ function setCurrentProduct(data) {
 
 function fillProductCard(data) {
   els.pcDescripcion.textContent = data.DESCRIPCION || '—';
-  els.pcProveedor.textContent   = data.PROVEEDOR   || '—';
-  els.pcGramaje.textContent     = data.GRAMAJE      || '—';
-  els.pcUxb.textContent         = data.UXB != null  ? `${data.UXB} u.` : '—';
+  els.pcProveedor.textContent = data.PROVEEDOR || '—';
+  els.pcGramaje.textContent = data.GRAMAJE || '—';
+  els.pcUxb.textContent = data.UXB != null ? `${data.UXB} u.` : '—';
 }
 
 function resetCurrentProduct() {
@@ -376,14 +376,14 @@ function onSearchInput() {
 }
 
 function renderSearchResults(query) {
-  const q     = normalize(query);
+  const q = normalize(query);
   const field = state.searchField;
 
   if (q.length < 2) {
     els.searchStateEmpty.style.display = 'flex';
-    els.searchStateNone.style.display  = 'none';
-    els.searchResults.style.display    = 'none';
-    els.searchCount.textContent        = '';
+    els.searchStateNone.style.display = 'none';
+    els.searchResults.style.display = 'none';
+    els.searchCount.textContent = '';
     return;
   }
 
@@ -391,16 +391,16 @@ function renderSearchResults(query) {
     if (field === 'all') {
       return (
         normalize(p.DESCRIPCION).includes(q) ||
-        normalize(p.PROVEEDOR).includes(q)   ||
-        normalize(p.SECTOR).includes(q)      ||
-        normalize(p.SECCION).includes(q)     ||
-        normalize(String(p.EAN    ?? '')).includes(q) ||
+        normalize(p.PROVEEDOR).includes(q) ||
+        normalize(p.SECTOR).includes(q) ||
+        normalize(p.SECCION).includes(q) ||
+        normalize(String(p.EAN ?? '')).includes(q) ||
         normalize(String(p.INTERNO ?? '')).includes(q)
       );
     }
     if (field === 'EAN') {
       return (
-        normalize(String(p.EAN     ?? '')).includes(q) ||
+        normalize(String(p.EAN ?? '')).includes(q) ||
         normalize(String(p.INTERNO ?? '')).includes(q)
       );
     }
@@ -412,13 +412,13 @@ function renderSearchResults(query) {
   if (matches.length === 0) {
     els.searchStateNone.style.display = 'flex';
     els.searchTermDisplay.textContent = `"${query}"`;
-    els.searchResults.style.display   = 'none';
-    els.searchCount.textContent       = 'Sin resultados';
+    els.searchResults.style.display = 'none';
+    els.searchCount.textContent = 'Sin resultados';
     return;
   }
 
   els.searchStateNone.style.display = 'none';
-  els.searchResults.style.display   = 'block';
+  els.searchResults.style.display = 'block';
 
   const shown = matches.slice(0, 80);
   const total = matches.length;
@@ -427,21 +427,21 @@ function renderSearchResults(query) {
     : `${total} resultado${total !== 1 ? 's' : ''}`;
 
   els.searchResults.innerHTML = shown.map((p, i) => {
-    const key      = cartKey(p);
-    const inCart   = state.searchCart.has(key);
-    const qtyVal   = inCart ? (state.searchCart.get(key).qty || '') : '';
+    const key = cartKey(p);
+    const inCart = state.searchCart.has(key);
+    const qtyVal = inCart ? (state.searchCart.get(key).qty || '') : '';
 
-    const desc   = highlight(p.DESCRIPCION || '—', q);
-    const prov   = highlight(p.PROVEEDOR   || '—', q);
-    const eanRaw = String(p.EAN     ?? '');
+    const desc = highlight(p.DESCRIPCION || '—', q);
+    const prov = highlight(p.PROVEEDOR || '—', q);
+    const eanRaw = String(p.EAN ?? '');
     const intRaw = String(p.INTERNO ?? '');
-    const eanHL  = highlight(eanRaw, q);
-    const intHL  = highlight(intRaw, q);
+    const eanHL = highlight(eanRaw, q);
+    const intHL = highlight(intRaw, q);
 
     const eanBadge = eanRaw ? `<span class="sr-ean">EAN ${eanHL}</span>` : '';
     const intBadge = intRaw && intRaw !== eanRaw ? `<span class="sr-ean sr-ean--int">INT ${intHL}</span>` : '';
-    const sect    = p.SECTOR  ? `<span class="sr-tag">${esc(p.SECTOR)}</span>`  : '';
-    const secc    = p.SECCION ? `<span class="sr-tag">${esc(p.SECCION)}</span>` : '';
+    const sect = p.SECTOR ? `<span class="sr-tag">${esc(p.SECTOR)}</span>` : '';
+    const secc = p.SECCION ? `<span class="sr-tag">${esc(p.SECCION)}</span>` : '';
     const gramaje = p.GRAMAJE ? `<span class="sr-tag sr-tag--gramaje">${esc(p.GRAMAJE)}</span>` : '';
 
     return `
@@ -484,7 +484,7 @@ function renderSearchResults(query) {
 
   // Eventos
   els.searchResults.querySelectorAll('.sr-item').forEach((li, i) => {
-    const p   = shown[i];
+    const p = shown[i];
     const key = cartKey(p);
 
     // Click en la fila → toggle (excepto sobre el input)
@@ -500,13 +500,13 @@ function renderSearchResults(query) {
         toggleCartItem(p, key, li);
       }
       if (e.key === 'ArrowDown') { e.preventDefault(); (li.nextElementSibling || li).focus(); }
-      if (e.key === 'ArrowUp')   { e.preventDefault(); (li.previousElementSibling || li).focus(); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); (li.previousElementSibling || li).focus(); }
     });
 
     // Input de cantidad
     const qtyInput = li.querySelector('.sr-qty-input');
     if (qtyInput) {
-      qtyInput.addEventListener('click',  (e) => e.stopPropagation());
+      qtyInput.addEventListener('click', (e) => e.stopPropagation());
       qtyInput.addEventListener('keydown', (e) => e.stopPropagation());
       qtyInput.addEventListener('input', () => {
         const val = parseFloat(qtyInput.value);
@@ -542,7 +542,7 @@ function toggleCartItem(producto, key, liEl) {
 
 // Actualiza el texto y estado de la barra de confirmación
 function updateCommitBar() {
-  const total  = state.searchCart.size;
+  const total = state.searchCart.size;
   const conQty = [...state.searchCart.values()].filter(e => e.qty > 0).length;
   const sinQty = total - conQty;
 
@@ -550,7 +550,7 @@ function updateCommitBar() {
   els.searchCommitBar.classList.toggle('has-items', total > 0);
 
   if (total === 0) {
-    els.scbLabel.textContent   = '0 productos seleccionados';
+    els.scbLabel.textContent = '0 productos seleccionados';
     els.btnCommitSearch.disabled = true;
     els.btnCommitSearch.innerHTML = btnCommitHTML('Agregar a la lista');
     return;
@@ -580,14 +580,14 @@ function commitSearchCart() {
 
   toAdd.forEach(({ producto: p, qty }) => {
     state.order.push({
-      id:          Date.now() + Math.random(),
-      ean:         p.EAN        || p.INTERNO || '',
-      interno:     p.INTERNO    || '',
+      id: Date.now() + Math.random(),
+      ean: p.EAN || p.INTERNO || '',
+      interno: p.INTERNO || '',
       descripcion: p.DESCRIPCION || '',
-      proveedor:   p.PROVEEDOR   || '',
-      gramaje:     p.GRAMAJE     || '',
-      uxb:         p.UXB != null ? p.UXB : '',
-      cantidad:    qty,
+      proveedor: p.PROVEEDOR || '',
+      gramaje: p.GRAMAJE || '',
+      uxb: p.UXB != null ? p.UXB : '',
+      cantidad: qty,
     });
   });
 
@@ -610,7 +610,7 @@ function normalize(str) {
 
 function highlight(text, query) {
   if (!text || !query) return esc(text);
-  const normText  = normalize(text);
+  const normText = normalize(text);
   const normQuery = normalize(query);
   const result = [];
   let i = 0;
@@ -626,19 +626,19 @@ function highlight(text, query) {
 
 // ── Pedido (scanner) ──
 function addToOrder() {
-  const p   = state.currentProduct;
+  const p = state.currentProduct;
   const qty = parseFloat(els.fQty.value.replace(',', '.'));
   if (isNaN(qty) || qty <= 0) { els.eQty.classList.add('show'); els.fQty.focus(); return; }
 
   state.order.push({
-    id:          Date.now(),
-    ean:         p?.EAN || p?.INTERNO || '',
-    interno:     p?.INTERNO    || '',
+    id: Date.now(),
+    ean: p?.EAN || p?.INTERNO || '',
+    interno: p?.INTERNO || '',
     descripcion: p?.DESCRIPCION || '',
-    proveedor:   p?.PROVEEDOR   || '',
-    gramaje:     p?.GRAMAJE     || '',
-    uxb:         p?.UXB != null ? p.UXB : '',
-    cantidad:    qty,
+    proveedor: p?.PROVEEDOR || '',
+    gramaje: p?.GRAMAJE || '',
+    uxb: p?.UXB != null ? p.UXB : '',
+    cantidad: qty,
   });
 
   renderTable();
@@ -675,11 +675,11 @@ function clearOrder() {
 
 function renderTable() {
   const has = state.order.length > 0;
-  els.tableEmpty.style.display  = has ? 'none'  : 'block';
-  els.orderTable.style.display  = has ? 'table' : 'none';
-  els.btnExport.disabled        = !has;
-  els.btnExportPDF.disabled     = !has;
-  els.btnClearOrder.disabled    = !has;
+  els.tableEmpty.style.display = has ? 'none' : 'block';
+  els.orderTable.style.display = has ? 'table' : 'none';
+  els.btnExport.disabled = !has;
+  els.btnExportPDF.disabled = !has;
+  els.btnClearOrder.disabled = !has;
 
   els.orderBody.innerHTML = state.order.map(item => `
     <tr>
@@ -746,7 +746,7 @@ function onBarcodeScanned(decodedText) {
 
 async function closeScanner() {
   if (state.html5QrCode) {
-    try { if (state.scannerActive) await state.html5QrCode.stop(); state.html5QrCode.clear(); } catch (_) {}
+    try { if (state.scannerActive) await state.html5QrCode.stop(); state.html5QrCode.clear(); } catch (_) { }
     state.html5QrCode = null;
   }
   state.scannerActive = false;
@@ -777,102 +777,104 @@ async function exportExcel() {
   const now = new Date();
   const fecha = now.toLocaleDateString('es-AR');
   const fechaFile = now.toISOString().slice(0, 10);
-  const remitoId  = now.getTime();
+  const remitoId = now.getTime();
 
   const sucursal = els.fSucursal.value;
-  if (!sucursal) { els.eSucursal.classList.add('show'); els.fSucursal.classList.add('err'); els.fSucursal.focus(); showToast('err','Seleccioná una sucursal antes de exportar.'); return; }
+  if (!sucursal) { els.eSucursal.classList.add('show'); els.fSucursal.classList.add('err'); els.fSucursal.focus(); showToast('err', 'Seleccioná una sucursal antes de exportar.'); return; }
   const concepto = els.fConcepto.value.trim();
-  if (!concepto) { els.eConcepto.classList.add('show'); els.fConcepto.classList.add('err'); els.fConcepto.focus(); showToast('err','Ingresá un concepto general.'); return; }
+  if (!concepto) { els.eConcepto.classList.add('show'); els.fConcepto.classList.add('err'); els.fConcepto.focus(); showToast('err', 'Ingresá un concepto general.'); return; }
 
-  const conceptoFile = concepto.replace(/\s+/g,'_').toLowerCase();
+  const conceptoFile = concepto.replace(/\s+/g, '_').toLowerCase();
   const filename = `${sucursal}_${fechaFile}_${conceptoFile}_${remitoId}.xlsx`;
 
   const workbook = new ExcelJS.Workbook();
-  const ws = workbook.addWorksheet('Pedido',{views:[{state:'normal'}]});
-  ws.pageSetup = { paperSize:9, orientation:'portrait', fitToPage:true, fitToWidth:1, fitToHeight:0, margins:{left:0.3,right:0.3,top:0.4,bottom:0.4,header:0.3,footer:0.3} };
-  ws.pageSetup.printTitlesRow = '1:3';
+  const ws = workbook.addWorksheet('Pedido', { views: [{ state: 'normal' }] });
+  ws.pageSetup = { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.3, footer: 0.3 } };
+  ws.pageSetup.printTitlesRow = '1:4';
 
-  ws.mergeCells('A1:F1'); ws.getCell('A1').value=`REMITO/PEDIDO — ${sucursal.toUpperCase()} — ${fecha}`; ws.getCell('A1').alignment={horizontal:'center',vertical:'middle'}; ws.getCell('A1').font={bold:true,size:14};
-  ws.mergeCells('A2:F2'); ws.getCell('A2').value=`Concepto: ${concepto}`; ws.getCell('A2').alignment={horizontal:'center'};
-  ws.mergeCells('A3:F3'); ws.getCell('A3').value=`ID: ${remitoId}`; ws.getCell('A3').alignment={horizontal:'center'};
-  ws.getRow(4).values=['COD-BAR','EAN','DESCRIPCION','GRAMAJE','UxB','CANTIDAD']; ws.getRow(4).font={bold:true};
-  ws.columns=[{key:'img',width:18},{key:'ean',width:15},{key:'desc',width:50},{key:'gram',width:15},{key:'uxb',width:5},{key:'cant',width:8}];
+  ws.mergeCells('A1:F1'); ws.getCell('A1').value = `REMITO/PEDIDO — ${sucursal.toUpperCase()} — ${fecha}`; ws.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' }; ws.getCell('A1').font = { bold: true, size: 14 };
+  ws.mergeCells('A2:F2'); ws.getCell('A2').value = `Concepto: ${concepto}`; ws.getCell('A2').alignment = { horizontal: 'center' };
+  ws.mergeCells('A3:F3'); ws.getCell('A3').value = `ID: ${remitoId}`; ws.getCell('A3').alignment = { horizontal: 'center' };
+  ws.getRow(4).values = ['COD-BAR', 'EAN', 'DESCRIPCION', 'GRAMAJE', 'UxB', 'CANTIDAD']; ws.getRow(4).font = { bold: true };
+  ws.columns = [{ key: 'img', width: 18 }, { key: 'ean', width: 15 }, { key: 'desc', width: 50 }, { key: 'gram', width: 15 }, { key: 'uxb', width: 5 }, { key: 'cant', width: 8 }];
 
-  function barcodeDataUrl(code, opts={}) {
+  function barcodeDataUrl(code, opts = {}) {
     const canvas = document.createElement('canvas');
     const format = /^\d{13}$/.test(code) ? 'ean13' : 'code128';
-    try { JsBarcode(canvas,String(code),{format,displayValue:false,margin:0,width:opts.width||2,height:opts.height||60,fontSize:12}); }
-    catch { JsBarcode(canvas,String(code),{format:'code128',displayValue:false,margin:0,width:opts.width||2,height:opts.height||60}); }
+    try { JsBarcode(canvas, String(code), { format, displayValue: false, margin: 0, width: opts.width || 2, height: opts.height || 60, fontSize: 12 }); }
+    catch { JsBarcode(canvas, String(code), { format: 'code128', displayValue: false, margin: 0, width: opts.width || 2, height: opts.height || 60 }); }
     return canvas.toDataURL('image/png');
   }
 
-  for (let i=0; i<state.order.length; i++) {
-    const item=state.order[i]; const rowIndex=5+i; const eanCode=item.ean||'';
-    const base64=barcodeDataUrl(eanCode,{width:2,height:60}).split(',')[1];
-    const imageId=workbook.addImage({base64,extension:'png'});
-    ws.getCell(`A${rowIndex}`).value='';
-    ws.addImage(imageId,{tl:{col:0.15,row:rowIndex-1+0.1},ext:{width:100,height:45},editAs:'oneCell'});
-    ws.getCell(`B${rowIndex}`).value=String(eanCode);
-    ws.getCell(`C${rowIndex}`).value=item.descripcion||'';
-    ws.getCell(`D${rowIndex}`).value=item.gramaje||'';
-    ws.getCell(`E${rowIndex}`).value=item.uxb!==''?item.uxb:'';
-    ws.getCell(`F${rowIndex}`).value=item.cantidad;
-    ws.getRow(rowIndex).height=55;
+  for (let i = 0; i < state.order.length; i++) {
+    const item = state.order[i]; const rowIndex = 5 + i; const eanCode = item.ean || '';
+    const base64 = barcodeDataUrl(eanCode, { width: 2, height: 60 }).split(',')[1];
+    const imageId = workbook.addImage({ base64, extension: 'png' });
+    ws.getCell(`A${rowIndex}`).value = '';
+    ws.addImage(imageId, { tl: { col: 0.15, row: rowIndex - 1 + 0.1 }, ext: { width: 100, height: 45 }, editAs: 'oneCell' });
+    ws.getCell(`B${rowIndex}`).value = String(eanCode);
+    ws.getCell(`C${rowIndex}`).value = item.descripcion || '';
+    ws.getCell(`D${rowIndex}`).value = item.gramaje || '';
+    ws.getCell(`E${rowIndex}`).value = item.uxb !== '' ? item.uxb : '';
+    ws.getCell(`F${rowIndex}`).value = item.cantidad;
+    ws.getRow(rowIndex).height = 55;
   }
 
-  ws.eachRow({includeEmpty:true},row=>{row.eachCell({includeEmpty:true},cell=>{cell.alignment={horizontal:'center',vertical:'middle',wrapText:true};cell.border={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}};});});
-  autoFitColumns(ws,[3]);
+  ws.eachRow({ includeEmpty: true }, row => { row.eachCell({ includeEmpty: true }, cell => { cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } }; }); });
+  autoFitColumns(ws, [3]);
 
   try {
-    const buf=await workbook.xlsx.writeBuffer();
-    const blob=new Blob([buf],{type:'application/octet-stream'});
-    saveAs(blob,filename);
-    showToast('ok','Excel descargado.');
-    await uploadToDrive(blob,filename);
-  } catch(err){ console.error(err); showToast('err','No se pudo generar el Excel.'); }
+    const buf = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/octet-stream' });
+    saveAs(blob, filename);
+    showToast('ok', 'Excel descargado.');
+    await uploadToDrive(blob, filename);
+  } catch (err) { console.error(err); showToast('err', 'No se pudo generar el Excel.'); }
 }
 
-function autoFitColumns(worksheet, cols=[]) {
-  cols.forEach(n=>{ const col=worksheet.getColumn(n); let max=10; col.eachCell({includeEmpty:true},c=>{const v=c.value?c.value.toString():''; max=Math.max(max,v.length+2);}); col.width=max; });
+function autoFitColumns(worksheet, cols = []) {
+  cols.forEach(n => { const col = worksheet.getColumn(n); let max = 10; col.eachCell({ includeEmpty: true }, c => { const v = c.value ? c.value.toString() : ''; max = Math.max(max, v.length + 2); }); col.width = max; });
 }
 
 // ── Export PDF ──
 async function exportPDF() {
   if (!state.order.length) return;
-  const now=new Date(); const fecha=now.toLocaleDateString('es-AR'); const fechaFile=now.toISOString().slice(0,10); const remitoId=now.getTime();
-  const sucursal=els.fSucursal.value;
-  if (!sucursal){ els.eSucursal.classList.add('show'); els.fSucursal.classList.add('err'); els.fSucursal.focus(); showToast('err','Seleccioná una sucursal antes de exportar.'); return; }
-  const concepto=els.fConcepto.value.trim();
-  if (!concepto){ els.eConcepto.classList.add('show'); els.fConcepto.classList.add('err'); els.fConcepto.focus(); showToast('err','Ingresá un concepto general.'); return; }
-  const conceptoFile=concepto.replace(/\s+/g,'_').toLowerCase();
-  const filename=`${sucursal}_${fechaFile}_${conceptoFile}_${remitoId}.pdf`;
-  const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({unit:'pt',format:'a4',orientation:'landscape'});
-  doc.setFontSize(16); doc.text(`REMITO/PEDIDO — ${sucursal.toUpperCase()} — ${fecha}`,40,40);
-  doc.setFontSize(12); doc.text(`Concepto: ${concepto}`,40,60); doc.text(`ID: ${remitoId}`,40,80);
-  const rows=[];
+  const now = new Date(); const fecha = now.toLocaleDateString('es-AR'); const fechaFile = now.toISOString().slice(0, 10); const remitoId = now.getTime();
+  const sucursal = els.fSucursal.value;
+  if (!sucursal) { els.eSucursal.classList.add('show'); els.fSucursal.classList.add('err'); els.fSucursal.focus(); showToast('err', 'Seleccioná una sucursal antes de exportar.'); return; }
+  const concepto = els.fConcepto.value.trim();
+  if (!concepto) { els.eConcepto.classList.add('show'); els.fConcepto.classList.add('err'); els.fConcepto.focus(); showToast('err', 'Ingresá un concepto general.'); return; }
+  const conceptoFile = concepto.replace(/\s+/g, '_').toLowerCase();
+  const filename = `${sucursal}_${fechaFile}_${conceptoFile}_${remitoId}.pdf`;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'landscape' });
+  doc.setFontSize(16); doc.text(`REMITO/PEDIDO — ${sucursal.toUpperCase()} — ${fecha}`, 40, 40);
+  doc.setFontSize(12); doc.text(`Concepto: ${concepto}`, 40, 60); doc.text(`ID: ${remitoId}`, 40, 80);
+  const rows = [];
   for (const item of state.order) {
-    const canvas=document.createElement('canvas'); const format=/^\d{13}$/.test(item.ean)?'ean13':'code128';
-    JsBarcode(canvas,String(item.ean),{format,displayValue:false,height:40});
-    rows.push([{content:'',barcode:canvas.toDataURL('image/png')},item.ean,item.descripcion,item.proveedor,item.interno,item.gramaje,item.uxb,item.cantidad]);
+    const canvas = document.createElement('canvas'); const format = /^\d{13}$/.test(item.ean) ? 'ean13' : 'code128';
+    JsBarcode(canvas, String(item.ean), { format, displayValue: false, height: 40 });
+    rows.push([{ content: '', barcode: canvas.toDataURL('image/png') }, item.ean, item.descripcion, item.proveedor, item.interno, item.gramaje, item.uxb, item.cantidad]);
   }
-  doc.autoTable({startY:110,head:[['Código','EAN','Descripción','Proveedor','Interno','Gramaje','UxB','Cant.']],body:rows,rowHeight:30,styles:{halign:'center',valign:'middle',cellPadding:{top:6,bottom:6}},
-    didDrawCell:(data)=>{ if(data.column.index===0&&data.cell.raw?.barcode){const iw=110,ih=30; doc.addImage(data.cell.raw.barcode,'PNG',data.cell.x+(data.cell.width-iw)/2,data.cell.y+(data.cell.height-ih)/2,iw,ih);}},
-    columnStyles:{0:{cellWidth:120},1:{cellWidth:70},2:{cellWidth:220},3:{cellWidth:120},4:{cellWidth:80},5:{cellWidth:70},6:{cellWidth:70},7:{cellWidth:60}}});
-  const pdfBlob=doc.output('blob'); doc.save(filename); await uploadToDrive(pdfBlob,filename); showToast('ok','PDF generado y subido a Drive.');
+  doc.autoTable({
+    startY: 110, head: [['Código', 'EAN', 'Descripción', 'Proveedor', 'Interno', 'Gramaje', 'UxB', 'Cant.']], body: rows, rowHeight: 30, styles: { halign: 'center', valign: 'middle', cellPadding: { top: 6, bottom: 6 } },
+    didDrawCell: (data) => { if (data.column.index === 0 && data.cell.raw?.barcode) { const iw = 110, ih = 30; doc.addImage(data.cell.raw.barcode, 'PNG', data.cell.x + (data.cell.width - iw) / 2, data.cell.y + (data.cell.height - ih) / 2, iw, ih); } },
+    columnStyles: { 0: { cellWidth: 120 }, 1: { cellWidth: 70 }, 2: { cellWidth: 220 }, 3: { cellWidth: 120 }, 4: { cellWidth: 80 }, 5: { cellWidth: 70 }, 6: { cellWidth: 70 }, 7: { cellWidth: 60 } }
+  });
+  const pdfBlob = doc.output('blob'); doc.save(filename); await uploadToDrive(pdfBlob, filename); showToast('ok', 'PDF generado y subido a Drive.');
 }
 
 // ── Drive upload ──
 function blobToBase64(blob) {
-  return new Promise((resolve,reject)=>{ const reader=new FileReader(); reader.onloadend=()=>resolve(reader.result.split(',')[1]); reader.onerror=reject; reader.readAsDataURL(blob); });
+  return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onloadend = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(blob); });
 }
 async function uploadToDrive(blob, filename) {
-  const url="https://script.google.com/macros/s/AKfycbzIRnuzUWTjG38fxttQbkvJ7Br_wYSYs5UeaJO9EHnncy7jr8vQivcfQLot0xqSzwsq/exec";
+  const url = "https://script.google.com/macros/s/AKfycbzIRnuzUWTjG38fxttQbkvJ7Br_wYSYs5UeaJO9EHnncy7jr8vQivcfQLot0xqSzwsq/exec";
   try {
-    const base64Data=await blobToBase64(blob);
-    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({filename,mimeType:blob.type,file:base64Data})});
-    const json=await res.json();
-    if(json.ok) showToast('ok',`Archivo subido a Drive: ${filename}`);
-    else showToast('err','Error al subir a Drive: '+(json.error||'Desconocido'));
-  } catch(err){ console.error(err); showToast('err','Error al conectar con Google Drive.'); }
+    const base64Data = await blobToBase64(blob);
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ filename, mimeType: blob.type, file: base64Data }) });
+    const json = await res.json();
+    if (json.ok) showToast('ok', `Archivo subido a Drive: ${filename}`);
+    else showToast('err', 'Error al subir a Drive: ' + (json.error || 'Desconocido'));
+  } catch (err) { console.error(err); showToast('err', 'Error al conectar con Google Drive.'); }
 }
