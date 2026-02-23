@@ -9,7 +9,6 @@
   <title>REMITOS/PEDIDOS</title>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./styles.css" />
-
   <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
@@ -33,7 +32,7 @@
     <div class="badge-count" id="badgeCount">0 ítems</div>
   </header>
 
-  <!-- ══════════ SCANNER MODAL ══════════ -->
+  <!-- ══════════ SCANNER MODAL (bottom-sheet) ══════════ -->
   <div class="s-overlay" id="scanOverlay" role="dialog" aria-modal="true">
     <div class="s-modal">
       <div class="s-head">
@@ -54,10 +53,69 @@
       <div class="cam-err" id="camErr">
         <div class="cam-err-icon">📷</div>
         <p>No se pudo acceder a la cámara.</p>
-        <p>Ingresá el código manualmente.</p>
+        <p>Usá el buscador manual para encontrar el producto.</p>
       </div>
       <p class="s-hint" id="sHint">Apuntá la cámara al código de barras del producto</p>
-      <button class="s-manual-btn" id="btnManualEntry">↩ &nbsp;Ingresarlo manualmente</button>
+      <button class="s-manual-btn" id="btnManualEntry">↩ &nbsp;Cerrar escáner</button>
+    </div>
+  </div>
+
+  <!-- ══════════ SEARCH MODAL (diálogo centrado) ══════════ -->
+  <div class="s-overlay s-overlay--dialog" id="searchOverlay" role="dialog" aria-modal="true" aria-label="Buscar producto">
+    <div class="s-modal search-modal">
+      <div class="s-head">
+        <div class="s-head-left">
+          <div class="s-dot s-dot--search"></div>
+          <span class="s-title">Buscar producto</span>
+        </div>
+        <button class="s-close" id="btnCloseSearch" aria-label="Cerrar">✕</button>
+      </div>
+
+      <div class="search-modal-body">
+
+        <div class="search-input-wrap">
+          <svg class="search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            type="text"
+            id="searchInput"
+            class="search-input"
+            placeholder="Descripción, proveedor, EAN…"
+            autocomplete="off"
+            autocorrect="off"
+            spellcheck="false"
+            inputmode="search"
+          />
+          <button class="search-clear-btn" id="btnClearSearch" aria-label="Limpiar búsqueda" style="display:none">✕</button>
+        </div>
+
+        <div class="search-filters">
+          <button class="sf-chip sf-chip--active" data-field="all">Todo</button>
+          <button class="sf-chip" data-field="DESCRIPCION">Descripción</button>
+          <button class="sf-chip" data-field="PROVEEDOR">Proveedor</button>
+          <button class="sf-chip" data-field="EAN">EAN / Código</button>
+          <button class="sf-chip" data-field="SECTOR">Sector</button>
+          <button class="sf-chip" data-field="SECCION">Sección</button>
+        </div>
+
+        <div class="search-results-wrap">
+          <div class="search-state" id="searchStateEmpty">
+            <div class="search-state-icon">🔍</div>
+            <p>Escribí al menos 2 caracteres para buscar.</p>
+          </div>
+          <div class="search-state" id="searchStateNone" style="display:none">
+            <div class="search-state-icon">😶</div>
+            <p>Sin resultados para <strong id="searchTermDisplay"></strong>.</p>
+          </div>
+          <ul class="search-results" id="searchResults" style="display:none" role="listbox"></ul>
+        </div>
+
+        <div class="search-footer">
+          <span class="search-count" id="searchCount"></span>
+        </div>
+
+      </div>
     </div>
   </div>
 
@@ -90,21 +148,27 @@
         <div class="ferr" id="eConcepto">Ingresá un concepto general.</div>
       </div>
 
+      <!-- ── Botones para encontrar producto ── -->
       <div class="field">
-        <label for="fBarcode">EAN del Producto: </label>
-        <div class="barcode-wrap">
-          <input type="text" id="fBarcode" placeholder="Escaneá, usá el lector o escribí el código" inputmode="numeric" autocomplete="off" />
-          <button class="scan-btn" id="btnOpenScanner" title="Escanear con cámara">
+        <label>Agregar Producto:</label>
+        <div class="action-btns">
+          <button class="action-btn action-btn--scan" id="btnOpenScanner">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
-              <line x1="7" y1="8" x2="7" y2="16" />
-              <line x1="10" y1="8" x2="10" y2="16" />
-              <line x1="13" y1="8" x2="13" y2="16" />
-              <line x1="16.5" y1="8" x2="16.5" y2="16" />
+              <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4"/>
+              <line x1="7" y1="8" x2="7" y2="16"/>
+              <line x1="10" y1="8" x2="10" y2="16"/>
+              <line x1="13" y1="8" x2="13" y2="16"/>
+              <line x1="16.5" y1="8" x2="16.5" y2="16"/>
             </svg>
+            <span>Escanear código</span>
+          </button>
+          <button class="action-btn action-btn--search" id="btnOpenSearch">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <span>Buscar manualmente</span>
           </button>
         </div>
-        <div class="scanned-ok" id="scannedOk">✓ Código escaneado</div>
       </div>
 
       <!-- Tarjeta producto -->
@@ -112,6 +176,7 @@
         <div class="pc-header">
           <div class="pc-dot"></div>
           <span id="pcStateLabel">Buscando...</span>
+          <button class="pc-clear-btn" id="btnClearProduct" title="Cambiar producto">✕ Cambiar</button>
         </div>
         <div class="pc-loading">
           <div class="pc-spinner"></div><span>Consultando base de datos...</span>
@@ -136,25 +201,23 @@
             </div>
           </div>
         </div>
-        <div class="pc-notfound"><span>⚠️</span><span>Producto no encontrado — completá la descripción manualmente.</span></div>
+        <div class="pc-notfound">
+          <span>⚠️</span>
+          <span>Código no encontrado en la base. Intentá buscarlo manualmente.</span>
+        </div>
       </div>
 
-      <div class="field">
-        <label for="fDesc">Descripción del Producto: <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(se autocompleta)</span></label>
-        <input type="text" id="fDesc" placeholder="Descripción del producto" />
-        <div class="ferr" id="eDesc">Ingresá una descripción.</div>
-      </div>
-
-      <div class="qty-row">
+      <!-- Fila de cantidad — solo aparece cuando hay producto confirmado -->
+      <div class="qty-row" id="qtyRow" style="display:none">
         <div class="field">
-          <label for="fQty">Cantidad del Producto: </label>
+          <label for="fQty">Cantidad:</label>
           <input type="number" id="fQty" placeholder="0" min="1" step="1" inputmode="numeric" />
           <div class="ferr" id="eQty">Cantidad ≥ 1</div>
         </div>
-        <button class="btn-add" id="btnAdd" disabled>
+        <button class="btn-add" id="btnAdd">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
           Agregar
         </button>
@@ -162,7 +225,7 @@
 
     </div>
 
-    <!-- ─── 02: PEDIDO ─── -->
+    <!-- ─── 02: DETALLE ─── -->
     <div class="sec">
       <span class="sec-num">02</span>
       <span class="sec-label">Detalle</span>
@@ -172,7 +235,7 @@
     <div class="table-wrap" id="tableWrap">
       <div class="table-empty" id="tableEmpty">
         <div class="table-empty-icon">📋</div>
-        <div class="table-empty-text">Todavía no agregaste productos.<br />Escaneá o ingresá un código para empezar.</div>
+        <div class="table-empty-text">Todavía no agregaste productos.<br />Escaneá o buscá un producto para empezar.</div>
       </div>
       <table id="orderTable" style="display:none">
         <thead>
@@ -195,16 +258,16 @@
   <div class="footer-actions">
     <button class="btn-export" id="btnExport" disabled>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-        <polyline points="7 10 12 15 17 10" />
-        <line x1="12" y1="15" x2="12" y2="3" />
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
       Exportar Excel
     </button>
-    <button class="btn-export" id="btnExportPDF" disabled style="color:whitesmoke;background-color: red;">
+    <button class="btn-export" id="btnExportPDF" disabled style="color:whitesmoke;background-color:red;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 3v12m0 0l-4-4m4 4l4-4"></path>
-        <path d="M6 19h12"></path>
+        <path d="M12 3v12m0 0l-4-4m4 4l4-4"/>
+        <path d="M6 19h12"/>
       </svg>
       Exportar PDF
     </button>
