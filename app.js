@@ -8,8 +8,8 @@ const state = {
   productos:      [],
   searchField:    'all',
   searchTimer:    null,
-  // Carrito temporal del modal de búsqueda:
-  // Map< key:string, { producto, qty:number } >
+  inputMode:      'cam',    // 'cam' | 'ext'
+  extDebounce:    null,     // timer for external scanner debounce
   searchCart:     new Map(),
 };
 
@@ -63,11 +63,35 @@ const els = {
   searchCommitBar:    $('searchCommitBar'),
   scbLabel:           $('scbLabel'),
   btnCommitSearch:    $('btnCommitSearch'),
+  // mode switcher
+  modeTabCam:         $('modeTabCam'),
+  modeTabExt:         $('modeTabExt'),
+  panelCam:           $('panelCam'),
+  panelExt:           $('panelExt'),
+  extInput:           $('extInput'),
+  btnExtClear:        $('btnExtClear'),
+  extStatus:          $('extStatus'),
+  extStatusDot:       $('extStatusDot'),
+  extStatusText:      $('extStatusText'),
 };
 
 // ── Init ──
 async function init() {
   await cargarProductos();
+
+  // ── Theme toggle ──
+  const btnTheme = $('btnThemeToggle');
+  const applyTheme = (light) => {
+    document.documentElement.classList.toggle('light', light);
+    btnTheme.textContent = light ? '🌙' : '☀️';
+    btnTheme.title = light ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro';
+    localStorage.setItem('theme', light ? 'light' : 'dark');
+  };
+  const savedTheme = localStorage.getItem('theme');
+  applyTheme(savedTheme === 'light');
+  btnTheme.addEventListener('click', () => {
+    applyTheme(!document.documentElement.classList.contains('light'));
+  });
 
   els.btnExportPDF = $('btnExportPDF');
   els.btnExportPDF.addEventListener('click', exportPDF);
@@ -119,11 +143,80 @@ async function init() {
   // Botón confirmar carrito
   els.btnCommitSearch.addEventListener('click', commitSearchCart);
 
-  // Escape
+  // ── Mode switcher (Cámara / Lector Externo) ──
+  function setInputMode(mode) {
+    state.inputMode = mode;
+    localStorage.setItem('inputMode', mode);
+
+    const isCam = mode === 'cam';
+    els.modeTabCam.classList.toggle('mode-tab--active', isCam);
+    els.modeTabExt.classList.toggle('mode-tab--active', !isCam);
+    els.panelCam.style.display = isCam ? '' : 'none';
+    els.panelExt.style.display = isCam ? 'none' : '';
+
+    if (!isCam) {
+      resetCurrentProduct();
+      setTimeout(() => els.extInput.focus(), 80);
+      setExtStatus('ready', 'Listo — esperando lectura');
+    }
+  }
+
+  const savedMode = localStorage.getItem('inputMode') || 'cam';
+  setInputMode(savedMode);
+  els.modeTabCam.addEventListener('click', () => setInputMode('cam'));
+  els.modeTabExt.addEventListener('click', () => setInputMode('ext'));
+
+  // ── External scanner input logic ──
+  els.extInput.addEventListener('input', () => {
+    const val = els.extInput.value.trim();
+    els.btnExtClear.style.display = val ? 'flex' : 'none';
+
+    if (!val) { setExtStatus('ready', 'Listo — esperando lectura'); return; }
+
+    // Indicate "reading" while chars come in
+    setExtStatus('reading', 'Leyendo código...');
+    els.extInput.classList.add('ext-input--reading');
+    els.extInput.classList.remove('ext-input--found');
+
+    // Debounce: scanners dump chars very fast then stop;
+    // wait 120ms of silence before triggering lookup
+    clearTimeout(state.extDebounce);
+    state.extDebounce = setTimeout(() => triggerExtLookup(val), 120);
+  });
+
+  els.extInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      clearTimeout(state.extDebounce);
+      const val = els.extInput.value.trim();
+      if (val) triggerExtLookup(val);
+    }
+  });
+
+  els.btnExtClear.addEventListener('click', () => {
+    els.extInput.value = '';
+    els.btnExtClear.style.display = 'none';
+    els.extInput.classList.remove('ext-input--reading', 'ext-input--found');
+    resetCurrentProduct();
+    setExtStatus('ready', 'Listo — esperando lectura');
+    els.extInput.focus();
+  });
+
+  // Escape + auto-focus ext input when a scanner key arrives
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       if (els.searchOverlay.classList.contains('open')) closeSearchModal();
       if (els.scanOverlay.classList.contains('open')) closeScanner();
+    }
+    // If ext mode is active and user isn't focused on qty or ext input,
+    // redirect any printable key to the ext input automatically
+    if (state.inputMode === 'ext'
+        && !els.searchOverlay.classList.contains('open')
+        && !els.scanOverlay.classList.contains('open')
+        && document.activeElement !== els.extInput
+        && document.activeElement !== els.fQty
+        && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+      els.extInput.focus();
     }
   });
 
@@ -159,6 +252,36 @@ async function fetchProducto(code) {
 // Clave única por producto para el carrito temporal
 function cartKey(p) {
   return `${p.EAN ?? ''}_${p.INTERNO ?? ''}_${normalize(p.DESCRIPCION ?? '')}`;
+}
+
+// ── External scanner: lookup ──
+async function triggerExtLookup(code) {
+  els.extInput.classList.remove('ext-input--reading', 'ext-input--found');
+  setExtStatus('reading', `Buscando: ${code}`);
+  showCardLoading();
+
+  const data = await fetchProducto(code);
+
+  if (data) {
+    setCurrentProduct(data);
+    els.extInput.classList.add('ext-input--found');
+    setExtStatus('found', `✓ ${data.DESCRIPCION ? data.DESCRIPCION.slice(0, 40) : 'Producto encontrado'}`);
+    showToast('ok', 'Producto encontrado');
+    setTimeout(() => els.fQty.focus(), 150);
+  } else {
+    state.currentProduct = null;
+    showCardNotFound();
+    hideQtyRow();
+    setExtStatus('notfound', '⚠ Código no encontrado — intentá la búsqueda manual');
+    showToast('wrn', 'Código no encontrado — intentá buscarlo manualmente.');
+  }
+}
+
+function setExtStatus(type, text) {
+  const el = els.extStatus;
+  el.className = 'ext-status';
+  if (type) el.classList.add(`ext-status--${type}`);
+  els.extStatusText.textContent = text;
 }
 
 // ── Scanner: lookup ──
@@ -521,8 +644,18 @@ function addToOrder() {
   renderTable();
   updateBadge();
   showToast('ok', `"${p?.DESCRIPCION || ''}" agregado (×${qty})`);
+  if (navigator.vibrate) navigator.vibrate(60);
   resetCurrentProduct();
   els.fQty.value = '';
+
+  // In ext mode: reset the input and refocus it for the next scan
+  if (state.inputMode === 'ext') {
+    els.extInput.value = '';
+    els.btnExtClear.style.display = 'none';
+    els.extInput.classList.remove('ext-input--reading', 'ext-input--found');
+    setExtStatus('ready', 'Listo — esperando lectura');
+    setTimeout(() => els.extInput.focus(), 80);
+  }
 }
 
 function removeItem(id) {
