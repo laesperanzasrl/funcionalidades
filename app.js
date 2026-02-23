@@ -586,24 +586,34 @@ function commitSearchCart() {
   const toAdd = [...state.searchCart.values()].filter(e => e.qty > 0);
   if (!toAdd.length) return;
 
+  let added = 0, updated = 0;
   toAdd.forEach(({ producto: p, qty }) => {
-    state.order.push({
-      id: Date.now() + Math.random(),
-      ean: p.EAN || p.INTERNO || '',
-      interno: p.INTERNO || '',
-      descripcion: p.DESCRIPCION || '',
-      proveedor: p.PROVEEDOR || '',
-      gramaje: p.GRAMAJE || '',
-      uxb: p.UXB != null ? p.UXB : '',
-      cantidad: qty,
-    });
+    const existing = findOrderItem(p);
+    if (existing) {
+      existing.cantidad += qty;
+      updated++;
+    } else {
+      state.order.push({
+        id: Date.now() + Math.random(),
+        ean: p.EAN || p.INTERNO || '',
+        interno: p.INTERNO || '',
+        descripcion: p.DESCRIPCION || '',
+        proveedor: p.PROVEEDOR || '',
+        gramaje: p.GRAMAJE || '',
+        uxb: p.UXB != null ? p.UXB : '',
+        cantidad: qty,
+      });
+      added++;
+    }
   });
 
   renderTable();
   updateBadge();
 
-  const n = toAdd.length;
-  showToast('ok', `${n} producto${n !== 1 ? 's' : ''} agregado${n !== 1 ? 's' : ''} a la lista`);
+  const parts = [];
+  if (added) parts.push(`${added} nuevo${added !== 1 ? 's' : ''}`);
+  if (updated) parts.push(`${updated} actualizado${updated !== 1 ? 's' : ''}`);
+  showToast('ok', parts.join(' · ') + ` en la lista`);
   if (navigator.vibrate) navigator.vibrate([60, 30, 60]);
 
   state.searchCart.clear();
@@ -632,26 +642,44 @@ function highlight(text, query) {
   return result.join('');
 }
 
+// ── Busca un ítem ya existente en el pedido por EAN o INTERNO ──
+function findOrderItem(p) {
+  const ean = String(p?.EAN || p?.INTERNO || '').trim();
+  const interno = String(p?.INTERNO || '').trim();
+  return state.order.find(item => {
+    if (ean && String(item.ean).trim() === ean) return true;
+    if (interno && String(item.interno).trim() === interno) return true;
+    return false;
+  }) || null;
+}
+
 // ── Pedido (scanner) ──
 function addToOrder() {
   const p = state.currentProduct;
   const qty = parseFloat(els.fQty.value.replace(',', '.'));
   if (isNaN(qty) || qty <= 0) { els.eQty.classList.add('show'); els.fQty.focus(); return; }
 
-  state.order.push({
-    id: Date.now(),
-    ean: p?.EAN || p?.INTERNO || '',
-    interno: p?.INTERNO || '',
-    descripcion: p?.DESCRIPCION || '',
-    proveedor: p?.PROVEEDOR || '',
-    gramaje: p?.GRAMAJE || '',
-    uxb: p?.UXB != null ? p.UXB : '',
-    cantidad: qty,
-  });
-
-  renderTable();
-  updateBadge();
-  showToast('ok', `"${p?.DESCRIPCION || ''}" agregado (×${qty})`);
+  const existing = findOrderItem(p);
+  if (existing) {
+    existing.cantidad += qty;
+    renderTable();
+    updateBadge();
+    showToast('ok', `"${p?.DESCRIPCION || ''}" — cantidad actualizada (total: ×${existing.cantidad})`);
+  } else {
+    state.order.push({
+      id: Date.now(),
+      ean: p?.EAN || p?.INTERNO || '',
+      interno: p?.INTERNO || '',
+      descripcion: p?.DESCRIPCION || '',
+      proveedor: p?.PROVEEDOR || '',
+      gramaje: p?.GRAMAJE || '',
+      uxb: p?.UXB != null ? p.UXB : '',
+      cantidad: qty,
+    });
+    renderTable();
+    updateBadge();
+    showToast('ok', `"${p?.DESCRIPCION || ''}" agregado (×${qty})`);
+  }
   if (navigator.vibrate) navigator.vibrate(60);
   resetCurrentProduct();
   els.fQty.value = '';
