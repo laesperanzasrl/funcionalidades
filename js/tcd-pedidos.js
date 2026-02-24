@@ -232,7 +232,7 @@ document.addEventListener('DOMContentLoaded', init);
 
 async function cargarProductos() {
   try {
-    const res = await fetch('bd/productos.json');
+    const res = await fetch('../data/productos.json');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     state.productos = json.data || [];
