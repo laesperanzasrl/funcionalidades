@@ -108,7 +108,7 @@ async function init() {
     await cargarProductos();
 
     if (APPS_SCRIPT_URL !== 'PEGA_AQUI_TU_URL_DE_APPS_SCRIPT') {
-        els.cfgBanner.style.display = 'none';
+        if (els.cfgBanner) els.cfgBanner.style.display = 'none';
     }
 
     updateCounter();
@@ -231,12 +231,39 @@ async function init() {
     });
 
     // ── Date restriction + discount toggle ──
+    const MOTIVOS_VENCIMIENTO = ['CONTROL DE VENCIMIENTO'];
+
     els.fEvent.addEventListener('change', () => {
         const val = els.fEvent.value;
         applyDateRestriction(val);
         toggleDiscountInput(val);
+        toggleBdBadge(val);        // ← AGREGAR ESTA LÍNEA
         clearFieldError('fEvent');
     });
+
+    // Nueva función: muestra en qué BD va a caer el registro
+    function toggleBdBadge(motivo) {
+        const badge = $('bdBadge');
+        if (!badge || !motivo) {
+            badge && (badge.style.display = 'none');
+            return;
+        }
+        const esVencimiento = MOTIVOS_VENCIMIENTO.includes(motivo);
+        badge.className = `bd-badge ${esVencimiento ? 'bd-badge--ven' : 'bd-badge--dev'}`;
+        badge.textContent = esVencimiento
+            ? '📋 Se guardará en: Control de Vencimientos'
+            : '📦 Se guardará en: Devoluciones / Acciones';
+        badge.style.display = 'flex';
+    }
+
+    // Actualizar el texto del botón submit según el tipo de registro
+    function updateSubmitLabel(motivo) {
+        const esVencimiento = MOTIVOS_VENCIMIENTO.includes(motivo);
+        const btnText = $('btnText');
+        if (btnText) {
+            btnText.textContent = esVencimiento ? 'Registrar control de vencimiento' : 'Enviar devolución';
+        }
+    }
 
     // ── Submit & clear ──
     els.btnSubmit.addEventListener('click', submitForm);
@@ -406,6 +433,14 @@ function fillProductData(data, pesable = null) {
         eanParts.push(`INT ${data.INTERNO}`);
     els.pcEan.textContent = eanParts.length ? eanParts.join('  ·  ') : '-';
 
+    const pvpEl = $('pcPvp');
+    if (pvpEl) {
+        const pvp = data['PVP SUPER'];
+        pvpEl.textContent = pvp != null
+            ? `$${Number(pvp).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+            : '-';
+    }
+
     // Estado visual de la card
     if (pesable) {
         showProductCardFound();
@@ -540,6 +575,9 @@ function renderSearchResults(query) {
         const sect = p.SECTOR ? `<span class="sr-tag">${esc(p.SECTOR)}</span>` : '';
         const secc = p.SECCION ? `<span class="sr-tag">${esc(p.SECCION)}</span>` : '';
         const gramaje = p.GRAMAJE ? `<span class="sr-tag sr-tag--gramaje">${esc(p.GRAMAJE)}</span>` : '';
+        const pvp = p['PVP SUPER'] != null
+            ? `<span class="sr-tag sr-tag--pvp">$${Number(p['PVP SUPER']).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>`
+            : '';
 
         return `
         <li class="sr-item" role="option" tabindex="0" data-idx="${i}">
@@ -551,7 +589,7 @@ function renderSearchResults(query) {
                 </div>
             </div>
             <div class="sr-right">
-                <div class="sr-tags">${gramaje}${sect}${secc}</div>
+                <div class="sr-tags">${gramaje}${sect}${secc}${pvp}</div>
                 <svg class="sr-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                      stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="9 18 15 12 9 6"/>
@@ -858,11 +896,7 @@ async function submitForm() {
         sector: state.productData?.SECTOR || null,
         seccion: state.productData?.SECCION || null,
         departamento: state.productData?.SECTOR || null,
-        // ── Datos económicos del producto ──────────────────────
-        costoNeto: state.productData?.['COSTO NETO'] ?? null,
-        impInt: state.productData?.['IMP.INT'] ?? null,
-        iva: state.productData?.IVA ?? null,
-        // ── Foto ───────────────────────────────────────────────
+               // ── Foto ───────────────────────────────────────────────
         photoBase64: state.photoBase64 || null,
         photoMime: state.photoMime || null,
         photoName: state.photoName || null,
@@ -967,6 +1001,14 @@ function applyDateRestriction(motivo) {
 function setLoading(on) {
     state.submitting = on;
     els.btnSubmit.disabled = on;
+
+    // Mostrar/ocultar el overlay de bloqueo total
+    if (on) {
+        if (typeof window.showSendingOverlay === 'function') window.showSendingOverlay();
+    } else {
+        if (typeof window.hideSendingOverlay === 'function') window.hideSendingOverlay();
+    }
+
     if (on) {
         els.btnText.textContent = 'Enviando...';
         const sp = document.createElement('div');

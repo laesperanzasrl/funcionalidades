@@ -251,8 +251,8 @@ function normalizeCode(val) {
 async function fetchProducto(code) {
   const normCode = normalizeCode(code);
   return state.productos.find(p => {
-    const normEAN    = normalizeCode(p.EAN);
-    const normINT    = normalizeCode(p.INTERNO);
+    const normEAN = normalizeCode(p.EAN);
+    const normINT = normalizeCode(p.INTERNO);
     return normEAN === normCode || normINT === normCode;
   }) || null;
 }
@@ -320,6 +320,11 @@ function fillProductCard(data) {
   els.pcProveedor.textContent = data.PROVEEDOR || '—';
   els.pcGramaje.textContent = data.GRAMAJE || '—';
   els.pcUxb.textContent = data.UXB != null ? `${data.UXB} u.` : '—';
+  const pvp = data['PVP SUPER'];
+  const pvpEl = $('pcPvp');
+  if (pvpEl) pvpEl.textContent = pvp != null
+    ? `$${Number(pvp).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+    : '—';
 }
 
 function resetCurrentProduct() {
@@ -451,6 +456,9 @@ function renderSearchResults(query) {
     const sect = p.SECTOR ? `<span class="sr-tag">${esc(p.SECTOR)}</span>` : '';
     const secc = p.SECCION ? `<span class="sr-tag">${esc(p.SECCION)}</span>` : '';
     const gramaje = p.GRAMAJE ? `<span class="sr-tag sr-tag--gramaje">${esc(p.GRAMAJE)}</span>` : '';
+    const pvp = p['PVP SUPER'] != null
+      ? `<span class="sr-tag sr-tag--pvp">$${Number(p['PVP SUPER']).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>`
+      : '';
 
     return `
       <li class="sr-item${inCart ? ' sr-item--selected' : ''}" role="option" tabindex="0" data-idx="${i}">
@@ -472,7 +480,7 @@ function renderSearchResults(query) {
         </div>
 
         <div class="sr-right">
-          <div class="sr-tags">${gramaje}${sect}${secc}</div>
+        <div class="sr-tags">${gramaje}${sect}${secc}${pvp}</div>
           <div class="sr-qty-wrap${inCart ? ' sr-qty-wrap--visible' : ''}">
             <input
               type="number"

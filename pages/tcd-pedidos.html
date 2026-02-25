@@ -7,9 +7,11 @@
   <meta name="theme-color" content="#0a0a0f" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>REMITOS/PEDIDOS</title>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet" />
   <link rel="stylesheet" href="../css/tcd-pedidos.css" />
-   <link rel="icon" type="image/x-icon" href="../favicon.ico">
+  <link rel="icon" type="image/x-icon" href="../favicon.ico">
   <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
@@ -65,7 +67,8 @@
   </div>
 
   <!-- ══════════ SEARCH MODAL (diálogo centrado) ══════════ -->
-  <div class="s-overlay s-overlay--dialog" id="searchOverlay" role="dialog" aria-modal="true" aria-label="Buscar producto">
+  <div class="s-overlay s-overlay--dialog" id="searchOverlay" role="dialog" aria-modal="true"
+    aria-label="Buscar producto">
     <div class="s-modal search-modal">
 
       <div class="s-head">
@@ -80,20 +83,15 @@
       <div class="search-modal-body">
 
         <div class="search-input-wrap">
-          <svg class="search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          <svg class="search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
-          <input
-            type="text"
-            id="searchInput"
-            class="search-input"
-            placeholder="Descripción, proveedor, EAN…"
-            autocomplete="off"
-            autocorrect="off"
-            spellcheck="false"
-            inputmode="search"
-          />
-          <button class="search-clear-btn" id="btnClearSearch" aria-label="Limpiar búsqueda" style="display:none">✕</button>
+          <input type="text" id="searchInput" class="search-input" placeholder="Descripción, proveedor, EAN…"
+            autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search" />
+          <button class="search-clear-btn" id="btnClearSearch" aria-label="Limpiar búsqueda"
+            style="display:none">✕</button>
         </div>
 
         <div class="search-filters">
@@ -131,10 +129,10 @@
         </div>
         <button class="scb-btn" id="btnCommitSearch" disabled>
           Agregar a la lista
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-               stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
-            <line x1="12" y1="5" x2="12" y2="19"/>
-            <line x1="5" y1="12" x2="19" y2="12"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+            stroke-linejoin="round" width="15" height="15">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
         </button>
       </div>
@@ -177,18 +175,21 @@
         <!-- Mode switcher -->
         <div class="mode-switcher" id="modeSwitcher">
           <button class="mode-tab mode-tab--active" id="modeTabCam" data-mode="cam">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
-              <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+              stroke-linejoin="round" width="15" height="15">
+              <path
+                d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
             </svg>
             Cámara / Búsqueda
           </button>
           <button class="mode-tab" id="modeTabExt" data-mode="ext">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
-              <rect x="2" y="7" width="20" height="10" rx="2"/>
-              <line x1="6" y1="11" x2="6" y2="13"/>
-              <line x1="10" y1="11" x2="10" y2="13"/>
-              <line x1="14" y1="11" x2="14" y2="13"/>
-              <line x1="18" y1="10" x2="18" y2="14"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+              stroke-linejoin="round" width="15" height="15">
+              <rect x="2" y="7" width="20" height="10" rx="2" />
+              <line x1="6" y1="11" x2="6" y2="13" />
+              <line x1="10" y1="11" x2="10" y2="13" />
+              <line x1="14" y1="11" x2="14" y2="13" />
+              <line x1="18" y1="10" x2="18" y2="14" />
             </svg>
             Lector Externo
           </button>
@@ -197,18 +198,22 @@
         <!-- Panel: cámara + búsqueda manual -->
         <div class="action-btns" id="panelCam">
           <button class="action-btn action-btn--scan" id="btnOpenScanner">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4"/>
-              <line x1="7" y1="8" x2="7" y2="16"/>
-              <line x1="10" y1="8" x2="10" y2="16"/>
-              <line x1="13" y1="8" x2="13" y2="16"/>
-              <line x1="16.5" y1="8" x2="16.5" y2="16"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path
+                d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
+              <line x1="7" y1="8" x2="7" y2="16" />
+              <line x1="10" y1="8" x2="10" y2="16" />
+              <line x1="13" y1="8" x2="13" y2="16" />
+              <line x1="16.5" y1="8" x2="16.5" y2="16" />
             </svg>
             <span>Escanear código</span>
           </button>
           <button class="action-btn action-btn--search" id="btnOpenSearch">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             <span>Buscar manualmente</span>
           </button>
@@ -221,26 +226,20 @@
             <span id="extStatusText">Listo — esperando lectura</span>
           </div>
           <div class="ext-input-wrap">
-            <svg class="ext-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="7" width="20" height="10" rx="2"/>
-              <line x1="6" y1="11" x2="6" y2="13"/>
-              <line x1="10" y1="11" x2="10" y2="13"/>
-              <line x1="14" y1="11" x2="14" y2="13"/>
-              <line x1="18" y1="10" x2="18" y2="14"/>
+            <svg class="ext-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="7" width="20" height="10" rx="2" />
+              <line x1="6" y1="11" x2="6" y2="13" />
+              <line x1="10" y1="11" x2="10" y2="13" />
+              <line x1="14" y1="11" x2="14" y2="13" />
+              <line x1="18" y1="10" x2="18" y2="14" />
             </svg>
-            <input
-              type="text"
-              id="extInput"
-              class="ext-input"
-              placeholder="Apuntá el lector acá..."
-              autocomplete="off"
-              autocorrect="off"
-              spellcheck="false"
-              inputmode="none"
-            />
+            <input type="text" id="extInput" class="ext-input" placeholder="Apuntá el lector acá..." autocomplete="off"
+              autocorrect="off" spellcheck="false" inputmode="none" />
             <button class="ext-clear-btn" id="btnExtClear" aria-label="Limpiar" style="display:none">✕</button>
           </div>
-          <p class="ext-hint">El lector escribe el código y presiona Enter automáticamente.<br>También podés ingresar el código manualmente y presionar <kbd>Enter</kbd>.</p>
+          <p class="ext-hint">El lector escribe el código y presiona Enter automáticamente.<br>También podés ingresar el
+            código manualmente y presionar <kbd>Enter</kbd>.</p>
         </div>
 
       </div>
@@ -273,6 +272,10 @@
               <div class="pc-field-label">Unidades x bulto</div>
               <div class="pc-field-value" id="pcUxb">—</div>
             </div>
+            <div class="pc-field">
+              <div class="pc-field-label">PVP</div>
+              <div class="pc-field-value" id="pcPvp">—</div>
+            </div>
           </div>
         </div>
         <div class="pc-notfound">
@@ -289,9 +292,10 @@
           <div class="ferr" id="eQty">Cantidad ≥ 1</div>
         </div>
         <button class="btn-add" id="btnAdd">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"/>
-            <line x1="5" y1="12" x2="19" y2="12"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+            stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
           Agregar
         </button>
@@ -308,7 +312,8 @@
     <div class="table-wrap" id="tableWrap">
       <div class="table-empty" id="tableEmpty">
         <div class="table-empty-icon">📋</div>
-        <div class="table-empty-text">Todavía no agregaste productos.<br />Escaneá o buscá un producto para empezar.</div>
+        <div class="table-empty-text">Todavía no agregaste productos.<br />Escaneá o buscá un producto para empezar.
+        </div>
       </div>
       <table id="orderTable" style="display:none">
         <thead>
@@ -330,17 +335,19 @@
   <!-- ══════════ FOOTER ══════════ -->
   <div class="footer-actions">
     <button class="btn-export" id="btnExport" disabled>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-        <polyline points="7 10 12 15 17 10"/>
-        <line x1="12" y1="15" x2="12" y2="3"/>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
       </svg>
       Exportar Excel
     </button>
     <button class="btn-export" id="btnExportPDF" disabled style="color:whitesmoke;background-color:red;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 3v12m0 0l-4-4m4 4l4-4"/>
-        <path d="M6 19h12"/>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M12 3v12m0 0l-4-4m4 4l4-4" />
+        <path d="M6 19h12" />
       </svg>
       Exportar PDF
     </button>
@@ -354,4 +361,5 @@
 
   <script src="../js/tcd-pedidos.js"></script>
 </body>
+
 </html>
