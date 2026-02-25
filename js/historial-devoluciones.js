@@ -1,5 +1,9 @@
 // ══════════════════════════════════════════════════════════════
-//  tcd-gestion.js  —  Tablero de Gestión de Proveedores
+//  tcd-gestion.js v2 — Tablero de Gestión de Proveedores
+//  - Fix vinculación: VENCIDO se chequea ANTES que ACCION
+//  - Drag & Drop entre columnas (HTML5 nativo)
+//  - Cards compactas tipo lista
+//  - Dashboard de resumen
 // ══════════════════════════════════════════════════════════════
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwj0qEOm9THbYxw0TYek2Oot3dlL1wn7YmPLtYknFzrGBQJXFnd-kh7yxXtFgYFyC-B/exec';
@@ -7,39 +11,35 @@ const AUTO_REFRESH_MS = 5 * 60 * 1000;
 
 const $ = id => document.getElementById(id);
 
-// ── Estado ──────────────────────────────────────────────────
 const state = {
-    data: [],             // todos los registros
-    proveedores: {},      // agrupados por proveedor
-    activeProv: null,     // proveedor seleccionado
-    vinculados: {},       // mapa EAN → [registros] para vínculos
-    modalRecord: null,    // registro abierto en modal
-    modalEstado: null,    // estado seleccionado en modal
-    modalCalcNC: 0,       // NC calculada
+    data: [],
+    proveedores: {},
+    activeProv: null,
+    vinculados: {},
+    modalRecord: null,
+    modalEstado: null,
+    modalCalcNC: 0,
     saving: false,
     loading: false,
     sidebarFilter: 'todos',
     lastUpdate: null,
+    activeView: 'kanban',
+    drag: { id: null, srcEstado: null, record: null },
 };
 
-// ── INIT ────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
-    // Refresh
     $('btnRefresh').addEventListener('click', () => loadData(true));
-    $('btnRetry').addEventListener('click', () => loadData(true));
-
-    // Sidebar toggle
+    $('btnRetry').addEventListener('click',  () => loadData(true));
     $('btnToggleSidebar').addEventListener('click', toggleSidebar);
     $('btnBack').addEventListener('click', () => {
-        // En mobile, volver al sidebar
         document.getElementById('sidebar').classList.remove('collapsed');
         showKanban(false);
     });
-
-    // Búsqueda proveedor
     $('provSearch').addEventListener('input', renderProvList);
 
-    // Filtros sidebar
     document.querySelectorAll('.sf-pill').forEach(pill => {
         pill.addEventListener('click', () => {
             document.querySelectorAll('.sf-pill').forEach(p => p.classList.remove('sf-pill--active'));
@@ -49,16 +49,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Modal
-    $('modalClose').addEventListener('click', closeModal);
-    $('modalCancel').addEventListener('click', closeModal);
-    $('modalOverlay').addEventListener('click', e => { if (e.target === $('modalOverlay')) closeModal(); });
-    $('modalSave').addEventListener('click', saveRecord);
-    $('btnUseCalc').addEventListener('click', () => {
-        $('modalMonto').value = state.modalCalcNC.toFixed(2);
+    document.querySelectorAll('.view-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('view-tab--active'));
+            tab.classList.add('view-tab--active');
+            setView(tab.dataset.view);
+        });
     });
 
-    // Estado selector en modal
+    $('modalClose').addEventListener('click',  closeModal);
+    $('modalCancel').addEventListener('click', closeModal);
+    $('modalOverlay').addEventListener('click', e => { if (e.target === $('modalOverlay')) closeModal(); });
+    $('modalSave').addEventListener('click',   saveRecord);
+    $('btnUseCalc').addEventListener('click', () => { $('modalMonto').value = state.modalCalcNC.toFixed(2); });
+
     document.querySelectorAll('.est-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.est-btn').forEach(b => b.classList.remove('selected'));
@@ -67,14 +71,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // ESC cierra modal
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') closeModal();
-    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
     loadData();
     if (AUTO_REFRESH_MS > 0) setInterval(() => loadData(false), AUTO_REFRESH_MS);
 });
+
+function setView(v) {
+    state.activeView = v;
+    $('viewDashboard').style.display = v === 'dashboard' ? 'flex' : 'none';
+    $('viewKanban').style.display    = v === 'kanban'    ? 'flex' : 'none';
+    if (v === 'dashboard' && state.data.length) renderDashboard();
+}
 
 // ══════════════════════════════════════════════════════════════
 //  CARGA DE DATOS
@@ -85,7 +93,7 @@ async function loadData(showSpinner = true) {
 
     if (showSpinner) {
         $('boardLoading').style.display = 'flex';
-        $('boardError').style.display = 'none';
+        $('boardError').style.display   = 'none';
         $('boardPlaceholder').style.display = 'none';
         showKanban(false);
     }
@@ -106,9 +114,8 @@ async function loadData(showSpinner = true) {
         renderProvList();
 
         $('boardLoading').style.display = 'none';
-        $('boardError').style.display = 'none';
+        $('boardError').style.display   = 'none';
 
-        // Restaurar proveedor activo si existía
         if (state.activeProv && state.proveedores[state.activeProv]) {
             renderKanban(state.activeProv);
         } else {
@@ -116,13 +123,14 @@ async function loadData(showSpinner = true) {
             showKanban(false);
         }
 
+        if (state.activeView === 'dashboard') renderDashboard();
         setSyncStatus('ok');
         showToast('ok', `${state.data.length} registros cargados`);
 
     } catch (err) {
         console.error('[Gestión]', err);
         $('boardLoading').style.display = 'none';
-        $('boardError').style.display = 'flex';
+        $('boardError').style.display   = 'flex';
         $('errorMsg').textContent = err.message;
         setSyncStatus('err');
         showToast('err', 'Error al cargar datos');
@@ -136,46 +144,41 @@ async function loadData(showSpinner = true) {
 //  PROCESAMIENTO
 // ══════════════════════════════════════════════════════════════
 function processData() {
-    // Agrupar por proveedor
     state.proveedores = {};
     state.data.forEach(r => {
         const prov = (r.PROVEEDOR || 'Sin proveedor').trim();
         if (!state.proveedores[prov]) {
-            state.proveedores[prov] = {
-                nombre: prov,
-                cod: r['COD. PROVEEDOR'] || '',
-                registros: [],
-            };
+            state.proveedores[prov] = { nombre: prov, cod: r['COD. PROVEEDOR'] || '', registros: [] };
         }
         state.proveedores[prov].registros.push(r);
     });
 
-    // Detectar vínculos: mismo EAN + mismo proveedor → tiene acción Y vencimiento/decomiso
-    // Un "vínculo" es cuando el mismo producto (EAN) de un proveedor tiene
-    // un registro de ACCION y también uno de VENCIDO — puede implicar reclamo doble si no se maneja bien
+    // ── Detección de vínculos (FIX: normalizar código, ignorar ceros) ──
     state.vinculados = {};
     Object.values(state.proveedores).forEach(prov => {
-        const byEAN = {};
+        const byCode = {};
         prov.registros.forEach(r => {
-            const ean = String(r.EAN || r['COD. INTERNO'] || '').trim();
-            if (!ean) return;
-            const key = `${prov.nombre}||${ean}`;
-            if (!byEAN[key]) byEAN[key] = [];
-            byEAN[key].push(r);
+            const rawInt = String(r['COD. INTERNO'] || '').trim().replace(/\.0+$/, '');
+            const rawEAN = String(r.EAN || '').trim().replace(/\.0+$/, '');
+            const codigo = (rawInt && rawInt !== '0') ? rawInt
+                         : (rawEAN && rawEAN !== '0') ? rawEAN
+                         : null;
+            if (!codigo) return;
+            const key = `${prov.nombre}||${codigo}`;
+            if (!byCode[key]) byCode[key] = [];
+            byCode[key].push(r);
         });
-        // Guardar solo los grupos que tienen más de 1 tipo de motivo (acción + vencido, etc.)
-        Object.entries(byEAN).forEach(([key, registros]) => {
-            if (registros.length < 2) return;
-            const motivos = new Set(registros.map(r => motivoGrupo(r.MOTIVO)));
-            // Vínculo relevante: tiene acción Y (vencido O decomiso)
-            if (motivos.has('Acción') && (motivos.has('Vencido') || motivos.has('Decomiso'))) {
-                registros.forEach(r => {
-                    const id = r.ID;
-                    if (!state.vinculados[id]) state.vinculados[id] = [];
-                    // Agregar los otros registros del mismo grupo como vínculos
-                    registros.filter(rr => rr.ID !== id).forEach(rr => {
-                        if (!state.vinculados[id].find(v => v.ID === rr.ID)) {
-                            state.vinculados[id].push(rr);
+
+        Object.values(byCode).forEach(regs => {
+            if (regs.length < 2) return;
+            const motivos = new Set(regs.map(r => motivoGrupo(r.MOTIVO)));
+            // Necesita tener al menos un 'Acción' Y un 'Vencido' para ser vínculo relevante
+            if (motivos.has('Acción') && motivos.has('Vencido')) {
+                regs.forEach(r => {
+                    if (!state.vinculados[r.ID]) state.vinculados[r.ID] = [];
+                    regs.filter(rr => rr.ID !== r.ID).forEach(rr => {
+                        if (!state.vinculados[r.ID].find(v => v.ID === rr.ID)) {
+                            state.vinculados[r.ID].push(rr);
                         }
                     });
                 });
@@ -185,27 +188,123 @@ function processData() {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  SIDEBAR — LISTA DE PROVEEDORES
+//  DASHBOARD
+// ══════════════════════════════════════════════════════════════
+function renderDashboard() {
+    const all = state.data;
+    if (!all.length) return;
+
+    const pendientes = all.filter(r => normEstado(r.ESTADO) === 'PENDIENTE').length;
+    const enGestion  = all.filter(r => normEstado(r.ESTADO) === 'EN GESTION').length;
+    const ncRec      = all.filter(r => normEstado(r.ESTADO) === 'N/C RECIBIDA').length;
+    const rechazada  = all.filter(r => normEstado(r.ESTADO) === 'RECHAZADA').length;
+    const montoNC    = all.reduce((s, r) => s + (parseFloat(r['MONTO N/C']) || 0), 0);
+    const costoEst   = all.reduce((s, r) => s + calcNCsugerida(r).total, 0);
+    const vincsN     = Object.keys(state.vinculados).length;
+
+    $('dashKpis').innerHTML = [
+        { v: all.length, l: 'Total registros',    c: 'var(--text)' },
+        { v: pendientes, l: 'Pendientes',          c: 'var(--yellow)' },
+        { v: enGestion,  l: 'En gestión',          c: 'var(--blue)' },
+        { v: ncRec,      l: 'N/C recibidas',       c: 'var(--green)' },
+        { v: fmtPeso(costoEst), l: 'Costo estimado',      c: 'var(--accent)' },
+        { v: fmtPeso(montoNC),  l: 'N/C total recibida',  c: 'var(--green)' },
+        { v: vincsN,            l: '⚠ Vínculos detectados', c: 'var(--purple)' },
+    ].map((k, i) => `
+        <div class="dash-kpi" style="animation-delay:${i * .05}s">
+            <div class="dash-kpi-val" style="color:${k.c}">${k.v}</div>
+            <div class="dash-kpi-lbl">${k.l}</div>
+        </div>`).join('');
+
+    // Barras estado
+    const maxE = Math.max(pendientes, enGestion, ncRec, rechazada, 1);
+    $('dashEstados').innerHTML = [
+        { l: 'Pendiente',    n: pendientes, c: '#eab308' },
+        { l: 'En gestión',   n: enGestion,  c: '#3b82f6' },
+        { l: 'N/C Recibida', n: ncRec,      c: '#22c55e' },
+        { l: 'Rechazada',    n: rechazada,  c: '#ef4444' },
+    ].map(e => `
+        <div class="dash-bar-row">
+            <span class="dash-bar-lbl">${e.l}</span>
+            <div class="dash-bar-track"><div class="dash-bar-fill" style="width:${(e.n/maxE*100).toFixed(1)}%;background:${e.c}"></div></div>
+            <span class="dash-bar-val">${e.n}</span>
+        </div>`).join('');
+
+    // Barras motivo
+    const mc = {};
+    all.forEach(r => { const g = motivoGrupo(r.MOTIVO); mc[g] = (mc[g] || 0) + 1; });
+    const mcColors = { 'Acción':'#a855f7','Vencido':'#f97316','Decomiso':'#ef4444','Otro':'#818cf8' };
+    const maxM = Math.max(...Object.values(mc), 1);
+    $('dashMotivos').innerHTML = Object.entries(mc).sort(([,a],[,b]) => b - a).map(([l, n]) => `
+        <div class="dash-bar-row">
+            <span class="dash-bar-lbl">${l}</span>
+            <div class="dash-bar-track"><div class="dash-bar-fill" style="width:${(n/maxM*100).toFixed(1)}%;background:${mcColors[l]||'#818cf8'}"></div></div>
+            <span class="dash-bar-val">${n}</span>
+        </div>`).join('');
+
+    // Top proveedores
+    const provData = Object.values(state.proveedores)
+        .map(p => ({
+            nombre: p.nombre,
+            n: p.registros.length,
+            est: p.registros.reduce((s,r) => s + calcNCsugerida(r).total, 0),
+            pend: p.registros.filter(r => normEstado(r.ESTADO) === 'PENDIENTE').length,
+        }))
+        .sort((a,b) => b.est - a.est).slice(0, 10);
+
+    $('dashProvList').innerHTML = provData.map((p, i) => `
+        <div class="dash-prov-row">
+            <span class="dash-prov-rank">#${i+1}</span>
+            <span class="dash-prov-name">${esc(p.nombre)}</span>
+            <div class="dash-prov-badges">
+                ${p.pend ? `<span class="pic-badge pic-badge--p">${p.pend}P</span>` : ''}
+                <span class="pic-badge" style="background:var(--surface3);color:var(--text3)">${p.n} reg</span>
+            </div>
+            <span class="dash-prov-amount">${fmtPeso(p.est)}</span>
+        </div>`).join('') || '<p style="font-size:12px;color:var(--text3)">Sin datos</p>';
+
+    // Próximos a vencer (pendientes)
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    const upcoming = all
+        .filter(r => normEstado(r.ESTADO) === 'PENDIENTE' && (r['FECHA VENC.'] || r['FECHA VENCIMIENTO']))
+        .map(r => {
+            const raw = String(r['FECHA VENC.'] || r['FECHA VENCIMIENTO'] || '');
+            let d = null;
+            if (raw.includes('-')) d = new Date(raw.split(' ')[0]);
+            else if (raw.includes('/')) { const p = raw.split('/'); d = new Date(`${p[2]}-${p[1]}-${p[0]}`); }
+            return { r, d };
+        })
+        .filter(x => x.d && !isNaN(x.d))
+        .sort((a,b) => a.d - b.d)
+        .slice(0, 12);
+
+    $('dashUpcoming').innerHTML = upcoming.length ? upcoming.map(({ r, d }) => {
+        const diff = Math.round((d - hoy) / 86400000);
+        const cls  = diff < 0 ? 'expired' : diff <= 3 ? 'urgent' : diff <= 10 ? 'soon' : 'ok';
+        const lbl  = diff < 0 ? `Venc. ${Math.abs(diff)}d` : diff === 0 ? 'HOY' : `${diff}d`;
+        return `
+        <div class="dash-upcoming-row">
+            <span class="dash-up-days ${cls}">${lbl}</span>
+            <div class="dash-up-info">
+                <div class="dash-up-desc">${esc(r.DESCRIPCION || '—')}</div>
+                <div class="dash-up-meta">${esc(r.PROVEEDOR||'')} · ${esc(r.SUCURSAL||'')} · ${fmtCantidad(r)}</div>
+            </div>
+            <span class="dash-up-nc">${fmtPeso(calcNCsugerida(r).total)}</span>
+        </div>`;
+    }).join('') : '<p style="font-size:12px;color:var(--text3);padding:8px 0">Sin registros pendientes con fecha</p>';
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SIDEBAR
 // ══════════════════════════════════════════════════════════════
 function renderProvList() {
-    const query  = $('provSearch').value.toLowerCase().trim();
-    const filter = state.sidebarFilter;
-
+    const q = ($('provSearch').value || '').toLowerCase().trim();
+    const f = state.sidebarFilter;
     let provs = Object.values(state.proveedores);
-
-    // Filtro de texto
-    if (query) provs = provs.filter(p => p.nombre.toLowerCase().includes(query));
-
-    // Filtro por tipo
-    if (filter === 'pendientes') {
-        provs = provs.filter(p => p.registros.some(r => normEstado(r.ESTADO) === 'PENDIENTE'));
-    }
-    if (filter === 'vinculados') {
-        provs = provs.filter(p => p.registros.some(r => state.vinculados[r.ID]?.length > 0));
-    }
-
-    // Ordenar: pendientes primero, luego alfabético
-    provs.sort((a, b) => {
+    if (q) provs = provs.filter(p => p.nombre.toLowerCase().includes(q));
+    if (f === 'pendientes') provs = provs.filter(p => p.registros.some(r => normEstado(r.ESTADO) === 'PENDIENTE'));
+    if (f === 'vinculados') provs = provs.filter(p => p.registros.some(r => state.vinculados[r.ID]?.length > 0));
+    provs.sort((a,b) => {
         const pa = a.registros.filter(r => normEstado(r.ESTADO) === 'PENDIENTE').length;
         const pb = b.registros.filter(r => normEstado(r.ESTADO) === 'PENDIENTE').length;
         return pb - pa || a.nombre.localeCompare(b.nombre);
@@ -213,33 +312,29 @@ function renderProvList() {
 
     const list = $('provList');
     list.innerHTML = '';
-
-    if (provs.length === 0) {
-        list.innerHTML = `<li style="padding:20px 12px;font-size:12px;color:var(--text3);text-align:center">Sin resultados</li>`;
+    if (!provs.length) {
+        list.innerHTML = `<li style="padding:18px 10px;font-size:11px;color:var(--text3);text-align:center">Sin resultados</li>`;
         return;
     }
-
     provs.forEach((p, i) => {
-        const pendientes = p.registros.filter(r => normEstado(r.ESTADO) === 'PENDIENTE').length;
-        const enGestion  = p.registros.filter(r => normEstado(r.ESTADO) === 'EN GESTION').length;
-        const nc         = p.registros.filter(r => normEstado(r.ESTADO) === 'N/C RECIBIDA').length;
-        const tieneVink  = p.registros.some(r => state.vinculados[r.ID]?.length > 0);
-
+        const pend = p.registros.filter(r => normEstado(r.ESTADO) === 'PENDIENTE').length;
+        const gest = p.registros.filter(r => normEstado(r.ESTADO) === 'EN GESTION').length;
+        const nc   = p.registros.filter(r => normEstado(r.ESTADO) === 'N/C RECIBIDA').length;
+        const vink = p.registros.some(r => state.vinculados[r.ID]?.length > 0);
         const li = document.createElement('li');
         li.className = 'prov-item' + (state.activeProv === p.nombre ? ' active' : '');
-        li.style.animationDelay = `${i * 0.03}s`;
+        li.style.animationDelay = `${i * .025}s`;
         li.innerHTML = `
             <span class="prov-item-name">${esc(p.nombre)}</span>
             <div class="prov-item-meta">
                 ${p.cod ? `<span class="prov-item-cod">COD ${p.cod}</span>` : ''}
                 <div class="prov-item-counts">
-                    ${pendientes ? `<span class="pic-badge pic-badge--p">${pendientes}P</span>` : ''}
-                    ${enGestion  ? `<span class="pic-badge pic-badge--g">${enGestion}G</span>` : ''}
-                    ${nc         ? `<span class="pic-badge pic-badge--n">${nc}N/C</span>` : ''}
-                    ${tieneVink  ? `<span class="pic-badge pic-badge--vink">⚠ VIN</span>` : ''}
+                    ${pend ? `<span class="pic-badge pic-badge--p">${pend}P</span>` : ''}
+                    ${gest ? `<span class="pic-badge pic-badge--g">${gest}G</span>` : ''}
+                    ${nc   ? `<span class="pic-badge pic-badge--n">${nc}N/C</span>` : ''}
+                    ${vink ? `<span class="pic-badge pic-badge--vink">⚠</span>` : ''}
                 </div>
-            </div>
-        `;
+            </div>`;
         li.addEventListener('click', () => selectProveedor(p.nombre));
         list.appendChild(li);
     });
@@ -247,19 +342,12 @@ function renderProvList() {
 
 function selectProveedor(nombre) {
     state.activeProv = nombre;
-    // Actualizar selección visual
-    document.querySelectorAll('.prov-item').forEach(li => li.classList.remove('active'));
     document.querySelectorAll('.prov-item').forEach(li => {
-        if (li.querySelector('.prov-item-name')?.textContent.trim() === nombre) {
-            li.classList.add('active');
-        }
+        li.classList.toggle('active', li.querySelector('.prov-item-name')?.textContent.trim() === nombre);
     });
     renderKanban(nombre);
     $('boardPlaceholder').style.display = 'none';
-    // En mobile cerrar sidebar
-    if (window.innerWidth <= 700) {
-        document.getElementById('sidebar').classList.add('collapsed');
-    }
+    if (window.innerWidth <= 700) document.getElementById('sidebar').classList.add('collapsed');
 }
 
 function toggleSidebar() {
@@ -271,135 +359,159 @@ function toggleSidebar() {
 // ══════════════════════════════════════════════════════════════
 function renderKanban(provNombre) {
     showKanban(true);
-
     const prov = state.proveedores[provNombre];
     if (!prov) return;
+    const regs = prov.registros;
 
-    const registros = prov.registros;
-
-    // Header
     $('provHeaderName').textContent = prov.nombre;
-    $('provHeaderMeta').textContent = `${prov.cod ? `COD ${prov.cod} · ` : ''}${registros.length} registros · ${new Set(registros.map(r => r.SUCURSAL)).size} sucursales`;
+    $('provHeaderMeta').textContent = `${prov.cod ? `COD ${prov.cod} · ` : ''}${regs.length} registros · ${new Set(regs.map(r => r.SUCURSAL)).size} sucursal(es)`;
 
-    // KPIs del header
-    const montoNC     = registros.reduce((s, r) => s + (parseFloat(r['MONTO N/C']) || 0), 0);
-    const costoTotal  = registros.reduce((s, r) => s + calcCostoTotal(r), 0);
-    const pendientesN = registros.filter(r => normEstado(r.ESTADO) === 'PENDIENTE').length;
+    const montoNC  = regs.reduce((s,r) => s + (parseFloat(r['MONTO N/C']) || 0), 0);
+    const costoEst = regs.reduce((s,r) => s + calcNCsugerida(r).total, 0);
+    const pends    = regs.filter(r => normEstado(r.ESTADO) === 'PENDIENTE').length;
 
     $('provHeaderKpis').innerHTML = `
-        <div class="phkpi">
-            <span class="phkpi-val" style="color:var(--yellow)">${pendientesN}</span>
-            <span class="phkpi-lbl">Pendientes</span>
-        </div>
-        <div class="phkpi">
-            <span class="phkpi-val" style="color:var(--accent)">${fmtPeso(costoTotal)}</span>
-            <span class="phkpi-lbl">Costo estimado</span>
-        </div>
-        <div class="phkpi">
-            <span class="phkpi-val" style="color:var(--green)">${fmtPeso(montoNC)}</span>
-            <span class="phkpi-lbl">N/C recibida</span>
-        </div>
-    `;
+        <div class="phkpi"><span class="phkpi-val" style="color:var(--yellow)">${pends}</span><span class="phkpi-lbl">Pendientes</span></div>
+        <div class="phkpi"><span class="phkpi-val" style="color:var(--accent)">${fmtPeso(costoEst)}</span><span class="phkpi-lbl">Costo est.</span></div>
+        <div class="phkpi"><span class="phkpi-val" style="color:var(--green)">${fmtPeso(montoNC)}</span><span class="phkpi-lbl">N/C recibida</span></div>`;
 
-    // Alerta de vínculos
-    const vinksCount = registros.filter(r => state.vinculados[r.ID]?.length > 0).length;
-    if (vinksCount > 0) {
-        $('vinkAlert').style.display = 'flex';
-        $('vinkAlertSub').textContent = `${vinksCount} registros tienen vínculos acción+vencimiento. Revisalos antes de reclamar para no duplicar el monto de la N/C.`;
-    } else {
-        $('vinkAlert').style.display = 'none';
-    }
+    const vinksN = regs.filter(r => state.vinculados[r.ID]?.length > 0).length;
+    $('vinkAlert').style.display = vinksN ? 'flex' : 'none';
+    if (vinksN) $('vinkAlertSub').textContent = `${vinksN} registros tienen vínculos acción+vencimiento. Revisalos antes de reclamar para no duplicar el monto.`;
 
-    // Columnas
-    const cols = ['PENDIENTE', 'EN GESTION', 'N/C RECIBIDA', 'RECHAZADA'];
-    const colIds = { 'PENDIENTE': 'PENDIENTE', 'EN GESTION': 'EN_GESTION', 'N/C RECIBIDA': 'NC_RECIBIDA', 'RECHAZADA': 'RECHAZADA' };
+    const COLS = {
+        'PENDIENTE':    { id:'PENDIENTE',   amtFn: r => calcNCsugerida(r).total },
+        'EN GESTION':   { id:'EN_GESTION',  amtFn: r => calcNCsugerida(r).total },
+        'N/C RECIBIDA': { id:'NC_RECIBIDA', amtFn: r => parseFloat(r['MONTO N/C']) || 0 },
+        'RECHAZADA':    { id:'RECHAZADA',   amtFn: () => 0 },
+    };
 
-    cols.forEach(colEstado => {
-        const colId  = colIds[colEstado];
-        const colEl  = $(`col-${colId}`);
-        const cntEl  = $(`cnt-${colId}`);
-        const amtEl  = $(`amt-${colId}`);
-        colEl.innerHTML = '';
+    Object.entries(COLS).forEach(([estado, cfg]) => {
+        const col     = $(`col-${cfg.id}`);
+        const cnt     = $(`cnt-${cfg.id}`);
+        const amt     = $(`amt-${cfg.id}`);
+        const colRegs = regs.filter(r => normEstado(r.ESTADO) === estado);
 
-        const colRegs = registros.filter(r => normEstado(r.ESTADO) === colEstado);
-        cntEl.textContent = colRegs.length;
+        cnt.textContent = colRegs.length;
+        const colMonto = colRegs.reduce((s,r) => s + cfg.amtFn(r), 0);
+        amt.textContent = colMonto > 0 ? fmtPeso(colMonto) : '';
 
-        // Monto de la columna
-        const colMonto = colRegs.reduce((s, r) => {
-            if (colEstado === 'N/C RECIBIDA') return s + (parseFloat(r['MONTO N/C']) || 0);
-            return s + calcNCsugerida(r).total;
-        }, 0);
-        amtEl.textContent = colMonto > 0 ? fmtPeso(colMonto) : '';
-
-        colRegs.forEach((r, i) => {
-            const card = buildCard(r, i);
-            colEl.appendChild(card);
-        });
-
-        // Columna vacía
-        if (colRegs.length === 0) {
-            const empty = document.createElement('div');
-            empty.style.cssText = 'padding:16px 8px;text-align:center;font-size:11px;color:var(--text3)';
-            empty.textContent = 'Sin registros';
-            colEl.appendChild(empty);
+        col.innerHTML = '';
+        if (!colRegs.length) {
+            col.innerHTML = `<div class="kcol-empty">Vacío — arrastrá acá</div>`;
+        } else {
+            colRegs.forEach((r, i) => col.appendChild(buildCard(r, i)));
         }
+        setupDropZone(col, estado);
     });
 }
 
 function buildCard(r, idx) {
     const card = document.createElement('div');
     card.className = 'kcard';
-    card.style.animationDelay = `${idx * 0.05}s`;
-    card.dataset.id = r.ID;
+    card.style.animationDelay = `${idx * .035}s`;
+    card.dataset.id     = r.ID;
+    card.dataset.estado = normEstado(r.ESTADO);
+    card.draggable = true;
 
-    const vinculados = state.vinculados[r.ID] || [];
-    const isLinked   = vinculados.length > 0;
-    if (isLinked) card.classList.add('is-linked');
+    const linked = (state.vinculados[r.ID] || []).length > 0;
+    if (linked) card.classList.add('is-linked');
 
     const nc    = calcNCsugerida(r);
     const ncStr = r['MONTO N/C'] ? fmtPeso(parseFloat(r['MONTO N/C'])) : '';
-    const cantidad = fmtCantidad(r);
 
     card.innerHTML = `
-        ${isLinked ? `<div class="kcard-vink-tag">🔗 VINCULADO</div>` : ''}
-        <div class="kcard-top" style="${isLinked ? 'margin-top:10px' : ''}">
-            <div class="kcard-desc" title="${esc(r.DESCRIPCION || '')}">${esc(r.DESCRIPCION || '—')}</div>
-            <span class="kcard-motivo ${motivoClass(r.MOTIVO)}">${esc(motivoCorto(r.MOTIVO))}</span>
+        ${linked ? '<div class="kcard-vink-dot" title="Vinculado — clic para ver"></div>' : ''}
+        <div class="kcard-drag" title="Arrastrar para cambiar estado">
+            <svg viewBox="0 0 10 18" fill="currentColor" width="10" height="18">
+                <circle cx="3" cy="3" r="1.2"/><circle cx="3" cy="9" r="1.2"/><circle cx="3" cy="15" r="1.2"/>
+                <circle cx="7" cy="3" r="1.2"/><circle cx="7" cy="9" r="1.2"/><circle cx="7" cy="15" r="1.2"/>
+            </svg>
         </div>
-        <div class="kcard-grid">
-            <div>
-                <div class="kcard-field-lbl">Cantidad</div>
-                <div class="kcard-field-val accent">${cantidad}</div>
-            </div>
-            <div>
-                <div class="kcard-field-lbl">Vencimiento</div>
-                <div class="kcard-field-val">${esc(r['FECHA VENC.'] || r['FECHA VENCIMIENTO'] || '—')}</div>
-            </div>
-            <div>
-                <div class="kcard-field-lbl">Costo neto</div>
-                <div class="kcard-field-val">${r['COSTO NETO'] ? fmtPeso(parseFloat(r['COSTO NETO'])) : '—'}</div>
-            </div>
-            <div>
-                <div class="kcard-field-lbl">N/C estimada</div>
-                <div class="kcard-field-val accent">${fmtPeso(nc.total)}</div>
+        <div class="kcard-motivo-dot" style="background:${motivoColor(r.MOTIVO)}"></div>
+        <div class="kcard-main">
+            <div class="kcard-desc" title="${esc(r.DESCRIPCION||'')}">${esc(r.DESCRIPCION||'—')}</div>
+            <div class="kcard-meta">
+                <span class="kcard-meta-item">${fmtCantidad(r)}</span>
+                <span class="kcard-meta-sep">·</span>
+                <span class="kcard-meta-item">${esc(motivoCorto(r.MOTIVO))}</span>
+                ${r['FECHA VENC.']||r['FECHA VENCIMIENTO'] ? `<span class="kcard-meta-sep">·</span><span class="kcard-meta-item">${esc(r['FECHA VENC.']||r['FECHA VENCIMIENTO']||'')}</span>` : ''}
             </div>
         </div>
-        ${isLinked ? `
-        <div class="kcard-linked-records">
-            <div class="klr-title">🔗 Registros vinculados</div>
-            ${vinculados.map(v => `
-                <div class="klr-item">${esc(v.ID)} · ${motivoCorto(v.MOTIVO)} · ${fmtCantidad(v)}</div>
-            `).join('')}
-        </div>` : ''}
-        <div class="kcard-footer">
-            <span class="kcard-id">${esc(r.ID || '')}</span>
-            ${ncStr ? `<span class="kcard-nc">✓ ${ncStr}</span>` : ''}
-            <span class="kcard-sucursal">${esc(r.SUCURSAL || '')}</span>
-        </div>
-    `;
+        <div class="kcard-right">
+            ${ncStr ? `<span class="kcard-nc-val">✓${ncStr}</span>` : `<span class="kcard-nc-est">${fmtPeso(nc.total)}</span>`}
+            <span class="kcard-suc">${esc(r.SUCURSAL||'')}</span>
+        </div>`;
 
-    card.addEventListener('click', () => openModal(r));
+    card.addEventListener('click', e => { if (!e.target.closest('.kcard-drag')) openModal(r); });
+
+    card.addEventListener('dragstart', e => {
+        state.drag = { id: r.ID, srcEstado: normEstado(r.ESTADO), record: r };
+        setTimeout(() => card.classList.add('dragging'), 0);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', r.ID);
+    });
+    card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+        document.querySelectorAll('.drop-placeholder').forEach(p => p.remove());
+        document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
+    });
+
     return card;
+}
+
+function setupDropZone(colEl, estado) {
+    colEl.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const col = colEl.closest('.kanban-col');
+        document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
+        col.classList.add('drag-over');
+        document.querySelectorAll('.drop-placeholder').forEach(p => p.remove());
+        const ph = document.createElement('div');
+        ph.className = 'drop-placeholder';
+        colEl.appendChild(ph);
+    });
+
+    colEl.addEventListener('dragleave', e => {
+        const col = colEl.closest('.kanban-col');
+        if (!col.contains(e.relatedTarget)) {
+            col.classList.remove('drag-over');
+            document.querySelectorAll('.drop-placeholder').forEach(p => p.remove());
+        }
+    });
+
+    colEl.addEventListener('drop', async e => {
+        e.preventDefault();
+        document.querySelectorAll('.drop-placeholder').forEach(p => p.remove());
+        colEl.closest('.kanban-col').classList.remove('drag-over');
+
+        const { id, srcEstado, record } = state.drag;
+        if (!id || srcEstado === estado) return;
+
+        const idx = state.data.findIndex(d => d.ID === id);
+        if (idx !== -1) state.data[idx].ESTADO = estado;
+        processData(); renderProvList(); renderKanban(state.activeProv);
+        showToast('wrn', `Movido a "${estado}" — guardando...`);
+
+        try {
+            const res = await fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                body: JSON.stringify({
+                    action: 'updateRecord', id, estado,
+                    montoNC: record?.['MONTO N/C'] || '',
+                    observacionNC: record?.['OBSERVACION N/C'] || '',
+                }),
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.message);
+            showToast('ok', `Guardado en "${estado}"`);
+        } catch (err) {
+            if (idx !== -1) state.data[idx].ESTADO = srcEstado;
+            processData(); renderProvList(); renderKanban(state.activeProv);
+            showToast('err', `Error al guardar: ${err.message}`);
+        }
+    });
 }
 
 function showKanban(show) {
@@ -407,113 +519,70 @@ function showKanban(show) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  MODAL DE EDICIÓN
+//  MODAL
 // ══════════════════════════════════════════════════════════════
 function openModal(r) {
     state.modalRecord = r;
     state.modalEstado = normEstado(r.ESTADO);
+    $('modalTitle').textContent = r.DESCRIPCION || 'Registro';
+    $('modalDot').style.background = motivoColor(r.MOTIVO);
+    $('modalDot').style.boxShadow  = `0 0 7px ${motivoColor(r.MOTIVO)}`;
 
-    $('modalTitle').textContent = r.DESCRIPCION || 'Editar registro';
-
-    // Info del producto
-    const costoNeto = parseFloat(r['COSTO NETO']) || 0;
-    const iva       = parseFloat(r['IVA %']) || 0;
-    const costoFinal = costoNeto * (1 + iva / 100);
+    const cn = parseFloat(r['COSTO NETO']) || 0;
+    const iv = parseFloat(r['IVA %']) || 0;
+    const cf = cn * (1 + iv / 100);
 
     $('modalProductInfo').innerHTML = `
-        <div class="mpi-full">
-            <div class="mpi-field-lbl">Descripción</div>
-            <div class="mpi-field-val">${esc(r.DESCRIPCION || '—')}</div>
-        </div>
-        <div>
-            <div class="mpi-field-lbl">Proveedor</div>
-            <div class="mpi-field-val">${esc(r.PROVEEDOR || '—')}</div>
-        </div>
-        <div>
-            <div class="mpi-field-lbl">Motivo</div>
-            <div class="mpi-field-val">${esc(r.MOTIVO || '—')}</div>
-        </div>
-        <div>
-            <div class="mpi-field-lbl">Cantidad</div>
-            <div class="mpi-field-val mono">${fmtCantidad(r)}</div>
-        </div>
-        <div>
-            <div class="mpi-field-lbl">Vencimiento</div>
-            <div class="mpi-field-val mono">${esc(r['FECHA VENC.'] || r['FECHA VENCIMIENTO'] || '—')}</div>
-        </div>
-        <div>
-            <div class="mpi-field-lbl">Costo neto</div>
-            <div class="mpi-field-val mono">${fmtPeso(costoNeto)}</div>
-        </div>
-        <div>
-            <div class="mpi-field-lbl">Costo c/IVA ${iva}%</div>
-            <div class="mpi-field-val mono">${fmtPeso(costoFinal)}</div>
-        </div>
-        <div>
-            <div class="mpi-field-lbl">Sucursal · ID</div>
-            <div class="mpi-field-val mono">${esc(r.SUCURSAL || '')} · ${esc(r.ID || '')}</div>
-        </div>
-    `;
+        <div class="mpi-full"><div class="mpi-field-lbl">Descripción</div><div class="mpi-field-val">${esc(r.DESCRIPCION||'—')}</div></div>
+        <div><div class="mpi-field-lbl">Proveedor</div><div class="mpi-field-val">${esc(r.PROVEEDOR||'—')}</div></div>
+        <div><div class="mpi-field-lbl">Motivo</div><div class="mpi-field-val">${esc(r.MOTIVO||'—')}</div></div>
+        <div><div class="mpi-field-lbl">Cantidad</div><div class="mpi-field-val mono">${fmtCantidad(r)}</div></div>
+        <div><div class="mpi-field-lbl">Vencimiento</div><div class="mpi-field-val mono">${esc(r['FECHA VENC.']||r['FECHA VENCIMIENTO']||'—')}</div></div>
+        <div><div class="mpi-field-lbl">Costo neto</div><div class="mpi-field-val mono">${fmtPeso(cn)}</div></div>
+        <div><div class="mpi-field-lbl">Costo c/IVA ${iv}%</div><div class="mpi-field-val mono">${fmtPeso(cf)}</div></div>
+        <div><div class="mpi-field-lbl">Sucursal · ID</div><div class="mpi-field-val mono">${esc(r.SUCURSAL||'')} · ${esc(r.ID||'')}</div></div>`;
 
-    // Calculadora NC
     buildNCCalc(r);
 
-    // Vínculos
     const vincs = state.vinculados[r.ID] || [];
-    if (vincs.length > 0) {
-        $('modalVinkWarn').style.display = 'flex';
+    $('modalVinkWarn').style.display = vincs.length ? 'flex' : 'none';
+    if (vincs.length) {
+        const cm = { 'Acción':'#a855f7','Vencido':'#f97316','Decomiso':'#ef4444','Otro':'#818cf8' };
         $('modalVinkList').innerHTML = vincs.map(v => {
-            const g = motivoGrupo(v.MOTIVO);
-            const bgMap = { 'Acción': '#a855f7', 'Vencido': '#f97316', 'Decomiso': '#ef4444', 'Otro': '#818cf8' };
-            const color = bgMap[g] || '#818cf8';
-            return `
-            <div class="mvw-linked-item">
-                <span class="mvw-li-badge" style="background:${color}22;color:${color}">${esc(motivoCorto(v.MOTIVO))}</span>
+            const col = cm[motivoGrupo(v.MOTIVO)] || '#818cf8';
+            return `<div class="mvw-linked-item">
+                <span class="mvw-li-badge" style="background:${col}22;color:${col}">${esc(motivoCorto(v.MOTIVO))}</span>
                 <div class="mvw-li-info">
-                    <div class="mvw-li-desc">${esc(v.DESCRIPCION || '—')}</div>
-                    <div class="mvw-li-id">${esc(v.ID)} · ${fmtCantidad(v)} · Venc: ${esc(v['FECHA VENC.'] || v['FECHA VENCIMIENTO'] || '')}</div>
+                    <div class="mvw-li-desc">${esc(v.DESCRIPCION||'—')}</div>
+                    <div class="mvw-li-id">${esc(v.ID)} · ${fmtCantidad(v)} · Suc: ${esc(v.SUCURSAL||'')} · Est: ${fmtPeso(calcNCsugerida(v).total)}</div>
                 </div>
-                <span style="font-family:var(--mono);font-size:10.5px;color:var(--accent)">${fmtPeso(calcNCsugerida(v).total)}</span>
+                <span style="font-family:var(--mono);font-size:10px;color:var(--accent)">${fmtPeso(calcNCsugerida(v).total)}</span>
             </div>`;
         }).join('');
-    } else {
-        $('modalVinkWarn').style.display = 'none';
     }
 
-    // Estado
-    document.querySelectorAll('.est-btn').forEach(b => {
-        b.classList.toggle('selected', b.dataset.estado === state.modalEstado);
-    });
-
-    // Monto actual
-    $('modalMonto').value = r['MONTO N/C'] || '';
-
-    // Observación actual
+    document.querySelectorAll('.est-btn').forEach(b => b.classList.toggle('selected', b.dataset.estado === state.modalEstado));
+    $('modalMonto').value      = r['MONTO N/C'] || '';
     $('modalObservacion').value = r['OBSERVACION N/C'] || '';
-
-    // Abrir
     $('modalOverlay').classList.add('open');
     document.body.style.overflow = 'hidden';
 }
 
 function buildNCCalc(r) {
-    const nc    = calcNCsugerida(r);
-    const rows  = nc.detalles;
+    const nc = calcNCsugerida(r);
     state.modalCalcNC = nc.total;
-
-    $('ncCalc').innerHTML = rows.map(row => `
+    $('ncCalc').innerHTML = nc.detalles.map(row => `
         <div class="nc-calc-row">
             <span class="ncr-label">${esc(row.label)}</span>
-            <span class="ncr-formula">${esc(row.formula)}</span>
-            <span class="ncr-value ${row.isTotal ? 'total' : row.isInfo ? 'info' : ''}">${esc(row.value)}</span>
-        </div>
-    `).join('') + (nc.total > 0 ? `
-        <div class="nc-calc-row" style="background:rgba(34,197,94,0.05)">
+            <span class="ncr-formula">${esc(row.formula||'')}</span>
+            <span class="ncr-value ${row.isInfo?'info':''}">${esc(row.value)}</span>
+        </div>`).join('') +
+        (nc.total > 0 ? `
+        <div class="nc-calc-row" style="background:rgba(34,197,94,.04)">
             <span class="ncr-label" style="font-weight:700;color:var(--text)">Total N/C sugerida</span>
             <span class="ncr-formula"></span>
             <span class="ncr-value total">${fmtPeso(nc.total)}</span>
-        </div>
-    ` : '');
+        </div>` : '');
 }
 
 function closeModal() {
@@ -523,14 +592,14 @@ function closeModal() {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  GUARDAR CAMBIOS → Apps Script
+//  GUARDAR
 // ══════════════════════════════════════════════════════════════
 async function saveRecord() {
     if (state.saving || !state.modalRecord) return;
     const r       = state.modalRecord;
-    const nuevoEstado  = state.modalEstado;
-    const montoNC      = parseFloat($('modalMonto').value) || 0;
-    const observacion  = $('modalObservacion').value.trim();
+    const nuevoE  = state.modalEstado;
+    const montoNC = parseFloat($('modalMonto').value) || 0;
+    const observ  = $('modalObservacion').value.trim();
 
     state.saving = true;
     const btn = $('modalSave');
@@ -538,40 +607,25 @@ async function saveRecord() {
     btn.disabled = true;
 
     try {
-        const payload = {
-            action: 'updateRecord',
-            id: r.ID,
-            estado: nuevoEstado,
-            montoNC: montoNC || '',
-            observacionNC: observacion,
-        };
-
         const res = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
-            body: JSON.stringify(payload),
+            body: JSON.stringify({ action:'updateRecord', id:r.ID, estado:nuevoE, montoNC:montoNC||'', observacionNC:observ }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (!data.success) throw new Error(data.message || 'Error del servidor');
 
-        // Actualizar en local (sin recargar todo)
         const idx = state.data.findIndex(d => d.ID === r.ID);
         if (idx !== -1) {
-            state.data[idx].ESTADO           = nuevoEstado;
-            state.data[idx]['MONTO N/C']     = montoNC || '';
-            state.data[idx]['OBSERVACION N/C'] = observacion;
+            state.data[idx].ESTADO             = nuevoE;
+            state.data[idx]['MONTO N/C']       = montoNC || '';
+            state.data[idx]['OBSERVACION N/C'] = observ;
         }
-
-        processData();
-        renderProvList();
-        renderKanban(state.activeProv);
-
+        processData(); renderProvList(); renderKanban(state.activeProv);
         closeModal();
         showToast('ok', 'Registro actualizado correctamente');
-
     } catch (err) {
-        console.error('[Guardar]', err);
-        showToast('err', `Error al guardar: ${err.message}`);
+        showToast('err', `Error: ${err.message}`);
     } finally {
         state.saving = false;
         btn.classList.remove('saving');
@@ -580,115 +634,101 @@ async function saveRecord() {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  CALCULADORA DE N/C
+//  CALCULADORA N/C
 // ══════════════════════════════════════════════════════════════
 function calcNCsugerida(r) {
-    const costoNeto = parseFloat(r['COSTO NETO']) || 0;
-    const iva       = parseFloat(r['IVA %']) || 0;
-    const costoFinal = costoNeto * (1 + iva / 100);
-    const cant      = parseFloat(r.CANTIDAD) || 0;
-    const motivo    = (r.MOTIVO || '').toUpperCase();
-    const grupo     = motivoGrupo(r.MOTIVO);
-    const detalles  = [];
+    const cn = parseFloat(r['COSTO NETO']) || 0;
+    const iv = parseFloat(r['IVA %']) || 0;
+    const cf = cn * (1 + iv / 100);
+    const ca = parseFloat(r.CANTIDAD) || 0;
+    const g  = motivoGrupo(r.MOTIVO);
+    const mu = (r.MOTIVO || '').toUpperCase();
+    const det = [];
     let total = 0;
 
-    detalles.push({
-        label: 'Costo neto unitario',
-        formula: `${fmtPeso(costoNeto)} × (1 + ${iva}% IVA)`,
-        value: fmtPeso(costoFinal),
-    });
-    detalles.push({
-        label: `Cantidad${r['UNIDAD CANTIDAD'] === 'kg' ? ' (kg)' : ''}`,
-        formula: '',
-        value: fmtCantidad(r),
-    });
+    det.push({ label:'Costo unitario c/IVA', formula:`${fmtPeso(cn)} + ${iv}% IVA`, value:fmtPeso(cf) });
+    det.push({ label:'Cantidad', formula:'', value:fmtCantidad(r) });
 
-    if (grupo === 'Acción') {
-        // Acción 2x1: empresa reconoce 50% por cada unidad accionada
-        // Acción 50% OFF: empresa reconoce 50%
-        // Otro descuento: extraer % del string del motivo
+    if (g === 'Acción') {
         let pct = 50;
-        const matchPct = motivo.match(/(\d+)%/);
-        if (matchPct) pct = parseFloat(matchPct[1]);
-        if (motivo.includes('2X1') || motivo.includes('2 X 1')) pct = 50;
-
-        const nc = costoFinal * cant * (pct / 100);
-        total = nc;
-        detalles.push({
-            label: `Descuento ${pct}% por acción`,
-            formula: `${fmtPeso(costoFinal)} × ${cant} × ${pct}%`,
-            value: fmtPeso(nc),
-        });
-        detalles.push({
-            label: '⚠ Verificar vencimiento de la acción',
-            formula: '',
-            value: 'Ver vínculos',
-            isInfo: true,
-        });
-
-    } else if (grupo === 'Vencido') {
-        // Vencimiento sin acción: 100% del costo final
-        const nc = costoFinal * cant;
-        total = nc;
-        detalles.push({
-            label: 'Vencimiento (100% costo c/IVA)',
-            formula: `${fmtPeso(costoFinal)} × ${cant}`,
-            value: fmtPeso(nc),
-        });
-
-    } else if (grupo === 'Decomiso') {
-        // Decomiso: 100% del costo final (consultar acuerdo con proveedor)
-        const nc = costoFinal * cant;
-        total = nc;
-        detalles.push({
-            label: 'Decomiso (100% costo c/IVA)',
-            formula: `${fmtPeso(costoFinal)} × ${cant}`,
-            value: fmtPeso(nc),
-        });
-        detalles.push({
-            label: 'Verificar acuerdo con proveedor',
-            formula: '',
-            value: 'Puede variar',
-            isInfo: true,
-        });
-
+        const m = mu.match(/(\d+)%/); if (m) pct = parseFloat(m[1]);
+        if (mu.includes('2X1') || mu.includes('2 X 1')) pct = 50;
+        total = cf * ca * (pct / 100);
+        det.push({ label:`Descuento acción (${pct}%)`, formula:`${fmtPeso(cf)} × ${ca} × ${pct}%`, value:fmtPeso(total) });
+        det.push({ label:'⚠ Verificar registros vinculados', formula:'', value:'Ver vínculos', isInfo:true });
+    } else if (g === 'Vencido') {
+        total = cf * ca;
+        det.push({ label:'Vencimiento (100% costo c/IVA)', formula:`${fmtPeso(cf)} × ${ca}`, value:fmtPeso(total) });
+    } else if (g === 'Decomiso') {
+        total = cf * ca;
+        det.push({ label:'Decomiso (100% costo c/IVA)', formula:`${fmtPeso(cf)} × ${ca}`, value:fmtPeso(total) });
+        det.push({ label:'Verificar acuerdo con proveedor', formula:'', value:'Puede variar', isInfo:true });
     } else {
-        detalles.push({
-            label: 'Motivo no estándar — calcular manualmente',
-            formula: '',
-            value: '—',
-            isInfo: true,
-        });
+        det.push({ label:'Calcular manualmente', formula:'', value:'—', isInfo:true });
     }
-
-    return { total, detalles };
-}
-
-function calcCostoTotal(r) {
-    const costoNeto  = parseFloat(r['COSTO NETO']) || 0;
-    const iva        = parseFloat(r['IVA %']) || 0;
-    const costoFinal = costoNeto * (1 + iva / 100);
-    const cant       = parseFloat(r.CANTIDAD) || 0;
-    return costoFinal * cant;
+    return { total, detalles: det };
 }
 
 // ══════════════════════════════════════════════════════════════
-//  HELPERS UI
+//  HELPERS
 // ══════════════════════════════════════════════════════════════
+
+// ─── CRÍTICO: VENCIDO debe chequearse ANTES que ACCION
+// porque "VENCIDO ACCION 50% OFF" contiene "ACCION" y "OFF"
+// pero su grupo correcto es 'Vencido' ───────────────────────
+function motivoGrupo(motivo) {
+    if (!motivo) return 'Otro';
+    const m = motivo.toUpperCase();
+    if (m.includes('VENCIDO') || m.includes('VENCIMIENTO')) return 'Vencido';  // ← primero
+    if (m.includes('ACCION') || m.includes('ACCIÓN') || m.includes('OFF') || m.includes('2X1')) return 'Acción';
+    if (m.includes('DECOMISO') || m.includes('ROTO') || m.includes('MAL ESTADO')) return 'Decomiso';
+    return 'Otro';
+}
+
+function motivoColor(motivo) {
+    return { 'Acción':'#a855f7','Vencido':'#f97316','Decomiso':'#ef4444','Otro':'#818cf8' }[motivoGrupo(motivo)] || '#818cf8';
+}
+
+function motivoCorto(motivo) {
+    if (!motivo) return '—';
+    const map = {
+        'ACCION 2X1':'2×1','VENCIDO ACCION 2X1':'Vto.2×1',
+        'ACCION 50% OFF':'50%OFF','VENCIDO ACCION 50% OFF':'Vto.50%',
+        'VENCIDO':'Vencido','ROTO/DAÑADO':'Roto','MAL ESTADO':'Mal estado',
+        'DECOMISO FRUTA Y VERDURA':'Dec.F&V','DECOMISO CARNICERIA':'Dec.Carn.',
+        'DECOMISO FIAMBRERIA':'Dec.Fiam.','DECOMISO':'Decomiso','OTRO':'Otro',
+    };
+    return map[motivo.toUpperCase()] || motivo.slice(0, 12);
+}
+
+function normEstado(estado) {
+    if (!estado || !String(estado).trim()) return 'PENDIENTE';
+    return String(estado).trim().toUpperCase();
+}
+
+function fmtPeso(n) {
+    if (!n || isNaN(Number(n)) || Number(n) === 0) return '$0';
+    return '$' + Number(n).toLocaleString('es-AR', { minimumFractionDigits:0, maximumFractionDigits:0 });
+}
+
+function fmtCantidad(r) {
+    const c = r.CANTIDAD;
+    if (c === '' || c == null) return '—';
+    const n = parseFloat(c); if (isNaN(n)) return String(c);
+    const esKg = String(r['UNIDAD CANTIDAD']||'').toLowerCase() === 'kg'
+              || String(r['UNID. CANTIDAD']||'').toLowerCase() === 'kg';
+    return esKg ? `${n.toFixed(3)} kg` : `${n} u.`;
+}
+
 function setSyncStatus(type) {
-    const badge = $('syncBadge');
-    const text  = $('syncText');
+    const badge = $('syncBadge'), text = $('syncText');
     badge.className = 'sync-badge';
     if (type === 'ok') {
         badge.classList.add('ok');
         const t = state.lastUpdate;
-        text.textContent = t ? `Actualizado ${t.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}` : 'Actualizado';
-    } else if (type === 'err') {
-        badge.classList.add('err');
-        text.textContent = 'Error de conexión';
-    } else {
-        text.textContent = 'Cargando...';
-    }
+        text.textContent = t ? `Act. ${t.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}` : 'Actualizado';
+    } else if (type === 'err') { badge.classList.add('err'); text.textContent = 'Sin conexión'; }
+    else { text.textContent = 'Cargando...'; }
 }
 
 let toastTimer;
@@ -700,61 +740,6 @@ function showToast(type, msg, ms = 3500) {
     toastTimer = setTimeout(() => t.classList.remove('show'), ms);
 }
 
-// ══════════════════════════════════════════════════════════════
-//  HELPERS LÓGICA
-// ══════════════════════════════════════════════════════════════
-function motivoGrupo(motivo) {
-    if (!motivo) return 'Otro';
-    const m = motivo.toUpperCase();
-    if (m.includes('ACCION') || m.includes('ACCIÓN') || m.includes('OFF') || m.includes('2X1')) return 'Acción';
-    if (m.includes('VENCIDO') || m.includes('VENCIMIENTO')) return 'Vencido';
-    if (m.includes('DECOMISO') || m.includes('ROTO') || m.includes('MAL ESTADO')) return 'Decomiso';
-    return 'Otro';
-}
-
-function motivoCorto(motivo) {
-    if (!motivo) return '—';
-    const map = {
-        'ACCION 2X1': '2×1', 'VENCIDO ACCION 2X1': 'Vto. 2×1',
-        'ACCION 50% OFF': '50% OFF', 'VENCIDO ACCION 50% OFF': 'Vto. 50%',
-        'VENCIDO': 'Vencido', 'ROTO/DAÑADO': 'Roto',
-        'MAL ESTADO': 'Mal estado',
-        'DECOMISO FRUTA Y VERDURA': 'Dec. F&V',
-        'DECOMISO CARNICERIA': 'Dec. Carn.',
-        'DECOMISO FIAMBRERIA': 'Dec. Fiam.',
-        'DECOMISO': 'Decomiso',
-        'OTRO': 'Otro',
-    };
-    return map[motivo.toUpperCase()] || motivo.slice(0, 14);
-}
-
-function motivoClass(motivo) {
-    const g = motivoGrupo(motivo);
-    return { 'Acción': 'mot-accion', 'Vencido': 'mot-vencido', 'Decomiso': 'mot-decomiso', 'Otro': 'mot-otro' }[g];
-}
-
-function normEstado(estado) {
-    if (!estado || estado.trim() === '') return 'PENDIENTE';
-    return estado.trim().toUpperCase();
-}
-
-function fmtPeso(n) {
-    if (!n || isNaN(n)) return '$0';
-    return '$' + n.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
-
-function fmtCantidad(r) {
-    const cant = r.CANTIDAD;
-    if (cant === '' || cant == null) return '—';
-    const n = parseFloat(cant);
-    if (isNaN(n)) return String(cant);
-    const esKg = String(r['UNIDAD CANTIDAD'] || '').toLowerCase() === 'kg'
-              || (r.GRAMAJE && String(r.GRAMAJE).includes('gramos') && n < 20 && !Number.isInteger(n));
-    return esKg ? `${n.toFixed(3)} kg` : `${n} u.`;
-}
-
-function esc(str) {
-    return String(str)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

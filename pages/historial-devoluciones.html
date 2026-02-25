@@ -7,7 +7,6 @@
     <title>Gestión de Proveedores · Devoluciones</title>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Syne:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="../css/historial-devoluciones.css" />
-    <link rel="icon" type="image/x-icon" href="../favicon.ico">
 </head>
 <body>
 
@@ -21,6 +20,10 @@
         </div>
     </div>
     <div class="topbar-right">
+        <div class="view-tabs">
+            <button class="view-tab view-tab--active" data-view="kanban">📋 Tablero</button>
+            <button class="view-tab" data-view="dashboard">📊 Resumen</button>
+        </div>
         <div class="sync-badge" id="syncBadge">
             <div class="sync-dot"></div>
             <span id="syncText">Conectando...</span>
@@ -31,14 +34,39 @@
     </div>
 </header>
 
-<!-- ══ LAYOUT PRINCIPAL ══ -->
+<!-- ══ VISTA DASHBOARD ══ -->
+<div class="view-panel" id="viewDashboard" style="display:none">
+    <div class="dash-container">
+        <div class="dash-kpis" id="dashKpis"></div>
+        <div class="dash-row">
+            <div class="dash-card dash-card--half">
+                <div class="dash-card-title">Distribución por estado</div>
+                <div class="dash-bars" id="dashEstados"></div>
+            </div>
+            <div class="dash-card dash-card--half">
+                <div class="dash-card-title">Distribución por motivo</div>
+                <div class="dash-bars" id="dashMotivos"></div>
+            </div>
+        </div>
+        <div class="dash-card">
+            <div class="dash-card-title">Proveedores — monto N/C estimado total</div>
+            <div class="dash-prov-list" id="dashProvList"></div>
+        </div>
+        <div class="dash-card">
+            <div class="dash-card-title">⏰ Pendientes próximos a vencer</div>
+            <div class="dash-upcoming" id="dashUpcoming"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ══ VISTA KANBAN ══ -->
+<div class="view-panel" id="viewKanban">
 <div class="app-layout">
 
-    <!-- ══ SIDEBAR: lista de proveedores ══ -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-head">
             <span class="sidebar-title">Proveedores</span>
-            <button class="sidebar-toggle-btn" id="btnToggleSidebar" title="Ocultar panel">
+            <button class="sidebar-toggle-btn" id="btnToggleSidebar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
         </div>
@@ -48,22 +76,19 @@
         </div>
         <div class="sidebar-filters">
             <button class="sf-pill sf-pill--active" data-filter="todos">Todos</button>
-            <button class="sf-pill" data-filter="pendientes">Con pendientes</button>
-            <button class="sf-pill" data-filter="vinculados">Con vínculos ⚠</button>
+            <button class="sf-pill" data-filter="pendientes">Pendientes</button>
+            <button class="sf-pill" data-filter="vinculados">⚠ Vínculos</button>
         </div>
         <ul class="prov-list" id="provList"></ul>
     </aside>
 
-    <!-- ══ ÁREA PRINCIPAL ══ -->
-    <main class="board-area" id="boardArea">
+    <main class="board-area">
 
-        <!-- Loading -->
         <div class="board-loading" id="boardLoading">
             <div class="loading-spinner"></div>
             <p>Cargando datos desde Google Sheets...</p>
         </div>
 
-        <!-- Error -->
         <div class="board-error" id="boardError" style="display:none">
             <div style="font-size:40px">⚠️</div>
             <p class="error-title">No se pudo conectar</p>
@@ -71,20 +96,17 @@
             <button class="btn-retry" id="btnRetry">Reintentar</button>
         </div>
 
-        <!-- Placeholder sin selección -->
         <div class="board-placeholder" id="boardPlaceholder" style="display:none">
-            <div class="placeholder-icon">🏢</div>
+            <div style="font-size:48px">🏢</div>
             <p class="placeholder-title">Seleccioná un proveedor</p>
             <p class="placeholder-sub">Elegí un proveedor del panel izquierdo para ver su tablero de gestión.</p>
         </div>
 
-        <!-- Tablero Kanban -->
         <div class="kanban-wrapper" id="kanbanWrapper" style="display:none">
 
-            <!-- Header del proveedor seleccionado -->
-            <div class="prov-header" id="provHeader">
+            <div class="prov-header">
                 <div class="prov-header-left">
-                    <button class="btn-back" id="btnBack" title="Volver">
+                    <button class="btn-back" id="btnBack">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="15 18 9 12 15 6"/></svg>
                     </button>
                     <div>
@@ -95,135 +117,119 @@
                 <div class="prov-header-kpis" id="provHeaderKpis"></div>
             </div>
 
-            <!-- Alerta de vínculos acción+vencimiento -->
             <div class="vink-alert" id="vinkAlert" style="display:none">
                 <div class="vink-alert-icon">🔗</div>
                 <div class="vink-alert-text">
                     <strong>Productos vinculados detectados</strong>
-                    <span id="vinkAlertSub">Hay productos que tienen una acción promocional Y un vencimiento. Revisalos antes de reclamar para no duplicar el monto.</span>
+                    <span id="vinkAlertSub"></span>
                 </div>
             </div>
 
-            <!-- Columnas Kanban -->
             <div class="kanban-board" id="kanbanBoard">
-                <div class="kanban-col" data-estado="PENDIENTE">
+
+                <div class="kanban-col">
                     <div class="kanban-col-head">
                         <div class="kcol-dot kcol-dot--pendiente"></div>
                         <span class="kcol-title">Pendiente</span>
                         <span class="kcol-count" id="cnt-PENDIENTE">0</span>
+                        <span class="kcol-amount" id="amt-PENDIENTE"></span>
                     </div>
-                    <div class="kcol-amount" id="amt-PENDIENTE"></div>
                     <div class="kanban-cards" id="col-PENDIENTE" data-estado="PENDIENTE"></div>
                 </div>
-                <div class="kanban-col" data-estado="EN GESTION">
+
+                <div class="kanban-col">
                     <div class="kanban-col-head">
                         <div class="kcol-dot kcol-dot--gestion"></div>
                         <span class="kcol-title">En gestión</span>
                         <span class="kcol-count" id="cnt-EN_GESTION">0</span>
+                        <span class="kcol-amount" id="amt-EN_GESTION"></span>
                     </div>
-                    <div class="kcol-amount" id="amt-EN_GESTION"></div>
                     <div class="kanban-cards" id="col-EN_GESTION" data-estado="EN GESTION"></div>
                 </div>
-                <div class="kanban-col" data-estado="N/C RECIBIDA">
+
+                <div class="kanban-col">
                     <div class="kanban-col-head">
                         <div class="kcol-dot kcol-dot--nc"></div>
                         <span class="kcol-title">N/C Recibida</span>
                         <span class="kcol-count" id="cnt-NC_RECIBIDA">0</span>
+                        <span class="kcol-amount" id="amt-NC_RECIBIDA"></span>
                     </div>
-                    <div class="kcol-amount" id="amt-NC_RECIBIDA"></div>
                     <div class="kanban-cards" id="col-NC_RECIBIDA" data-estado="N/C RECIBIDA"></div>
                 </div>
-                <div class="kanban-col" data-estado="RECHAZADA">
+
+                <div class="kanban-col">
                     <div class="kanban-col-head">
                         <div class="kcol-dot kcol-dot--rechazada"></div>
                         <span class="kcol-title">Rechazada</span>
                         <span class="kcol-count" id="cnt-RECHAZADA">0</span>
+                        <span class="kcol-amount" id="amt-RECHAZADA"></span>
                     </div>
-                    <div class="kcol-amount" id="amt-RECHAZADA"></div>
                     <div class="kanban-cards" id="col-RECHAZADA" data-estado="RECHAZADA"></div>
                 </div>
+
             </div>
         </div>
-
     </main>
 </div>
+</div>
 
-<!-- ══════════════════════════════════════ -->
-<!-- MODAL DE EDICIÓN                       -->
-<!-- ══════════════════════════════════════ -->
+<!-- ══ MODAL ══ -->
 <div class="modal-overlay" id="modalOverlay">
-    <div class="modal" id="modal">
-
+    <div class="modal">
         <div class="modal-head">
             <div class="modal-head-left">
-                <div class="modal-dot"></div>
-                <span class="modal-title" id="modalTitle">Editar registro</span>
+                <div class="modal-dot" id="modalDot"></div>
+                <span class="modal-title" id="modalTitle">Detalle del registro</span>
             </div>
             <button class="modal-close" id="modalClose">✕</button>
         </div>
-
         <div class="modal-body">
-
-            <!-- Info del producto (solo lectura) -->
             <div class="modal-product-info" id="modalProductInfo"></div>
-
-            <!-- Alerta de vínculo -->
             <div class="modal-vink-warn" id="modalVinkWarn" style="display:none">
                 <div class="mvw-icon">🔗</div>
                 <div class="mvw-body">
-                    <strong>Este producto tiene registros vinculados</strong>
+                    <strong>Registros vinculados a este producto</strong>
                     <div id="modalVinkList"></div>
                 </div>
             </div>
-
-            <!-- Calculadora de NC -->
             <div class="modal-section">
                 <div class="modal-section-label">💰 Calculadora de N/C sugerida</div>
                 <div class="nc-calc" id="ncCalc"></div>
             </div>
-
-            <!-- Estado -->
             <div class="modal-section">
                 <div class="modal-section-label">Estado del reclamo</div>
-                <div class="estado-selector" id="estadoSelector">
+                <div class="estado-selector">
                     <button class="est-btn" data-estado="PENDIENTE">⏳ Pendiente</button>
                     <button class="est-btn" data-estado="EN GESTION">🔄 En gestión</button>
                     <button class="est-btn" data-estado="N/C RECIBIDA">✅ N/C Recibida</button>
                     <button class="est-btn" data-estado="RECHAZADA">❌ Rechazada</button>
                 </div>
             </div>
-
-            <!-- Monto N/C -->
             <div class="modal-section">
                 <div class="modal-section-label">Monto de Nota de Crédito recibida</div>
                 <div class="monto-input-wrap">
                     <span class="monto-prefix">$</span>
                     <input type="number" id="modalMonto" placeholder="0.00" min="0" step="0.01" inputmode="decimal" />
-                    <button class="btn-use-calc" id="btnUseCalc" title="Usar valor calculado">← Usar calculado</button>
+                    <button class="btn-use-calc" id="btnUseCalc">← Usar calculado</button>
                 </div>
             </div>
-
-            <!-- Observación -->
             <div class="modal-section">
                 <div class="modal-section-label">Observación / Número de N/C</div>
                 <textarea id="modalObservacion" placeholder="Nro. de NC, acuerdos, comentarios..." rows="3"></textarea>
             </div>
-
         </div>
-
         <div class="modal-footer">
             <button class="btn-cancel" id="modalCancel">Cancelar</button>
             <button class="btn-save" id="modalSave">
+                <div class="save-spinner"></div>
                 <span id="modalSaveText">Guardar cambios</span>
             </button>
         </div>
-
     </div>
 </div>
 
-<!-- ══ TOAST ══ -->
-<div class="toast" id="toast" role="status">
-    <div class="toast-dot" id="toastDot"></div>
+<div class="toast" id="toast">
+    <div class="toast-dot"></div>
     <span id="toastMsg"></span>
 </div>
 
