@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Gestión de Productos</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/dashboard-devoluciones.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+</head>
+<body>
+
+<!-- SPINNER OVERLAY -->
+<div class="spinner-overlay" id="spinnerOverlay">
+  <div class="spinner-ring"></div>
+  <div class="spinner-msg" id="spinnerMsg">Procesando...</div>
+</div>
+
+<!-- SIDEBAR BACKDROP -->
+<div class="overlay-backdrop" id="backdrop" onclick="closeSidebar()"></div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-title">📦 GestPro</div>
+    <div class="logo-sub">v2.0 · Devoluciones</div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-label">Acceso General</div>
+    <button class="nav-item active" onclick="showPanel('operaciones')">
+      <span class="nav-icon">📋</span> Panel General
+    </button>
+    <div class="nav-label">Compras &amp; Prov.</div>
+    <button class="nav-item" onclick="showPanel('compras')">
+      <span class="nav-icon">📊</span> Métricas
+    </button>
+    <button class="nav-item" onclick="showPanel('nc')">
+      <span class="nav-icon">🧾</span> Gestión N/C
+    </button>
+    <div class="nav-label">Sistema</div>
+    <button class="nav-item" onclick="loadDemoData()">
+      <span class="nav-icon">🎭</span> Cargar Demo
+    </button>
+  </nav>
+  <div class="sidebar-bottom">
+    <button class="sync-btn" id="syncBtn" onclick="loadData()" title="Actualizar ahora (también se actualiza automáticamente cada 30 min)">
+      <span id="syncIcon">🔄</span> Actualizar
+    </button>
+    <div class="sync-time" id="syncTime" data-base="Sin datos">Sin datos</div>
+    <div class="auto-refresh-badge" id="autoRefreshBadge">⏱ Auto-actualización: 30 min</div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+    <div class="topbar-title" id="topbarTitle">Panel General</div>
+    <div class="topbar-right">
+      <div class="status-dot" id="statusDot" style="background:var(--text3);box-shadow:none;"></div>
+      <span class="record-count" id="recordCount">— registros</span>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ════════════════════════════════════════
+         PANEL: OPERACIONES
+    ════════════════════════════════════════ -->
+    <div class="panel active" id="panel-operaciones">
+      <div class="section-title">Panel General</div>
+      <div class="section-sub">Consultá y filtrá todos los registros de acciones sobre productos.</div>
+
+      <!-- FILTERS -->
+      <div class="filters-bar">
+        <div class="filters-row">
+          <div class="filter-group">
+            <label>Sucursal</label>
+            <select id="fSucursal" onchange="applyFilters()">
+              <option value="">Todas</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Proveedor</label>
+            <select id="fProveedor" onchange="applyFilters()">
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Motivo</label>
+            <select id="fMotivo" onchange="applyFilters()">
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Estado</label>
+            <select id="fEstado" onchange="applyFilters()">
+              <option value="">Todos</option>
+              <option value="PENDIENTE">Pendiente</option>
+              <option value="EN GESTION">En Gestión</option>
+              <option value="N/C RECIBIDA">N/C Recibida</option>
+              <option value="RECHAZADA">Rechazada</option>
+            </select>
+          </div>
+        </div>
+        <div class="filters-row" style="margin-top:12px;">
+          <div class="filter-group">
+            <label>Rango de fechas de registración</label>
+            <div class="date-preset-group">
+              <button class="date-preset active" onclick="setPreset('today',this)">Hoy</button>
+              <button class="date-preset" onclick="setPreset('yesterday',this)">Ayer</button>
+              <button class="date-preset" onclick="setPreset('3d',this)">3 días</button>
+              <button class="date-preset" onclick="setPreset('7d',this)">7 días</button>
+              <button class="date-preset" onclick="setPreset('14d',this)">14 días</button>
+              <button class="date-preset" onclick="setPreset('30d',this)">30 días</button>
+              <button class="date-preset" onclick="setPreset('all',this)">Todo</button>
+            </div>
+          </div>
+          <div class="filter-group" id="customDateGroup" style="display:none;">
+            <label>Desde</label>
+            <input type="date" id="fDateFrom" onchange="applyFilters()" />
+          </div>
+          <div class="filter-group" id="customDateGroup2" style="display:none;">
+            <label>Hasta</label>
+            <input type="date" id="fDateTo" onchange="applyFilters()" />
+          </div>
+          <div class="filter-group" style="align-self:flex-end;">
+            <button class="btn btn-secondary btn-sm" onclick="clearFilters()">✕ Limpiar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TABLE OP -->
+      <div class="table-wrapper">
+        <div class="table-header">
+          <h3>📋 Registros</h3>
+          <input type="text" class="search-input" id="opSearch" placeholder="🔍 Buscar producto, EAN, lote…" oninput="applyFilters()">
+          <button class="btn btn-secondary btn-sm" onclick="exportToExcel('op')" style="white-space:nowrap;">⬇ Exportar Excel con Cód-Bar</button>
+        </div>
+        <div id="opTableBody">
+          <div class="empty-state"><div class="icon">📡</div><p>Cargá datos desde Configuración para ver los registros.</p></div>
+        </div>
+        <div class="pagination" id="opPagination" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         PANEL: MÉTRICAS COMPRAS
+    ════════════════════════════════════════ -->
+    <div class="panel" id="panel-compras">
+      <div class="section-title">Métricas — Compras &amp; Proveedores</div>
+      <div class="section-sub">Indicadores en tiempo real para el seguimiento de proveedores y acciones.</div>
+
+      <!-- KPIs Compras -->
+      <div class="kpi-grid" id="kpiCompras">
+        <div class="kpi-card" style="border-top:3px solid var(--blue)">
+          <div class="kpi-label">Total acciones</div>
+          <div class="kpi-value" id="k-total" style="color:var(--blue)">—</div>
+        </div>
+        <div class="kpi-card" style="border-top:3px solid var(--green)">
+          <div class="kpi-label">N/C Recibidas</div>
+          <div class="kpi-value" id="k-nc" style="color:var(--green)">—</div>
+        </div>
+        <div class="kpi-card" style="border-top:3px solid var(--amber)">
+          <div class="kpi-label">Pendientes / Gestión</div>
+          <div class="kpi-value" id="k-pend" style="color:var(--amber)">—</div>
+        </div>
+        <div class="kpi-card" style="border-top:3px solid var(--red)">
+          <div class="kpi-label">Rechazadas</div>
+          <div class="kpi-value" id="k-rech" style="color:var(--red)">—</div>
+        </div>
+        <div class="kpi-card" style="border-top:3px solid var(--purple)">
+          <div class="kpi-label">Proveedores activos</div>
+          <div class="kpi-value" id="k-prov" style="color:var(--purple)">—</div>
+        </div>
+        <div class="kpi-card" style="border-top:3px solid #f472b6">
+          <div class="kpi-label">Sucursales</div>
+          <div class="kpi-value" id="k-suc" style="color:#f472b6">—</div>
+        </div>
+      </div>
+
+      <!-- CHARTS -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h4>📦 Acciones por Motivo</h4>
+          <div class="bar-chart" id="chartMotivo"><div class="empty-state" style="padding:20px"><p>Sin datos</p></div></div>
+        </div>
+        <div class="chart-card">
+          <h4>🏪 Por Sucursal</h4>
+          <div class="bar-chart" id="chartSucursal"><div class="empty-state" style="padding:20px"><p>Sin datos</p></div></div>
+        </div>
+        <div class="chart-card">
+          <h4>🏷️ Por Sector</h4>
+          <div class="bar-chart" id="chartSector"><div class="empty-state" style="padding:20px"><p>Sin datos</p></div></div>
+        </div>
+        <div class="chart-card">
+          <h4>🎯 N/C por Proveedor (Top 10)</h4>
+          <div class="bar-chart" id="chartProvNC"><div class="empty-state" style="padding:20px"><p>Sin datos</p></div></div>
+        </div>
+      </div>
+
+      <!-- TABLA PROVEEDORES -->
+      <div class="table-wrapper">
+        <div class="table-header">
+          <h3>🏭 Resumen por Proveedor</h3>
+          <input type="text" class="search-input" id="provSearch" placeholder="🔍 Buscar proveedor…" oninput="renderProvTable()">
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Proveedor</th>
+                <th class="text-right">Total</th>
+                <th class="text-right">Pendiente</th>
+                <th class="text-right">En Gestión</th>
+                <th class="text-right">N/C Recibida</th>
+                <th class="text-right">Rechazada</th>
+                <th>Cobertura N/C</th>
+              </tr>
+            </thead>
+            <tbody id="provTableBody">
+              <tr><td colspan="7"><div class="empty-state"><div class="icon">📡</div><p>Sin datos</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         PANEL: GESTIÓN N/C
+    ════════════════════════════════════════ -->
+    <div class="panel" id="panel-nc">
+      <div class="section-title">Gestión de Notas de Crédito</div>
+      <div class="section-sub">Seleccioná registros para actualizar su estado en lote y registrar observaciones.</div>
+
+      <!-- FILTERS N/C -->
+      <div class="filters-bar">
+        <div class="filters-row">
+          <div class="filter-group">
+            <label>Proveedor</label>
+            <select id="ncProveedor" onchange="applyNcFilters()">
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Estado actual</label>
+            <select id="ncEstado" onchange="applyNcFilters()">
+              <option value="">Todos</option>
+              <option value="PENDIENTE">Pendiente</option>
+              <option value="EN GESTION">En Gestión</option>
+              <option value="N/C RECIBIDA">N/C Recibida</option>
+              <option value="RECHAZADA">Rechazada</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Sucursal</label>
+            <select id="ncSucursal" onchange="applyNcFilters()">
+              <option value="">Todas</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Motivo</label>
+            <select id="ncMotivo" onchange="applyNcFilters()">
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Buscar</label>
+            <input type="text" id="ncSearch" placeholder="Producto, EAN, lote…" oninput="applyNcFilters()" style="min-width:160px;">
+          </div>
+        </div>
+      </div>
+
+      <!-- BULK BAR -->
+      <div class="bulk-bar" id="bulkBar">
+        <div class="bulk-count" id="bulkCount">0 seleccionados</div>
+        <div class="bulk-actions">
+          <select id="bulkEstado">
+            <option value="">— Cambiar estado —</option>
+            <option value="PENDIENTE">Pendiente</option>
+            <option value="EN GESTION">En Gestión</option>
+            <option value="N/C RECIBIDA">N/C Recibida</option>
+            <option value="RECHAZADA">Rechazada</option>
+          </select>
+          <input type="text" id="bulkObs" class="obs-input" placeholder="Observación N/C (opcional)">
+          <button class="btn btn-success btn-sm" onclick="applyBulkAction()">✔ Aplicar</button>
+          <button class="btn btn-secondary btn-sm" onclick="clearSelection()">✕ Deselect</button>
+        </div>
+      </div>
+
+      <!-- TABLE N/C -->
+      <div class="table-wrapper">
+        <div class="table-header">
+          <h3>🧾 Registros para Gestión</h3>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="exportToExcel('nc')" style="white-space:nowrap;">⬇ Exportar selección / lista</button>
+            <label style="font-size:12px;color:var(--text3);cursor:pointer;display:flex;align-items:center;gap:5px;">
+              <input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> Sel. todo
+            </label>
+          </div>
+        </div>
+        <div id="ncTableBody">
+          <div class="empty-state"><div class="icon">📡</div><p>Cargá datos desde Configuración.</p></div>
+        </div>
+        <div class="pagination" id="ncPagination" style="display:none;"></div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- MODAL CONFIRMACIÓN -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal">
+    <h3 id="modalTitle">Confirmar acción</h3>
+    <p id="modalText">¿Seguro querés continuar?</p>
+    <div id="modalDetails"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" id="modalConfirmBtn">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/dashboard-devoluciones.js"></script>
+</body>
+</html>
