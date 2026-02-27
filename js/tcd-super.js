@@ -325,6 +325,12 @@ function fillProductCard(data) {
   if (pvpEl) pvpEl.textContent = pvp != null
     ? `$${Number(pvp).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
     : '—';
+
+  const pvpMay = data['PVP MAYORISTA'];
+  const pvpMayEl = $('pcPvpMay');
+  if (pvpMayEl) pvpMayEl.textContent = pvpMay != null
+    ? `$${Number(pvpMay).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+    : '—';
 }
 
 function resetCurrentProduct() {
@@ -457,7 +463,10 @@ function renderSearchResults(query) {
     const secc = p.SECCION ? `<span class="sr-tag">${esc(p.SECCION)}</span>` : '';
     const gramaje = p.GRAMAJE ? `<span class="sr-tag sr-tag--gramaje">${esc(p.GRAMAJE)}</span>` : '';
     const pvp = p['PVP SUPER'] != null
-      ? `<span class="sr-tag sr-tag--pvp">$${Number(p['PVP SUPER']).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>`
+      ? `<span class="sr-tag sr-tag--pvp" title="Precio normal">Normal $${Number(p['PVP SUPER']).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>`
+      : '';
+    const pvpMay = p['PVP MAYORISTA'] != null
+      ? `<span class="sr-tag sr-tag--pvp-may" title="Precio mayorista">Mayorista $${Number(p['PVP MAYORISTA']).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>`
       : '';
 
     return `
@@ -480,7 +489,7 @@ function renderSearchResults(query) {
         </div>
 
         <div class="sr-right">
-        <div class="sr-tags">${gramaje}${sect}${secc}${pvp}</div>
+        <div class="sr-tags">${gramaje}${sect}${secc}${pvp}${pvpMay}</div>
           <div class="sr-qty-wrap${inCart ? ' sr-qty-wrap--visible' : ''}">
             <input
               type="number"
@@ -818,62 +827,191 @@ function esc(str) {
 // ── Export Excel ──
 async function exportExcel() {
   if (!state.order.length) return;
-  const now = new Date();
-  const fecha = now.toLocaleDateString('es-AR');
+
+  const now       = new Date();
+  const fecha     = now.toLocaleDateString('es-AR');
   const fechaFile = now.toISOString().slice(0, 10);
-  const remitoId = now.getTime();
+  const remitoId  = now.getTime();
 
   const sucursal = els.fSucursal.value;
-  if (!sucursal) { els.eSucursal.classList.add('show'); els.fSucursal.classList.add('err'); els.fSucursal.focus(); showToast('err', 'Seleccioná una sucursal antes de exportar.'); return; }
+  if (!sucursal) {
+    els.eSucursal.classList.add('show');
+    els.fSucursal.classList.add('err');
+    els.fSucursal.focus();
+    showToast('err', 'Seleccioná una sucursal antes de exportar.');
+    return;
+  }
   const concepto = els.fConcepto.value.trim();
-  if (!concepto) { els.eConcepto.classList.add('show'); els.fConcepto.classList.add('err'); els.fConcepto.focus(); showToast('err', 'Ingresá un concepto general.'); return; }
+  if (!concepto) {
+    els.eConcepto.classList.add('show');
+    els.fConcepto.classList.add('err');
+    els.fConcepto.focus();
+    showToast('err', 'Ingresá un concepto general.');
+    return;
+  }
 
   const conceptoFile = concepto.replace(/\s+/g, '_').toLowerCase();
   const filename = `${sucursal}_${fechaFile}_${conceptoFile}_${remitoId}.xlsx`;
 
   const workbook = new ExcelJS.Workbook();
   const ws = workbook.addWorksheet('Pedido', { views: [{ state: 'normal' }] });
-  ws.pageSetup = { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.3, footer: 0.3 } };
+
+  ws.pageSetup = {
+    paperSize: 9, orientation: 'portrait',
+    fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+    margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.3, footer: 0.3 },
+  };
   ws.pageSetup.printTitlesRow = '1:4';
 
-  ws.mergeCells('A1:F1'); ws.getCell('A1').value = `REMITO/PEDIDO — ${sucursal.toUpperCase()} — ${fecha}`; ws.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' }; ws.getCell('A1').font = { bold: true, size: 14 };
-  ws.mergeCells('A2:F2'); ws.getCell('A2').value = `Concepto: ${concepto}`; ws.getCell('A2').alignment = { horizontal: 'center' };
-  ws.mergeCells('A3:F3'); ws.getCell('A3').value = `ID: ${remitoId}`; ws.getCell('A3').alignment = { horizontal: 'center' };
-  ws.getRow(4).values = ['COD-BAR', 'EAN', 'DESCRIPCION', 'GRAMAJE', 'UxB', 'CANTIDAD']; ws.getRow(4).font = { bold: true };
-  ws.columns = [{ key: 'img', width: 18 }, { key: 'ean', width: 15 }, { key: 'desc', width: 50 }, { key: 'gram', width: 15 }, { key: 'uxb', width: 5 }, { key: 'cant', width: 8 }];
+  // ── Layout de columnas ────────────────────────────────────
+  // A  : Código de barras (imagen)
+  // B  : Espaciador angosto
+  // C  : EAN
+  // D  : Descripción
+  // E  : Espaciador angosto
+  // F  : Gramaje
+  // G  : UxB
+  // H  : Cantidad
+  // ─────────────────────────────────────────────────────────
+  ws.columns = [
+    { key: 'barcode', width: 18  },  // A
+    { key: 'sp1',     width: 0.01 },  // B – espaciador
+    { key: 'ean',     width: 16  },  // C
+    { key: 'desc',    width: 48  },  // D
+    { key: 'sp2',     width: 0.01 },  // E – espaciador
+    { key: 'gram',    width: 14  },  // F
+    { key: 'uxb',     width: 6   },  // G
+    { key: 'cant',    width: 8   },  // H
+  ];
 
-  function barcodeDataUrl(code, opts = {}) {
+  // ── Helpers ───────────────────────────────────────────────
+  const thinBorder = {
+    top:    { style: 'thin' },
+    left:   { style: 'thin' },
+    bottom: { style: 'thin' },
+    right:  { style: 'thin' },
+  };
+  const centerMiddle = { horizontal: 'center', vertical: 'middle', wrapText: true };
+
+  function styleCell(cell, opts = {}) {
+    cell.alignment = centerMiddle;
+    if (!opts.noborder) cell.border = thinBorder;
+    if (opts.bold)      cell.font   = { ...(cell.font || {}), bold: true };
+  }
+
+  function barcodeDataUrl(code) {
     const canvas = document.createElement('canvas');
-    const format = /^\d{13}$/.test(code) ? 'ean13' : 'code128';
-    try { JsBarcode(canvas, String(code), { format, displayValue: false, margin: 0, width: opts.width || 2, height: opts.height || 60, fontSize: 12 }); }
-    catch { JsBarcode(canvas, String(code), { format: 'code128', displayValue: false, margin: 0, width: opts.width || 2, height: opts.height || 60 }); }
+    const fmt    = /^\d{13}$/.test(code) ? 'ean13' : 'code128';
+    try {
+      JsBarcode(canvas, String(code), {
+        format: fmt, displayValue: false,
+        margin: 4, width: 2, height: 56,
+      });
+    } catch {
+      JsBarcode(canvas, String(code), {
+        format: 'code128', displayValue: false,
+        margin: 4, width: 2, height: 56,
+      });
+    }
     return canvas.toDataURL('image/png');
   }
 
+  // ── Filas de cabecera (1-3) ───────────────────────────────
+  const lastCol = 'H';
+
+  [[1, `REMITO/PEDIDO — ${sucursal.toUpperCase()} — ${fecha}`, true, 22],
+   [2, `Concepto: ${concepto}`,                                 false, 16],
+   [3, `ID: ${remitoId}`,                                       false, 14],
+  ].forEach(([row, val, bold, size]) => {
+    ws.mergeCells(`A${row}:${lastCol}${row}`);
+    const cell   = ws.getCell(`A${row}`);
+    cell.value   = val;
+    cell.font    = { bold, size };
+    styleCell(cell);
+  });
+
+  // ── Fila de títulos (fila 4) ──────────────────────────────
+  const headerMap = { A:'COD-BAR', B:'', C:'EAN', D:'DESCRIPCION', E:'', F:'GRAMAJE', G:'UxB', H:'CANTIDAD' };
+  for (const [col, val] of Object.entries(headerMap)) {
+    const cell   = ws.getCell(`${col}4`);
+    cell.value   = val;
+    cell.font    = { bold: true, size: 10 };
+    styleCell(cell, { noorder: col === 'B' || col === 'E' });
+    if (col !== 'B' && col !== 'E') cell.border = thinBorder;
+  }
+  ws.getRow(4).height = 18;
+
+  // ── Filas de datos ────────────────────────────────────────
   for (let i = 0; i < state.order.length; i++) {
-    const item = state.order[i]; const rowIndex = 5 + i; const eanCode = item.ean || '';
-    const base64 = barcodeDataUrl(eanCode, { width: 2, height: 60 }).split(',')[1];
-    const imageId = workbook.addImage({ base64, extension: 'png' });
-    ws.getCell(`A${rowIndex}`).value = '';
-    ws.addImage(imageId, { tl: { col: 0.15, row: rowIndex - 1 + 0.1 }, ext: { width: 100, height: 45 }, editAs: 'oneCell' });
-    ws.getCell(`B${rowIndex}`).value = String(eanCode);
-    ws.getCell(`C${rowIndex}`).value = item.descripcion || '';
-    ws.getCell(`D${rowIndex}`).value = item.gramaje || '';
-    ws.getCell(`E${rowIndex}`).value = item.uxb !== '' ? item.uxb : '';
-    ws.getCell(`F${rowIndex}`).value = item.cantidad;
-    ws.getRow(rowIndex).height = 55;
+    const item     = state.order[i];
+    const rowIndex = 5 + i;
+    const eanCode  = String(item.ean || '');
+    const ROW_H    = 52; // px altura de fila
+    ws.getRow(rowIndex).height = ROW_H;
+
+    // A — celda vacía con borde (la imagen flota encima)
+    const cellA = ws.getCell(`A${rowIndex}`);
+    cellA.value = '';
+    cellA.border = thinBorder;
+
+    // Imagen del barcode anclada a la celda A
+    if (eanCode) {
+      const b64     = barcodeDataUrl(eanCode).split(',')[1];
+      const imageId = workbook.addImage({ base64: b64, extension: 'png' });
+      ws.addImage(imageId, {
+        tl:       { col: 0.1,  row: rowIndex - 1 + 0.08 },
+        ext:      { width: 118, height: ROW_H * 0.82 },
+        editAs:   'oneCell',
+      });
+    }
+
+    // B — espaciador sin borde
+    ws.getCell(`B${rowIndex}`).value = '';
+
+    // C — EAN texto
+    const cellC  = ws.getCell(`C${rowIndex}`);
+    cellC.value  = eanCode;
+    styleCell(cellC);
+    cellC.font   = { name: 'Courier New', size: 10 };
+
+    // D — Descripción
+    const cellD  = ws.getCell(`D${rowIndex}`);
+    cellD.value  = item.descripcion || '';
+    styleCell(cellD);
+
+    // E — espaciador
+    ws.getCell(`E${rowIndex}`).value = '';
+
+    // F — Gramaje
+    const cellF  = ws.getCell(`F${rowIndex}`);
+    cellF.value  = item.gramaje || '';
+    styleCell(cellF);
+
+    // G — UxB
+    const cellG  = ws.getCell(`G${rowIndex}`);
+    cellG.value  = item.uxb !== '' ? item.uxb : '';
+    styleCell(cellG);
+
+    // H — Cantidad
+    const cellH  = ws.getCell(`H${rowIndex}`);
+    cellH.value  = item.cantidad;
+    styleCell(cellH);
+    cellH.font   = { bold: true, size: 12 };
   }
 
-  ws.eachRow({ includeEmpty: true }, row => { row.eachCell({ includeEmpty: true }, cell => { cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } }; }); });
-  autoFitColumns(ws, [3]);
+  // Autofit descripción (col 4 = D)
+  autoFitColumns(ws, [4]);
 
   try {
-    const buf = await workbook.xlsx.writeBuffer();
+    const buf  = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/octet-stream' });
     saveAs(blob, filename);
     showToast('ok', 'Excel descargado.');
     await uploadToDrive(blob, filename);
-  } catch (err) { console.error(err); showToast('err', 'No se pudo generar el Excel.'); }
+  } catch (err) {
+    console.error(err);
+    showToast('err', 'No se pudo generar el Excel.');
+  }
 }
 
 function autoFitColumns(worksheet, cols = []) {
@@ -883,29 +1021,161 @@ function autoFitColumns(worksheet, cols = []) {
 // ── Export PDF ──
 async function exportPDF() {
   if (!state.order.length) return;
-  const now = new Date(); const fecha = now.toLocaleDateString('es-AR'); const fechaFile = now.toISOString().slice(0, 10); const remitoId = now.getTime();
+
+  const now          = new Date();
+  const fecha        = now.toLocaleDateString('es-AR');
+  const fechaFile    = now.toISOString().slice(0, 10);
+  const remitoId     = now.getTime();
+
   const sucursal = els.fSucursal.value;
-  if (!sucursal) { els.eSucursal.classList.add('show'); els.fSucursal.classList.add('err'); els.fSucursal.focus(); showToast('err', 'Seleccioná una sucursal antes de exportar.'); return; }
+  if (!sucursal) {
+    els.eSucursal.classList.add('show'); els.fSucursal.classList.add('err');
+    els.fSucursal.focus();
+    showToast('err', 'Seleccioná una sucursal antes de exportar.');
+    return;
+  }
   const concepto = els.fConcepto.value.trim();
-  if (!concepto) { els.eConcepto.classList.add('show'); els.fConcepto.classList.add('err'); els.fConcepto.focus(); showToast('err', 'Ingresá un concepto general.'); return; }
+  if (!concepto) {
+    els.eConcepto.classList.add('show'); els.fConcepto.classList.add('err');
+    els.fConcepto.focus();
+    showToast('err', 'Ingresá un concepto general.');
+    return;
+  }
+
   const conceptoFile = concepto.replace(/\s+/g, '_').toLowerCase();
-  const filename = `${sucursal}_${fechaFile}_${conceptoFile}_${remitoId}.pdf`;
+  const filename     = `${sucursal}_${fechaFile}_${conceptoFile}_${remitoId}.pdf`;
+
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'landscape' });
-  doc.setFontSize(16); doc.text(`REMITO/PEDIDO — ${sucursal.toUpperCase()} — ${fecha}`, 40, 40);
-  doc.setFontSize(12); doc.text(`Concepto: ${concepto}`, 40, 60); doc.text(`ID: ${remitoId}`, 40, 80);
-  const rows = [];
+
+  // ── Geometría ─────────────────────────────────────────────
+  // A4 landscape = 841.89 × 595.28 pt
+  const PAGE_W  = doc.internal.pageSize.getWidth();   // 841.89
+  const MARGIN  = 36;
+  const TABLE_W = PAGE_W - MARGIN * 2;                // ~769.89 pt
+
+  // ── Encabezado ────────────────────────────────────────────
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.text(`REMITO/PEDIDO — ${sucursal.toUpperCase()} — ${fecha}`, MARGIN, 34);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text(`Concepto: ${concepto}`, MARGIN, 50);
+  doc.text(`ID: ${remitoId}`,       MARGIN, 63);
+
+  // ── Widths proporcionales — deben sumar 1.0 ───────────────
+  //  Col 0 Barcode     15 %
+  //  Col 1 EAN          9 %
+  //  Col 2 Descripción 27 %
+  //  Col 3 Proveedor   15 %
+  //  Col 4 Interno      8 %
+  //  Col 5 Gramaje      9 %
+  //  Col 6 UxB          8.5 %
+  //  Col 7 Cant.        8.5 %
+  //  ─────────────────────────
+  //  Total            100 %
+  const W = {
+    barcode:  TABLE_W * 0.150,
+    ean:      TABLE_W * 0.090,
+    desc:     TABLE_W * 0.270,
+    prov:     TABLE_W * 0.150,
+    interno:  TABLE_W * 0.080,
+    gramaje:  TABLE_W * 0.090,
+    uxb:      TABLE_W * 0.085,
+    cant:     TABLE_W * 0.085,
+  };
+
+  // ── Filas ─────────────────────────────────────────────────
+  const ROW_H = 34;
+  const rows  = [];
+
   for (const item of state.order) {
-    const canvas = document.createElement('canvas'); const format = /^\d{13}$/.test(item.ean) ? 'ean13' : 'code128';
-    JsBarcode(canvas, String(item.ean), { format, displayValue: false, height: 40 });
-    rows.push([{ content: '', barcode: canvas.toDataURL('image/png') }, item.ean, item.descripcion, item.proveedor, item.interno, item.gramaje, item.uxb, item.cantidad]);
+    const eanCode = String(item.ean || '');
+    let barcodeImg = null;
+
+    if (eanCode) {
+      try {
+        const canvas = document.createElement('canvas');
+        const fmt    = /^\d{13}$/.test(eanCode) ? 'ean13' : 'code128';
+        try {
+          JsBarcode(canvas, eanCode, { format: fmt,       displayValue: false, height: 38, margin: 2, width: 1.4 });
+        } catch {
+          JsBarcode(canvas, eanCode, { format: 'code128', displayValue: false, height: 38, margin: 2, width: 1.4 });
+        }
+        barcodeImg = canvas.toDataURL('image/png');
+      } catch (e) { /* si falla, celda queda vacía */ }
+    }
+
+    rows.push([
+      { content: '', barcode: barcodeImg },
+      eanCode,
+      item.descripcion  || '—',
+      item.proveedor    || '—',
+      item.interno      || '—',
+      item.gramaje      || '—',
+      item.uxb !== ''   ? String(item.uxb) : '—',
+      item.cantidad,
+    ]);
   }
+
+  // ── Tabla ─────────────────────────────────────────────────
   doc.autoTable({
-    startY: 110, head: [['Código', 'EAN', 'Descripción', 'Proveedor', 'Interno', 'Gramaje', 'UxB', 'Cant.']], body: rows, rowHeight: 30, styles: { halign: 'center', valign: 'middle', cellPadding: { top: 6, bottom: 6 } },
-    didDrawCell: (data) => { if (data.column.index === 0 && data.cell.raw?.barcode) { const iw = 110, ih = 30; doc.addImage(data.cell.raw.barcode, 'PNG', data.cell.x + (data.cell.width - iw) / 2, data.cell.y + (data.cell.height - ih) / 2, iw, ih); } },
-    columnStyles: { 0: { cellWidth: 120 }, 1: { cellWidth: 70 }, 2: { cellWidth: 220 }, 3: { cellWidth: 120 }, 4: { cellWidth: 80 }, 5: { cellWidth: 70 }, 6: { cellWidth: 70 }, 7: { cellWidth: 60 } }
+    startY: 76,
+    margin: { left: MARGIN, right: MARGIN },
+
+    head: [[
+      'Cód. Barras', 'EAN', 'Descripción', 'Proveedor',
+      'Interno', 'Gramaje', 'UxB', 'Cant.',
+    ]],
+    body: rows,
+
+    styles: {
+      halign:        'center',
+      valign:        'middle',
+      fontSize:       7.5,
+      cellPadding:    3,
+      minCellHeight:  ROW_H,
+      overflow:      'ellipsize',
+    },
+    headStyles: {
+      fillColor:  [30, 30, 50],
+      textColor:  240,
+      fontStyle: 'bold',
+      fontSize:   8,
+    },
+    alternateRowStyles: {
+      fillColor: [245, 245, 250],
+    },
+
+    columnStyles: {
+      0: { cellWidth: W.barcode  },
+      1: { cellWidth: W.ean      },
+      2: { cellWidth: W.desc,    halign: 'left' },
+      3: { cellWidth: W.prov,    halign: 'left' },
+      4: { cellWidth: W.interno  },
+      5: { cellWidth: W.gramaje  },
+      6: { cellWidth: W.uxb      },
+      7: { cellWidth: W.cant,    fontStyle: 'bold' },
+    },
+
+    didDrawCell: (data) => {
+      if (data.section !== 'body') return;
+      if (data.column.index !== 0) return;
+      const img = data.cell.raw?.barcode;
+      if (!img) return;
+
+      const pad = 3;
+      const iw  = data.cell.width  - pad * 2;
+      const ih  = data.cell.height - pad * 2;
+      doc.addImage(img, 'PNG', data.cell.x + pad, data.cell.y + pad, iw, ih);
+    },
   });
-  const pdfBlob = doc.output('blob'); doc.save(filename); await uploadToDrive(pdfBlob, filename); showToast('ok', 'PDF generado y subido a Drive.');
+
+  const pdfBlob = doc.output('blob');
+  doc.save(filename);
+  await uploadToDrive(pdfBlob, filename);
+  showToast('ok', 'PDF generado y subido a Drive.');
 }
 
 // ── Drive upload ──

@@ -6,11 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#0a0a0f" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title>REMITOS/PEDIDOS</title>
+  <title>TCD SUPER</title>
   <link
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="../css/tcd-pedidos.css" />
+  <link rel="stylesheet" href="../css/tcd-super.css" />
   <link rel="icon" type="image/x-icon" href="../favicon.ico">
   <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -19,6 +19,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bwip-js/dist/bwip-js-min.js"></script>
 </head>
 
 <body>
@@ -28,8 +29,8 @@
     <div class="topbar-brand">
       <div class="topbar-icon">🧾</div>
       <div>
-        <div class="topbar-title">REMITOS/PEDIDOS</div>
-        <div class="topbar-sub">SISTEMA INTERNO</div>
+        <div class="topbar-title">TCD</div>
+        <div class="topbar-sub">Terminal colectora de datos</div>
       </div>
     </div>
     <div class="topbar-right">
@@ -273,8 +274,12 @@
               <div class="pc-field-value" id="pcUxb">—</div>
             </div>
             <div class="pc-field">
-              <div class="pc-field-label">PVP</div>
+              <div class="pc-field-label">Precio normal</div>
               <div class="pc-field-value" id="pcPvp">—</div>
+            </div>
+            <div class="pc-field">
+              <div class="pc-field-label">Precio mayorista</div>
+              <div class="pc-field-value" id="pcPvpMay">—</div>
             </div>
           </div>
         </div>
@@ -359,7 +364,7 @@
     <span id="toastMsg"></span>
   </div>
 
-  <script src="../js/tcd-pedidos.js"></script>
+  <script src="../js/tcd-super.js"></script>
 </body>
 
 </html>

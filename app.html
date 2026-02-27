@@ -8,26 +8,18 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg:       #0d0f14;
-    --surface:  #151820;
-    --surface2: #1c2030;
-    --border:   #252a38;
-    --border2:  #2e3547;
-    --text:     #e2e8f0;
-    --text2:    #8892a4;
-    --text3:    #525e72;
-    --accent:   #3b82f6;
-    --vencido-bg:#2d0a0a; --vencido-fg:#ff4444; --vencido-br:#7f1d1d;
-    --critico-bg:#2d1300; --critico-fg:#ff7c2a; --critico-br:#7c2d12;
-    --urgente-bg:#2d2200; --urgente-fg:#fbbf24; --urgente-br:#78350f;
-    --proximo-bg:#1a2500; --proximo-fg:#a3e635; --proximo-br:#365314;
-    --atencion-bg:#001a2d;--atencion-fg:#38bdf8; --atencion-br:#0c4a6e;
-    --normal-bg: #0a1f0a; --normal-fg: #4ade80; --normal-br: #14532d;
+    --bg:#0d0f14;--surface:#151820;--surface2:#1c2030;--border:#252a38;--border2:#2e3547;
+    --text:#e2e8f0;--text2:#8892a4;--text3:#525e72;--accent:#3b82f6;
+    --vencido-bg:#2d0a0a;--vencido-fg:#ff4444;--vencido-br:#7f1d1d;
+    --critico-bg:#2d1300;--critico-fg:#ff7c2a;--critico-br:#7c2d12;
+    --urgente-bg:#2d2200;--urgente-fg:#fbbf24;--urgente-br:#78350f;
+    --proximo-bg:#1a2500;--proximo-fg:#a3e635;--proximo-br:#365314;
+    --atencion-bg:#001a2d;--atencion-fg:#38bdf8;--atencion-br:#0c4a6e;
+    --normal-bg:#0a1f0a;--normal-fg:#4ade80;--normal-br:#14532d;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;min-height:100vh}
 
-  /* ── TOPBAR ── */
   .topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
   .logo{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;letter-spacing:-0.5px}
   .logo span{color:var(--accent)}
@@ -39,26 +31,26 @@
   .btn-sm.loading{opacity:.5;pointer-events:none}
   .main{padding:18px 24px;max-width:1600px;margin:0 auto}
 
-  /* ── KPIs ── */
+  /* KPIs */
   .kpi-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:18px}
   @media(max-width:1100px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
   .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 14px;cursor:pointer;transition:border-color .15s;position:relative;overflow:hidden}
   .kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
   .kpi-card:hover{border-color:var(--border2)}
   .kpi-card.active{border-color:var(--accent)!important}
-  .kpi-card.kv::before{background:var(--vencido-fg)} .kpi-card.kc::before{background:var(--critico-fg)}
-  .kpi-card.ku::before{background:var(--urgente-fg)} .kpi-card.kp::before{background:var(--proximo-fg)}
+  .kpi-card.kv::before{background:var(--vencido-fg)}.kpi-card.kc::before{background:var(--critico-fg)}
+  .kpi-card.ku::before{background:var(--urgente-fg)}.kpi-card.kp::before{background:var(--proximo-fg)}
   .kpi-card.ka::before{background:var(--atencion-fg)}.kpi-card.kn::before{background:var(--normal-fg)}
   .kpi-card.kt::before{background:var(--accent)}
   .kpi-label{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:6px}
   .kpi-value{font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600;line-height:1}
   .kpi-sub{font-size:10px;color:var(--text3);margin-top:3px}
-  .kpi-card.kv .kpi-value{color:var(--vencido-fg)} .kpi-card.kc .kpi-value{color:var(--critico-fg)}
-  .kpi-card.ku .kpi-value{color:var(--urgente-fg)} .kpi-card.kp .kpi-value{color:var(--proximo-fg)}
+  .kpi-card.kv .kpi-value{color:var(--vencido-fg)}.kpi-card.kc .kpi-value{color:var(--critico-fg)}
+  .kpi-card.ku .kpi-value{color:var(--urgente-fg)}.kpi-card.kp .kpi-value{color:var(--proximo-fg)}
   .kpi-card.ka .kpi-value{color:var(--atencion-fg)}.kpi-card.kn .kpi-value{color:var(--normal-fg)}
   .kpi-card.kt .kpi-value{color:var(--accent)}
 
-  /* ── FILTROS ── */
+  /* Filtros */
   .filters-panel{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 16px;margin-bottom:14px}
   .filters-row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
   .fg{display:flex;flex-direction:column;gap:3px;min-width:130px}
@@ -73,46 +65,134 @@
   .results-info{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)}
   .results-info strong{color:var(--text2)}
 
-  /* ── TABLA ── */
+  /* Tabla */
   .table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:auto}
   table{width:100%;border-collapse:collapse;font-size:12px}
   thead th{background:var(--surface2);color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:9px 14px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:2}
 
-  /* ── Nivel 1: PRODUCTO ── */
+  /* Nivel 1: PRODUCTO */
   tr.prod-row{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
   tr.prod-row:hover{background:rgba(59,130,246,.04)}
   tr.prod-row td{padding:11px 14px;vertical-align:middle}
   .expand-icon{color:var(--text3);font-size:9px;transition:transform .2s;display:inline-block;margin-right:7px;vertical-align:middle}
   tr.prod-row.open .expand-icon{transform:rotate(90deg);color:var(--accent)}
 
-  /* ── Nivel 2: SUCURSAL ── */
-  tr.suc-row{display:none;border-bottom:1px solid var(--border)}
+  /* ── Nivel 2: SUCURSAL — fila contenedor ── */
+  tr.suc-row{display:none;border-bottom:2px solid var(--border)}
   tr.suc-row.visible{display:table-row}
-  tr.suc-row.has-history{cursor:pointer}
-  tr.suc-row.has-history:hover td{background:#0f1520}
-  tr.suc-row td{padding:8px 14px 8px 36px;background:#0d1018;vertical-align:middle;font-size:11px;transition:background .1s}
-  .suc-expand-icon{color:var(--text3);font-size:9px;transition:transform .2s;display:inline-block;margin-right:6px;vertical-align:middle}
-  tr.suc-row.suc-open .suc-expand-icon{transform:rotate(90deg);color:#60a5fa}
+  tr.suc-row > td{padding:0;background:#080d18}
 
-  /* ── Nivel 3: CONTROL ── */
-  tr.ctrl-row{display:none;border-bottom:1px solid #181c27}
-  tr.ctrl-row.visible{display:table-row}
-  tr.ctrl-row td{padding:5px 14px 5px 58px;background:#080b10;vertical-align:middle;font-size:10px;color:var(--text3)}
-  tr.ctrl-row td:first-child::before{content:'└ ';color:var(--border2);font-family:'IBM Plex Mono',monospace}
+  /* Ficha de sucursal */
+  .suc-card{
+    margin:0;padding:0;
+    border-left:3px solid #1e3a5f;
+    background:var(--surface);
+  }
+  .suc-card.has-history{cursor:pointer}
+  .suc-card.has-history:hover .suc-card-header{background:#0d1322}
+  .suc-card.suc-open{border-left-color:var(--accent)}
+  .suc-card-header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 16px 10px 14px;
+    background:#0b0f1c;
+    border-bottom:1px solid var(--border);
+    gap:12px;flex-wrap:wrap;
+    transition:background .12s;
+  }
+  .suc-card-header-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .suc-card-header-right{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
+  .suc-expand-icon{color:var(--text3);font-size:9px;transition:transform .2s;display:inline-block;flex-shrink:0}
+  .suc-card.suc-open .suc-expand-icon{transform:rotate(90deg);color:#60a5fa}
+  .suc-name{font-size:14px;font-weight:700;color:var(--text);letter-spacing:-.2px}
+  /* Cuerpo: fila de chips etiquetados */
+  .suc-card-body{
+    display:flex;flex-wrap:wrap;
+    background:var(--border);gap:1px;
+    border-top:1px solid var(--border);
+  }
+  .suc-field{
+    background:#090d18;
+    padding:9px 16px;
+    display:flex;flex-direction:column;gap:3px;
+    min-width:130px;flex:1;
+  }
+  .suc-field.wide{flex:2 1 260px}
+  .suc-field-label{
+    font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1.2px;
+    text-transform:uppercase;color:var(--text3);
+  }
+  .suc-field-val{font-size:12px;color:var(--text);font-weight:500;margin-top:1px}
+  .suc-field-val.mono{font-family:'IBM Plex Mono',monospace;font-size:11px}
+  .suc-field-val.empty{color:var(--text3);font-style:italic;font-weight:400}
 
-  /* ── Badges de controles (limpio) ── */
-  .ctrl-count{display:inline-flex;align-items:center;gap:3px;font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 7px;border-radius:10px;margin-left:8px;vertical-align:middle;line-height:1;letter-spacing:.3px}
+  /* Badge de controles */
+  .ctrl-count{display:inline-flex;align-items:center;gap:3px;font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 8px;border-radius:10px;line-height:1;letter-spacing:.3px}
   .ctrl-count.single{background:var(--surface2);color:var(--text3);border:1px solid var(--border)}
   .ctrl-count.multi{background:#0f1e35;color:#60a5fa;border:1px solid #1e3a5f}
   .ctrl-count.multi::before{content:'↕ '}
 
-  /* ── Badge número de control ── */
-  .ctrl-n{font-family:'IBM Plex Mono',monospace;font-size:9px;background:var(--surface2);border:1px solid var(--border);padding:1px 5px;border-radius:3px;margin-right:5px;color:var(--text3)}
-  .ctrl-n.latest{background:#0f1e35;border-color:#1e3a5f;color:var(--accent)}
-  .ctrl-delta{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:6px}
+  /* Estado badges en ficha suc */
+  .suc-estado{display:inline-flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;padding:3px 8px;border-radius:3px;letter-spacing:.4px}
+  .suc-estado.ACTIVO{background:#0f1e35;color:#60a5fa;border:1px solid #1e3a5f}
+  .suc-estado.ACCION-TOMADA{background:#0f2d1a;color:#4ade80;border:1px solid #166534}
+  .suc-estado.RETIRADO{background:#1a1a2e;color:#818cf8;border:1px solid #3730a3}
+
+  /* ── Nivel 3: CONTROL — fila contenedor ── */
+  tr.ctrl-row{display:none;border-bottom:1px solid #10141e}
+  tr.ctrl-row.visible{display:table-row}
+  tr.ctrl-row > td{padding:0;background:#060810}
+
+  /* Ficha de control individual */
+  .ctrl-card{
+    display:flex;align-items:flex-start;flex-wrap:wrap;gap:0;
+    padding:8px 16px 8px 52px;
+    border-left:3px solid transparent;
+    border-bottom:1px solid #0e1220;
+    transition:background .1s;
+  }
+  .ctrl-card.is-latest{
+    background:#090d1e;
+    border-left-color:var(--accent);
+  }
+  .ctrl-card:not(.is-latest){opacity:.72}
+  .ctrl-card:not(.is-latest):hover{opacity:1}
+  .ctrl-num-wrap{display:flex;align-items:center;gap:6px;margin-right:16px;flex-shrink:0;padding-top:3px}
+  .ctrl-n{font-family:'IBM Plex Mono',monospace;font-size:9px;background:var(--surface2);border:1px solid var(--border);padding:2px 6px;border-radius:3px;color:var(--text3);white-space:nowrap}
+  .ctrl-n.latest{background:#0c1a30;border-color:#1e3a5f;color:var(--accent)}
+  .ultimo-badge{font-family:'IBM Plex Mono',monospace;font-size:8px;font-weight:700;color:var(--accent);background:#0c1a30;border:1px solid #1e3a5f;padding:2px 6px;border-radius:3px;letter-spacing:.8px;text-transform:uppercase;white-space:nowrap}
+  .ctrl-fields{display:flex;align-items:flex-start;flex-wrap:wrap;gap:4px 18px;flex:1}
+  .ctrl-field{display:flex;flex-direction:column;gap:2px;min-width:90px;padding:3px 0}
+  .ctrl-field-label{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--text3)}
+  .ctrl-field-val{font-size:11px;color:var(--text2)}
+  .ctrl-field-val.mono{font-family:'IBM Plex Mono',monospace;font-size:10px}
+  .ctrl-field-val.latest{color:var(--text)}
+
+  .ctrl-delta{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:1px 5px;border-radius:3px}
   .ctrl-delta.neg{background:#2d0a0a;color:#ff6b6b;border:1px solid #7f1d1d}
   .ctrl-delta.pos{background:#0a1f0a;color:#4ade80;border:1px solid #14532d}
   .ctrl-delta.neu{background:var(--surface2);color:var(--text3);border:1px solid var(--border)}
+
+  /* ══════════════════════════════════════════
+     INDICADOR DE ANTIGÜEDAD DEL CONTROL
+     Muestra días desde el último registro.
+     Escala de color: verde → amarillo → rojo
+  ══════════════════════════════════════════ */
+  .stale-badge{
+    display:inline-flex;align-items:center;gap:4px;
+    font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;
+    padding:3px 8px;border-radius:4px;white-space:nowrap;
+    vertical-align:middle;letter-spacing:.3px;
+    border-width:1px;border-style:solid;
+  }
+  .stale-badge .stale-icon{font-size:9px}
+  /* Indicador compacto en prod-row (peor sucursal) */
+  .stale-mini{
+    display:inline-flex;align-items:center;gap:3px;
+    font-family:'IBM Plex Mono',monospace;font-size:9px;
+    padding:2px 6px;border-radius:3px;
+    border-width:1px;border-style:solid;
+    vertical-align:middle;opacity:.85;
+  }
 
   .td-ean{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text2);white-space:nowrap}
   .td-desc{font-weight:500}
@@ -121,16 +201,16 @@
   .td-prov{color:var(--text2);max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   .urg{display:inline-flex;align-items:center;gap:4px;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:3px 7px;border-radius:3px;white-space:nowrap;letter-spacing:.3px}
-  .urg.VENCIDO {background:var(--vencido-bg);color:var(--vencido-fg);border:1px solid var(--vencido-br)}
-  .urg.CRITICO {background:var(--critico-bg);color:var(--critico-fg);border:1px solid var(--critico-br)}
-  .urg.URGENTE {background:var(--urgente-bg);color:var(--urgente-fg);border:1px solid var(--urgente-br)}
-  .urg.PROXIMO {background:var(--proximo-bg);color:var(--proximo-fg);border:1px solid var(--proximo-br)}
+  .urg.VENCIDO{background:var(--vencido-bg);color:var(--vencido-fg);border:1px solid var(--vencido-br)}
+  .urg.CRITICO{background:var(--critico-bg);color:var(--critico-fg);border:1px solid var(--critico-br)}
+  .urg.URGENTE{background:var(--urgente-bg);color:var(--urgente-fg);border:1px solid var(--urgente-br)}
+  .urg.PROXIMO{background:var(--proximo-bg);color:var(--proximo-fg);border:1px solid var(--proximo-br)}
   .urg.ATENCION{background:var(--atencion-bg);color:var(--atencion-fg);border:1px solid var(--atencion-br)}
-  .urg.NORMAL  {background:var(--normal-bg);color:var(--normal-fg);border:1px solid var(--normal-br)}
+  .urg.NORMAL{background:var(--normal-bg);color:var(--normal-fg);border:1px solid var(--normal-br)}
 
   .dias-num{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;min-width:34px;text-align:right;display:inline-block}
-  .dias-num.VENCIDO{color:var(--vencido-fg)} .dias-num.CRITICO{color:var(--critico-fg)}
-  .dias-num.URGENTE{color:var(--urgente-fg)} .dias-num.PROXIMO{color:var(--proximo-fg)}
+  .dias-num.VENCIDO{color:var(--vencido-fg)}.dias-num.CRITICO{color:var(--critico-fg)}
+  .dias-num.URGENTE{color:var(--urgente-fg)}.dias-num.PROXIMO{color:var(--proximo-fg)}
   .dias-num.ATENCION{color:var(--atencion-fg)}.dias-num.NORMAL{color:var(--normal-fg)}
   .dias-cell{display:flex;align-items:center;gap:10px}
   .dias-right{display:flex;flex-direction:column;gap:4px}
@@ -139,17 +219,16 @@
 
   .suc-badges{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
   .suc-badge{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;white-space:nowrap;letter-spacing:.3px}
-  .suc-badge.ACTIVO       {background:#0f1e35;color:#60a5fa;border:1px solid #1e3a5f}
+  .suc-badge.ACTIVO{background:#0f1e35;color:#60a5fa;border:1px solid #1e3a5f}
   .suc-badge.ACCION-TOMADA{background:#0f2d1a;color:#4ade80;border:1px solid #166534}
-  .suc-badge.RETIRADO     {background:#1a1a2e;color:#818cf8;border:1px solid #3730a3}
+  .suc-badge.RETIRADO{background:#1a1a2e;color:#818cf8;border:1px solid #3730a3}
 
   .estado-dot{display:inline-flex;align-items:center;gap:6px;font-size:11px}
   .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
-  .dot.ACTIVO       {background:#60a5fa}
+  .dot.ACTIVO{background:#60a5fa}
   .dot.ACCION-TOMADA{background:#4ade80}
-  .dot.RETIRADO     {background:#818cf8}
+  .dot.RETIRADO{background:#818cf8}
 
-  /* ── ID Chip — clickeable para DEV ── */
   .id-chip{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);background:var(--surface2);border:1px solid var(--border2);padding:2px 7px;border-radius:3px;white-space:nowrap;display:inline-block;margin-top:3px}
   .id-chip.dev-link{color:#a78bfa;border-color:#4c1d95;background:#1e1035;cursor:pointer;transition:all .15s}
   .id-chip.dev-link:hover{color:#c4b5fd;border-color:#7c3aed;background:#2d1a52}
@@ -163,7 +242,7 @@
   .error-banner{background:#2d0a0a;border:1px solid var(--vencido-br);color:var(--vencido-fg);padding:10px 16px;border-radius:6px;margin-bottom:14px;font-size:12px;display:none}
   .error-banner.show{display:block}
 
-  /* ── MODAL CONFIG ── */
+  /* Modal config */
   .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center}
   .modal-overlay.show{display:flex}
   .modal{background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:28px;width:480px;max-width:95vw}
@@ -174,7 +253,7 @@
   .btn-primary{background:var(--accent);border:none;color:#fff;padding:9px 20px;border-radius:4px;cursor:pointer;font-size:13px;font-family:'IBM Plex Sans',sans-serif;font-weight:500;width:100%;transition:opacity .15s}
   .btn-primary:hover{opacity:.9}
 
-  /* ── MODAL DEV ── */
+  /* Modal DEV */
   .dev-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:300;align-items:center;justify-content:center}
   .dev-modal-overlay.show{display:flex}
   .dev-modal{background:var(--surface);border:1px solid var(--border2);border-radius:10px;width:600px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
@@ -185,13 +264,11 @@
   .dev-modal-close{background:transparent;border:1px solid var(--border2);color:var(--text3);width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
   .dev-modal-close:hover{border-color:var(--text2);color:var(--text)}
   .dev-modal-body{padding:18px 22px;overflow-y:auto}
-  /* estado badge grande */
   .dev-estado{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:4px 10px;border-radius:4px;letter-spacing:.5px;margin-bottom:16px}
-  .dev-estado.PENDIENTE   {background:#2d2600;color:#fbbf24;border:1px solid #78350f}
-  .dev-estado.EN-GESTION  {background:#0d1e35;color:#60a5fa;border:1px solid #1e3a5f}
-  .dev-estado.NC-RECIBIDA {background:#0a1f0a;color:#4ade80;border:1px solid #14532d}
-  .dev-estado.RECHAZADA   {background:#2d0a0a;color:#ff4444;border:1px solid #7f1d1d}
-  /* grilla de campos */
+  .dev-estado.PENDIENTE{background:#2d2600;color:#fbbf24;border:1px solid #78350f}
+  .dev-estado.EN-GESTION{background:#0d1e35;color:#60a5fa;border:1px solid #1e3a5f}
+  .dev-estado.NC-RECIBIDA{background:#0a1f0a;color:#4ade80;border:1px solid #14532d}
+  .dev-estado.RECHAZADA{background:#2d0a0a;color:#ff4444;border:1px solid #7f1d1d}
   .dev-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px}
   .dev-field{background:var(--surface2);padding:10px 12px}
   .dev-field.full{grid-column:1/-1}
@@ -199,10 +276,8 @@
   .dev-field-val{font-size:12px;color:var(--text);word-break:break-word}
   .dev-field-val.mono{font-family:'IBM Plex Mono',monospace;font-size:11px}
   .dev-field-val.empty{color:var(--text3);font-style:italic}
-  /* link de foto */
   .dev-photo-link{display:inline-flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accent);border:1px solid #1e3a5f;background:#0f1e35;padding:4px 10px;border-radius:4px;text-decoration:none;transition:all .15s}
   .dev-photo-link:hover{background:#1a2d4a;border-color:#3b82f6}
-  /* sección de observación N/C */
   .dev-nc{background:#0f1e35;border:1px solid #1e3a5f;border-radius:6px;padding:10px 12px;margin-bottom:14px}
   .dev-nc-label{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#60a5fa;margin-bottom:4px}
   .dev-nc-val{font-size:12px;color:var(--text)}
@@ -210,17 +285,15 @@
 </head>
 <body>
 
-<!-- Modal config -->
 <div class="modal-overlay show" id="configModal">
   <div class="modal">
     <h2>⚙ Configurar endpoint</h2>
-    <p>Pegá la URL de tu Web App de Google Apps Script. El dashboard la guarda en el navegador y se reconecta solo.</p>
+    <p>Pegá la URL de tu Web App de Google Apps Script.</p>
     <input class="modal-input" id="urlInput" type="text" placeholder="https://script.google.com/macros/s/XXXXX/exec">
     <button class="btn-primary" onclick="saveConfig()">Conectar dashboard</button>
   </div>
 </div>
 
-<!-- Modal DEV -->
 <div class="dev-modal-overlay" id="devModal" onclick="closeDevModal(event)">
   <div class="dev-modal">
     <div class="dev-modal-header">
@@ -355,16 +428,16 @@
 // ═══════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════
-let SCRIPT_URL  = localStorage.getItem('ven_script_url') || '';
-let allData     = [];
-let devMap      = new Map();   // id → registro de BD Devoluciones
-let grupos      = [];
-let filtered    = [];
-let openGroups  = new Set();
-let openSucs    = new Set();
+let SCRIPT_URL = localStorage.getItem('ven_script_url') || '';
+let allData    = [];
+let devMap     = new Map();
+let grupos     = [];
+let filtered   = [];
+let openGroups = new Set();
+let openSucs   = new Set();
 
 // ═══════════════════════════════════════════════════════
-//  URGENCIA
+//  URGENCIA DE VENCIMIENTO
 // ═══════════════════════════════════════════════════════
 function calcDias(fechaStr) {
   if (!fechaStr) return null;
@@ -392,6 +465,42 @@ const URG_ORDER  = {VENCIDO:0,CRITICO:1,URGENTE:2,PROXIMO:3,ATENCION:4,NORMAL:5}
 const URG_LABELS = {VENCIDO:'VENCIDO',CRITICO:'CRÍTICO',URGENTE:'URGENTE',PROXIMO:'PRÓXIMO',ATENCION:'ATENCIÓN',NORMAL:'NORMAL'};
 const BAR_COLORS = {VENCIDO:'var(--vencido-fg)',CRITICO:'var(--critico-fg)',URGENTE:'var(--urgente-fg)',PROXIMO:'var(--proximo-fg)',ATENCION:'var(--atencion-fg)',NORMAL:'var(--normal-fg)'};
 
+// ═══════════════════════════════════════════════════════
+//  ESCALA DE ANTIGÜEDAD DEL CONTROL
+//  Días desde el último registro → color de semáforo
+//  0–3   verde vivo     "al día"
+//  4–7   verde lima     "reciente"
+//  8–14  amarillo-verde "atencion"
+//  15–21 amarillo       "pendiente"
+//  22–30 naranja        "demorado"
+//  31–45 rojo-naranja   "urgente revisar"
+//  45+   rojo vivo      "sin control"
+// ═══════════════════════════════════════════════════════
+function staleStyle(dias) {
+  if (dias === null) return { fg:'#525e72', bg:'#1c2030', br:'#252a38', icon:'?' , label:'sin fecha' };
+  if (dias <=  3) return { fg:'#4ade80', bg:'#0a1f0a', br:'#14532d', icon:'✓', label:`hace ${dias}d` };
+  if (dias <=  7) return { fg:'#a3e635', bg:'#172100', br:'#2d4a00', icon:'●', label:`hace ${dias}d` };
+  if (dias <= 14) return { fg:'#d4e635', bg:'#1e2200', br:'#3d4700', icon:'●', label:`hace ${dias}d` };
+  if (dias <= 21) return { fg:'#fbbf24', bg:'#2d2200', br:'#78350f', icon:'●', label:`hace ${dias}d` };
+  if (dias <= 30) return { fg:'#fb923c', bg:'#2d1500', br:'#7c2d12', icon:'!', label:`hace ${dias}d` };
+  if (dias <= 45) return { fg:'#f87171', bg:'#2d0c0c', br:'#7f1d1d', icon:'!!', label:`hace ${dias}d` };
+  return               { fg:'#ff3333', bg:'#3d0000', br:'#9b1c1c', icon:'⚠', label:`hace ${dias}d` };
+}
+
+function staleBadgeHtml(dias, mini=false) {
+  const s = staleStyle(dias);
+  const cls = mini ? 'stale-mini' : 'stale-badge';
+  return `<span class="${cls}" style="color:${s.fg};background:${s.bg};border-color:${s.br}">${mini?'':''}<span class="stale-icon">${s.icon}</span> ${s.label}</span>`;
+}
+
+// Días desde fecha (en el pasado) hasta hoy
+function diasDesde(date) {
+  if (!date) return null;
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const d = new Date(date); d.setHours(0,0,0,0);
+  return Math.max(0, Math.round((hoy - d) / 86400000));
+}
+
 function parseRegDate(str) {
   if (!str) return null;
   const m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
@@ -401,15 +510,22 @@ function parseRegDate(str) {
   const d = new Date(str); return isNaN(d) ? null : d;
 }
 function fmtDate(str) {
+  // Salida siempre: dd-mm-yyyy HH:mm  (o dd-mm-yyyy si no hay hora)
   if (!str) return '—';
-  // yyyy-MM-dd HH:mm
-  const m1 = str.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}:\d{2})/);
-  if (m1) return `${m1[3]}/${m1[2]}/${m1[1]} ${m1[4]}`;
-  const m = str.match(/^(\d{2}\/\d{2})\/\d{4}\s+(\d{2}:\d{2})/);
-  if (m) return `${m[1]} ${m[2]}`;
-  const m2 = str.match(/^\d{4}-(\d{2})-(\d{2])[\sT](\d{2}:\d{2})/);
-  if (m2) return `${m2[2]}/${m2[1]} ${m2[3]}`;
-  return str.slice(0,16);
+  const s = String(str).trim();
+  // "dd/MM/yyyy HH:mm:ss"  o  "dd/MM/yyyy HH:mm"
+  const m1 = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}:\d{2}))?/);
+  if (m1) return m1[4] ? `${m1[1]}-${m1[2]}-${m1[3]} ${m1[4]}` : `${m1[1]}-${m1[2]}-${m1[3]}`;
+  // "yyyy-MM-dd HH:mm"  o  "yyyy-MM-dd"
+  const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[\sT]+(\d{2}:\d{2}))?/);
+  if (m2) return m2[4] ? `${m2[3]}-${m2[2]}-${m2[1]} ${m2[4]}` : `${m2[3]}-${m2[2]}-${m2[1]}`;
+  return s.slice(0,16);
+}
+// Formatea fechas de vencimiento/registro solo con fecha dd-mm-yyyy (sin hora)
+function fmtDateOnly(str) {
+  if (!str) return '—';
+  const full = fmtDate(str);
+  return full.split(' ')[0]; // toma solo la parte de fecha
 }
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
 function val(v){ return (v===null||v===undefined||v==='') ? null : v; }
@@ -430,7 +546,7 @@ function openConfig() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  CARGA — paralela: vencimientos + devoluciones
+//  CARGA
 // ═══════════════════════════════════════════════════════
 async function loadData() {
   if (!SCRIPT_URL) { openConfig(); return; }
@@ -438,23 +554,19 @@ async function loadData() {
   btn.classList.add('loading'); btn.textContent = '↻ Cargando…';
   showState('loading'); hideError();
   try {
-    // Carga paralela de ambas BDs
     const [venResp, devResp] = await Promise.all([
       fetch(`${SCRIPT_URL}?action=getHistorial&bd=vencimientos`),
       fetch(`${SCRIPT_URL}?action=getHistorial&bd=devoluciones`),
     ]);
     const [venJson, devJson] = await Promise.all([venResp.json(), devResp.json()]);
-
     if (!venJson.success) throw new Error(venJson.message || 'Error en BD Vencimientos');
 
-    // Procesar vencimientos
     allData = (venJson.data||[]).map(row => {
       const fv   = row['FECHA VENCIMIENTO']||row['FECHA VENC.']||'';
       const dias = calcDias(fv);
       return { ...row, _dias:dias, _urg:getUrg(dias), _regDate:parseRegDate(row['FECHA REGISTRO']||'') };
     });
 
-    // Procesar devoluciones → Map por ID
     devMap.clear();
     if (devJson.success) {
       (devJson.data||[]).forEach(row => {
@@ -500,6 +612,8 @@ function buildGrupos() {
     });
     entry.latest    = entry.registros[0];
     entry.controles = entry.registros;
+    // días desde el último control de esta sucursal
+    entry.diasDesdeControl = diasDesde(entry.latest._regDate);
     sucEntries.push(entry);
   });
 
@@ -520,6 +634,8 @@ function buildGrupos() {
     if (estados.some(e=>e==='ACTIVO'))        g.grupoEstado='ACTIVO';
     else if (estados.every(e=>e==='RETIRADO')) g.grupoEstado='RETIRADO';
     else                                       g.grupoEstado='ACCION TOMADA';
+    // Peor antigüedad entre todas las sucursales (mayor días sin control)
+    g.maxDiasDesde = Math.max(...g.sucursales.map(se=>se.diasDesdeControl??0));
     return g;
   });
 }
@@ -575,9 +691,7 @@ function applyFilters(){
 
   filtered = grupos.filter(g => {
     if (buscar) {
-      const hay = [g.ean,g.desc,g.prov,
-        ...g.sucursales.flatMap(se=>se.controles.map(r=>String(r['LOTE']||'')))
-      ].join(' ').toLowerCase();
+      const hay = [g.ean,g.desc,g.prov,...g.sucursales.flatMap(se=>se.controles.map(r=>String(r['LOTE']||'')))].join(' ').toLowerCase();
       if (!hay.includes(buscar)) return false;
     }
     if (prov && !g.sucursales.some(se=>se.latest['PROVEEDOR']===prov)) return false;
@@ -594,10 +708,7 @@ function applyFilters(){
     }
     return true;
   });
-  filtered.sort((a,b)=>{
-    const d=URG_ORDER[a.urg]-URG_ORDER[b.urg];
-    return d!==0?d:(a.dias??9999)-(b.dias??9999);
-  });
+  filtered.sort((a,b)=>{const d=URG_ORDER[a.urg]-URG_ORDER[b.urg];return d!==0?d:(a.dias??9999)-(b.dias??9999);});
   renderTable();
 }
 function clearFilters(){
@@ -609,7 +720,10 @@ function clearFilters(){
 }
 
 // ═══════════════════════════════════════════════════════
-//  RENDER
+//  RENDER — 3 niveles
+//  Nivel 1: fila de tabla (columnas alineadas al header)
+//  Nivel 2: ficha "card" colspan completo — etiquetas explícitas
+//  Nivel 3: ficha compacta colspan completo — etiquetas explícitas
 // ═══════════════════════════════════════════════════════
 function renderTable(){
   const wrap      = document.getElementById('tableWrap');
@@ -623,15 +737,22 @@ function renderTable(){
     `⚠ <strong>${sinAccion}</strong> sin acción · ✓ <strong>${conAccion}</strong> gestionados`;
 
   if (!filtered.length) {
-    wrap.innerHTML=`<div class="state-full"><div class="icon">🔍</div><p>Sin resultados para los filtros aplicados</p></div>`;
+    wrap.innerHTML=`<div class="state-full"><div class="icon">🔍</div><p>Sin resultados</p></div>`;
     return;
   }
 
+  // 8 columnas en el header
+  const NCOLS = 8;
+
   let html=`<table><thead><tr>
     <th style="width:130px">Días / Urgencia</th>
-    <th>EAN</th><th>Descripción</th><th>Vto.</th>
+    <th>EAN</th>
+    <th>Descripción</th>
+    <th>Vto.</th>
     <th style="text-align:right">Total u.</th>
-    <th>Proveedor</th><th>Sucursales</th><th>Estado</th>
+    <th>Proveedor</th>
+    <th>Sucursales</th>
+    <th>Estado</th>
   </tr></thead><tbody>`;
 
   filtered.forEach(g => {
@@ -647,7 +768,12 @@ function renderTable(){
     const dotClass = g.grupoEstado.replace(/\s+/g,'-');
     const dotLabel = g.grupoEstado==='ACTIVO'?'Sin acción':g.grupoEstado==='RETIRADO'?'Retirado':'Gestionado';
 
-    // ── NIVEL 1: producto ──
+    // Badge de antigüedad del peor caso (fila de producto)
+    const maxDiasVis = sucVis.length
+      ? Math.max(...sucVis.map(se=>se.diasDesdeControl??0))
+      : g.maxDiasDesde;
+
+    // ── NIVEL 1: PRODUCTO ──
     html += `
     <tr class="prod-row${isOpen?' open':''}" onclick="toggleGroup(this,'${esc(g.key)}')">
       <td>
@@ -661,61 +787,90 @@ function renderTable(){
       </td>
       <td class="td-ean">${esc(String(g.ean))}</td>
       <td class="td-desc"><span class="expand-icon">▶</span>${esc(g.desc)}</td>
-      <td class="td-date">${esc(g.fecha)}</td>
+      <td class="td-date">${esc(fmtDateOnly(g.fecha))}</td>
       <td class="td-qty">${g.totalU||'—'}</td>
       <td class="td-prov" title="${esc(g.prov)}">${esc(g.prov||'—')}</td>
       <td><div class="suc-badges">${sucBadges}</div></td>
       <td><span class="estado-dot"><span class="dot ${dotClass}"></span>${dotLabel}</span></td>
     </tr>`;
 
-    // ── NIVEL 2: sucursal ──
+    // ── NIVEL 2: SUCURSAL — ficha con colspan total ──
     sucVis.forEach(se => {
       const f          = se.latest;
       const est        = String(f['ESTADO GESTION']||'ACTIVO').toUpperCase().replace(/\s+/g,'-');
       const idAcc      = f['ID ACCION']||'';
       const aclar      = f['ACLARACION']||'';
-      const sector     = [f['SECTOR'],f['SECCION']].filter(Boolean).join(' / ')||'—';
+      const sector     = [f['SECTOR'],f['SECCION']].filter(Boolean).join(' / ');
       const sucKey     = g.key+'||'+se.suc;
       const isSucOpen  = openSucs.has(sucKey);
       const nControles = se.controles.length;
       const hasHistory = nControles > 1;
 
-      // Badge de controles — limpio con clase CSS
       const ctrlBadge = `<span class="ctrl-count ${hasHistory?'multi':'single'}">${nControles} control${nControles!==1?'es':''}</span>`;
 
-      // Chip de acción DEV — clickeable y visual diferenciado
+      // Chip DEV — morado clickeable
       const devChip = idAcc
-        ? `<span class="id-chip dev-link" onclick="openDevModal(event,'${esc(idAcc)}')" title="Ver acción ${esc(idAcc)}">${esc(idAcc)} ↗</span>`
-        : '';
+        ? `<span class="id-chip dev-link" onclick="openDevModal(event,'${esc(idAcc)}')" title="Ver acción">${esc(idAcc)} ↗</span>`
+        : `<span style="color:var(--text3);font-size:11px">Sin acción registrada</span>`;
 
-      // La fila de sucursal entera es clickeable si tiene historial
+      // Helper de campo para la ficha
+      const sf = (label, value, opts={}) => {
+        const isEmpty = !value || value === '—';
+        const monoClass = opts.mono ? ' mono' : '';
+        return `<div class="suc-field${opts.wide?' wide':''}">
+          <div class="suc-field-label">${label}</div>
+          <div class="suc-field-val${monoClass}${isEmpty?' empty':''}">${isEmpty?'—':esc(String(value))}</div>
+        </div>`;
+      };
+
       html += `
-      <tr class="suc-row${isOpen?' visible':''}${isSucOpen?' suc-open':''}${hasHistory?' has-history':''}"
-          data-suc-key="${esc(sucKey)}"
-          ${hasHistory?`onclick="toggleSuc(event,'${esc(sucKey)}')"`:''}>
-        <td style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:9px;padding-left:14px">
-          ${hasHistory?`<span class="suc-expand-icon">▶</span>`:'↳'} SUCURSAL
-        </td>
-        <td colspan="2">
-          <strong style="color:var(--text);font-size:12px">${esc(f['SUCURSAL']||'—')}</strong>
-          <span style="color:var(--text3);margin-left:8px;font-size:10px">${esc(f['USUARIO']||'')}</span>
-          ${ctrlBadge}
-        </td>
-        <td style="color:var(--text3);font-size:11px">${fmtDate(f['FECHA REGISTRO']||'')}</td>
-        <td class="td-qty">${f['CANTIDAD']||'—'} u</td>
-        <td style="color:var(--text3);font-size:11px;font-family:'IBM Plex Mono',monospace">Lote: ${esc(String(f['LOTE']||'—'))}</td>
-        <td style="color:var(--text2);font-size:11px">${esc(sector)}</td>
-        <td>
-          <span class="estado-dot" style="font-size:11px">
-            <span class="dot ${est}"></span>
-            <span style="color:var(--text2)">${esc(f['ESTADO GESTION']||'—')}</span>
-          </span>
-          ${devChip}
-          ${aclar?`<div style="font-size:10px;color:var(--text3);margin-top:3px">"${esc(aclar)}"</div>`:''}
+      <tr class="suc-row${isOpen?' visible':''}${isSucOpen?' suc-open':''}"
+          data-suc-key="${esc(sucKey)}">
+        <td colspan="${NCOLS}" style="padding:0">
+          <div class="suc-card${hasHistory?' has-history':''}${isSucOpen?' suc-open':''}"
+               ${hasHistory?`onclick="toggleSuc(event,'${esc(sucKey)}')"`:''}>
+
+            <!-- HEADER de sucursal -->
+            <div class="suc-card-header">
+              <div class="suc-card-header-left">
+                ${hasHistory
+                  ? `<span class="suc-expand-icon">▶</span>`
+                  : `<span style="color:var(--text3);font-size:10px">↳</span>`}
+                <span class="suc-name">${esc(f['SUCURSAL']||'—')}</span>
+                ${ctrlBadge}
+              </div>
+              <div class="suc-card-header-right">
+                <span class="suc-estado ${est}">
+                  <span style="width:5px;height:5px;border-radius:50%;background:currentColor;display:inline-block;flex-shrink:0"></span>
+                  ${est.replace(/-/g,' ')}
+                </span>
+              </div>
+            </div>
+
+            <!-- CUERPO: campos en grilla -->
+            <div class="suc-card-body">
+              ${sf('Controlado por', f['USUARIO'])}
+              ${sf('Fecha de control', fmtDate(f['FECHA REGISTRO']||''))}
+              ${sf('Unidades', f['CANTIDAD'] ? f['CANTIDAD']+' u' : null)}
+              ${sf('Lote', f['LOTE'], {mono:true})}
+              ${sector ? sf('Sector / Sección', sector) : ''}
+              <div class="suc-field">
+                <div class="suc-field-label">Días desde el último control</div>
+                <div style="margin-top:3px">${staleBadgeHtml(se.diasDesdeControl, false)}</div>
+              </div>
+              <div class="suc-field${idAcc?' ':' wide'}">
+                <div class="suc-field-label">Acción tomada</div>
+                <div class="suc-field-val" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px">
+                  ${devChip}
+                </div>
+              </div>
+              ${aclar ? sf('Aclaración', aclar, {wide:true}) : ''}
+            </div>
+          </div>
         </td>
       </tr>`;
 
-      // ── NIVEL 3: controles históricos ──
+      // ── NIVEL 3: CONTROLES HISTÓRICOS — fila compacta colspan total ──
       se.controles.forEach((ctrl, idx) => {
         const isLatest = idx === 0;
         const ctrlEst  = String(ctrl['ESTADO GESTION']||'ACTIVO').toUpperCase().replace(/\s+/g,'-');
@@ -723,40 +878,63 @@ function renderTable(){
         const ctrlAcl  = ctrl['ACLARACION']||'';
         const showRow  = isOpen && isSucOpen;
 
+        // Delta entre este control y el anterior (idx+1 = más viejo)
         let deltaHtml = '';
-        if (idx < se.controles.length-1) {
-          const older = se.controles[idx+1];
+        if (idx < se.controles.length - 1) {
+          const older = se.controles[idx + 1];
           if (ctrl._regDate && older._regDate) {
             const diff = Math.round((ctrl._regDate - older._regDate) / 86400000);
             const cls  = diff > 0 ? 'pos' : diff < 0 ? 'neg' : 'neu';
-            deltaHtml  = `<span class="ctrl-delta ${cls}">${diff>0?'+':''}${diff}d desde anterior</span>`;
+            deltaHtml  = `<span class="ctrl-delta ${cls}">${diff > 0 ? '+' : ''}${diff}d respecto al anterior</span>`;
           }
         }
 
         const ctrlDevChip = ctrlAcc
-          ? `<span class="id-chip dev-link" onclick="openDevModal(event,'${esc(ctrlAcc)}')" title="Ver acción ${esc(ctrlAcc)}">${esc(ctrlAcc)} ↗</span>`
+          ? `<span class="id-chip dev-link" onclick="openDevModal(event,'${esc(ctrlAcc)}')">${esc(ctrlAcc)} ↗</span>`
           : '';
+
+        const cf = (label, value, opts={}) => {
+          const isEmpty = !value || value === '—';
+          return `<div class="ctrl-field">
+            <div class="ctrl-field-label">${label}</div>
+            <div class="ctrl-field-val${opts.mono?' mono':''}${isLatest?' latest':''}">${isEmpty?'—':esc(String(value))}</div>
+          </div>`;
+        };
 
         html += `
         <tr class="ctrl-row${showRow?' visible':''}" data-suc-key="${esc(sucKey)}">
-          <td>
-            <span class="ctrl-n${isLatest?' latest':''}">C${nControles-idx}</span>
-            ${isLatest?`<span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--accent)">ÚLTIMO</span>`:''}
-          </td>
-          <td colspan="2" style="color:var(--text2)">
-            ${fmtDate(ctrl['FECHA REGISTRO']||'')} ${deltaHtml}
-          </td>
-          <td style="font-family:'IBM Plex Mono',monospace;font-size:10px">${esc(ctrl['USUARIO']||'—')}</td>
-          <td class="td-qty" style="font-size:10px">${ctrl['CANTIDAD']||'—'} u</td>
-          <td style="font-family:'IBM Plex Mono',monospace;font-size:10px">Lote: ${esc(String(ctrl['LOTE']||'—'))}</td>
-          <td></td>
-          <td>
-            <span class="estado-dot" style="font-size:10px">
-              <span class="dot ${ctrlEst}" style="width:5px;height:5px"></span>
-              <span style="color:var(--text3)">${esc(ctrl['ESTADO GESTION']||'—')}</span>
-            </span>
-            ${ctrlDevChip}
-            ${ctrlAcl?`<div style="font-size:10px;color:var(--text3);margin-top:2px">"${esc(ctrlAcl)}"</div>`:''}
+          <td colspan="${NCOLS}" style="padding:0">
+            <div class="ctrl-card${isLatest?' is-latest':''}">
+              <!-- Número de control + badge último -->
+              <div class="ctrl-num-wrap">
+                <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--text3)">N° Control</span>
+                  <div style="display:flex;align-items:center;gap:5px">
+                    <span class="ctrl-n${isLatest?' latest':''}">C${nControles - idx}</span>
+                    ${isLatest ? `<span class="ultimo-badge">✓ ÚLTIMO</span>` : ''}
+                  </div>
+                </div>
+              </div>
+              <!-- Campos del control -->
+              <div class="ctrl-fields">
+                ${cf('Fecha de control', fmtDate(ctrl['FECHA REGISTRO']||''))}
+                ${cf('Controlado por', ctrl['USUARIO'])}
+                ${cf('Unidades', ctrl['CANTIDAD'] ? ctrl['CANTIDAD']+' u' : null)}
+                ${cf('Lote', ctrl['LOTE'], {mono:true})}
+                ${isLatest
+                  ? `<div class="ctrl-field"><div class="ctrl-field-label">Días desde el control</div><div style="margin-top:2px">${staleBadgeHtml(se.diasDesdeControl, true)}</div></div>`
+                  : (deltaHtml ? `<div class="ctrl-field"><div class="ctrl-field-label">Intervalo c/ anterior</div><div style="margin-top:2px">${deltaHtml}</div></div>` : '')
+                }
+                <div class="ctrl-field">
+                  <div class="ctrl-field-label">Estado</div>
+                  <div class="ctrl-field-val${isLatest?' latest':''}">
+                    <span class="suc-estado ${ctrlEst}" style="font-size:8px;padding:2px 5px">${ctrlEst.replace(/-/g,' ')}</span>
+                  </div>
+                </div>
+                ${ctrlAcc ? `<div class="ctrl-field"><div class="ctrl-field-label">Acción vinculada</div><div style="margin-top:2px">${ctrlDevChip}</div></div>` : ''}
+                ${ctrlAcl ? `<div class="ctrl-field" style="min-width:200px"><div class="ctrl-field-label">Aclaración</div><div class="ctrl-field-val${isLatest?' latest':''}">${esc(ctrlAcl)}</div></div>` : ''}
+              </div>
+            </div>
           </td>
         </tr>`;
       });
@@ -774,7 +952,6 @@ function toggleGroup(row, key) {
   const opening = !openGroups.has(key);
   if (opening) openGroups.add(key); else openGroups.delete(key);
   row.classList.toggle('open', opening);
-
   let next = row.nextElementSibling;
   while (next) {
     if (next.classList.contains('suc-row')) {
@@ -786,10 +963,7 @@ function toggleGroup(row, key) {
       }
     } else if (next.classList.contains('ctrl-row')) {
       if (!opening) { next.classList.remove('visible'); }
-      else {
-        const sk = next.dataset.sucKey;
-        next.classList.toggle('visible', sk && openSucs.has(sk));
-      }
+      else { const sk = next.dataset.sucKey; next.classList.toggle('visible', sk && openSucs.has(sk)); }
     } else { break; }
     next = next.nextElementSibling;
   }
@@ -797,63 +971,48 @@ function toggleGroup(row, key) {
 
 // ═══════════════════════════════════════════════════════
 //  TOGGLE NIVEL 2
-//  Nota: onclick está en el <tr> completo → cualquier click expande
-//  Solo stopPropagation si el click fue en el chip DEV (lo hace openDevModal)
 // ═══════════════════════════════════════════════════════
 function toggleSuc(evt, sucKey) {
-  // Si el click fue en un id-chip DEV, no togglear (lo maneja openDevModal)
   if (evt.target.classList.contains('id-chip')) return;
   const opening = !openSucs.has(sucKey);
   if (opening) openSucs.add(sucKey); else openSucs.delete(sucKey);
-
-  document.querySelectorAll(`tr.suc-row[data-suc-key="${sucKey}"]`).forEach(r => {
-    r.classList.toggle('suc-open', opening);
-  });
-  document.querySelectorAll(`tr.ctrl-row[data-suc-key="${sucKey}"]`).forEach(r => {
-    r.classList.toggle('visible', opening);
-  });
+  document.querySelectorAll(`tr.suc-row[data-suc-key="${sucKey}"]`).forEach(r=>{r.classList.toggle('suc-open',opening);});
+  document.querySelectorAll(`tr.ctrl-row[data-suc-key="${sucKey}"]`).forEach(r=>{r.classList.toggle('visible',opening);});
 }
 
 // ═══════════════════════════════════════════════════════
 //  MODAL DEV
 // ═══════════════════════════════════════════════════════
 function openDevModal(evt, id) {
-  evt.stopPropagation();   // no propagar al toggleSuc ni al toggleGroup
-
+  evt.stopPropagation();
   const rec = devMap.get(id);
   document.getElementById('dm-id').textContent   = id;
   document.getElementById('dm-desc').textContent = rec ? (rec['DESCRIPCION']||'—') : '—';
-
   const body = document.getElementById('dm-body');
 
   if (!rec) {
     body.innerHTML = `<div style="color:var(--text3);font-size:12px;padding:20px 0;text-align:center">
-      No se encontró el registro <strong>${esc(id)}</strong> en BD Devoluciones.
-      <br><small style="margin-top:6px;display:block">Puede que pertenezca a otro período ya limpiado.</small>
+      No se encontró el registro <strong>${esc(id)}</strong> en BD Devoluciones.<br>
+      <small style="margin-top:6px;display:block">Puede que pertenezca a un período ya limpiado.</small>
     </div>`;
     document.getElementById('devModal').classList.add('show');
     return;
   }
 
-  // Estado con color
   const estadoRaw = String(rec['ESTADO']||'PENDIENTE').toUpperCase();
   const estadoCls = estadoRaw.replace(/[\s\/]/g,'-');
-  const estadoLabels = {'PENDIENTE':'PENDIENTE','EN GESTION':'EN GESTIÓN','EN-GESTION':'EN GESTIÓN','N/C RECIBIDA':'N/C RECIBIDA','NC-RECIBIDA':'N/C RECIBIDA','RECHAZADA':'RECHAZADA'};
-
-  // Link foto
+  const estadoLabels = {'PENDIENTE':'PENDIENTE','EN-GESTION':'EN GESTIÓN','N/C-RECIBIDA':'N/C RECIBIDA','RECHAZADA':'RECHAZADA'};
   const fotoRaw = String(rec['ARCHIVO ADJUNTO']||'');
   const fotoMatch = fotoRaw.match(/https?:\/\/[^"')]+/);
   const fotoHtml = fotoMatch
     ? `<a class="dev-photo-link" href="${fotoMatch[0]}" target="_blank">📎 Ver foto adjunta</a>`
     : `<span style="color:var(--text3);font-size:11px">Sin foto adjunta</span>`;
-
-  // Observación N/C
   const nc = rec['OBSERVACION N/C']||'';
 
   const f = (label, value, opts={}) => {
     const v = val(value);
-    const mono = opts.mono ? ' mono' : '';
-    const full = opts.full ? ' full' : '';
+    const mono = opts.mono?' mono':'';
+    const full = opts.full?' full':'';
     return `<div class="dev-field${full}">
       <div class="dev-field-label">${label}</div>
       <div class="dev-field-val${mono}${v===null?' empty':''}">${v!==null?esc(String(v)):'—'}</div>
@@ -862,7 +1021,6 @@ function openDevModal(evt, id) {
 
   body.innerHTML = `
     <div class="dev-estado ${estadoCls}">${estadoLabels[estadoCls]||estadoRaw}</div>
-
     <div class="dev-grid">
       ${f('Sucursal', rec['SUCURSAL'])}
       ${f('Usuario', rec['USUARIO'])}
@@ -882,13 +1040,8 @@ function openDevModal(evt, id) {
       ${f('Aclaración', rec['ACLARACION'])}
       ${rec['COMENTARIOS']?f('Comentarios', rec['COMENTARIOS'], {full:true}):''}
     </div>
-
     <div style="margin-bottom:14px">${fotoHtml}</div>
-
-    ${nc?`<div class="dev-nc">
-      <div class="dev-nc-label">Observación N/C</div>
-      <div class="dev-nc-val">${esc(nc)}</div>
-    </div>`:''}
+    ${nc?`<div class="dev-nc"><div class="dev-nc-label">Observación N/C</div><div class="dev-nc-val">${esc(nc)}</div></div>`:''}
   `;
 
   document.getElementById('devModal').classList.add('show');
@@ -905,7 +1058,7 @@ function closeDevModal(evt) {
 function showState(t){
   const m={
     loading:`<div class="state-full"><span class="spinner"></span> Cargando datos…</div>`,
-    error:  `<div class="state-full"><div class="icon">⚠</div><p>Error al cargar</p><small>Verificá la URL y que el deploy sea público</small></div>`
+    error:`<div class="state-full"><div class="icon">⚠</div><p>Error al cargar</p><small>Verificá la URL y que el deploy sea público</small></div>`
   };
   document.getElementById('tableWrap').innerHTML=m[t]||'';
 }
