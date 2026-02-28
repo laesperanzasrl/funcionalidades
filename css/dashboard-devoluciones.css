@@ -134,6 +134,8 @@ body {
 .alert-success { background:var(--green-dim); color:var(--green); border:1px solid var(--green); }
 .alert-info { background:var(--blue-dim); color:var(--blue); border:1px solid var(--blue); }
 
+
+
 /* ─── FILTERS BAR ─── */
 .filters-bar {
   background:var(--card); border:1px solid var(--border);

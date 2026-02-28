@@ -17,8 +17,8 @@ const state = {
     extDebounce: null,
     searchTimer: null,
     searchField: 'all',
-    isPesable: false,        // true cuando el EAN escaneado es de balanza
-    pesoKg: null,            // peso parseado del EAN de balanza
+    isPesable: false,
+    pesoKg: null,
 };
 
 // ─────────────────────────────────────────────
@@ -27,14 +27,12 @@ const state = {
 const $ = (id) => document.getElementById(id);
 
 const els = {
-    // scanner
     scanOverlay: $('scanOverlay'),
     btnOpenScanner: $('btnOpenScanner'),
     btnCloseScanner: $('btnCloseScanner'),
     btnManualEntry: $('btnManualEntry'),
     camErr: $('camErr'),
     sHint: $('sHint'),
-    // search modal
     searchOverlay: $('searchOverlay'),
     btnOpenSearch: $('btnOpenSearch'),
     btnCloseSearch: $('btnCloseSearch'),
@@ -45,10 +43,8 @@ const els = {
     searchStateNone: $('searchStateNone'),
     searchTermDisplay: $('searchTermDisplay'),
     searchCount: $('searchCount'),
-    // barcode (hidden)
     fBarcode: $('fBarcode'),
     scannedOk: $('scannedOk'),
-    // mode switcher
     modeTabCam: $('modeTabCam'),
     modeTabExt: $('modeTabExt'),
     panelCam: $('panelCam'),
@@ -57,7 +53,6 @@ const els = {
     btnExtClear: $('btnExtClear'),
     extStatus: $('extStatus'),
     extStatusText: $('extStatusText'),
-    // product card
     productCard: $('productCard'),
     pcState: $('pcState'),
     pcDescripcion: $('pcDescripcion'),
@@ -66,7 +61,6 @@ const els = {
     pcUxb: $('pcUxb'),
     pcSector: $('pcSector'),
     pcEan: $('pcEan'),
-    // photo
     fPhoto: $('fPhoto'),
     photoZone: $('photoZone'),
     photoPlaceholder: $('photoPlaceholder'),
@@ -76,9 +70,8 @@ const els = {
     btnCamera: $('btnCamera'),
     btnGallery: $('btnGallery'),
     btnRemovePhoto: $('btnRemovePhoto'),
-    // form
     fEmail: $('fEmail'),
-    fDesc: $('fDesc'),  // hidden
+    fDesc: $('fDesc'),
     fQty: $('fQty'),
     qtyPesableHint: $('qtyPesableHint'),
     fExp: $('fExp'),
@@ -89,17 +82,17 @@ const els = {
     fNote: $('fNote'),
     fLot: $('fLot'),
     fComment: $('fComment'),
-    // actions
     btnSubmit: $('btnSubmit'),
     btnText: $('btnText'),
     btnClear: $('btnClear'),
-    // feedback
     toast: $('toast'),
     toastMsg: $('toastMsg'),
     toastDot: $('toastDot'),
     counterBadge: $('counterBadge'),
     cfgBanner: $('cfgBanner'),
 };
+
+const MOTIVOS_VENCIMIENTO = ['CONTROL DE VENCIMIENTO'];
 
 // ─────────────────────────────────────────────
 // INIT
@@ -220,7 +213,6 @@ async function init() {
     els.photoZone.addEventListener('click', onPhotoZoneClick);
     els.fPhoto.addEventListener('change', onPhotoSelected);
 
-    // Drag & drop
     els.photoZone.addEventListener('dragover', (e) => { e.preventDefault(); els.photoZone.classList.add('drag-over'); });
     els.photoZone.addEventListener('dragleave', () => els.photoZone.classList.remove('drag-over'));
     els.photoZone.addEventListener('drop', (e) => {
@@ -230,46 +222,23 @@ async function init() {
         if (file) processPhoto(file);
     });
 
-    // ── Date restriction + discount toggle ──
-    const MOTIVOS_VENCIMIENTO = ['CONTROL DE VENCIMIENTO'];
-
+    // ── Tipo de registro: restricción de fecha + descuento + badge ──
     els.fEvent.addEventListener('change', () => {
         const val = els.fEvent.value;
         applyDateRestriction(val);
         toggleDiscountInput(val);
-        toggleBdBadge(val);        // ← AGREGAR ESTA LÍNEA
+        toggleBdBadge(val);
+        updateSubmitLabel(val);
         clearFieldError('fEvent');
+        // Si hay fecha cargada, re-validar al cambiar el tipo
+        if (els.fExp.value) validateField('fExp');
     });
-
-    // Nueva función: muestra en qué BD va a caer el registro
-    function toggleBdBadge(motivo) {
-        const badge = $('bdBadge');
-        if (!badge || !motivo) {
-            badge && (badge.style.display = 'none');
-            return;
-        }
-        const esVencimiento = MOTIVOS_VENCIMIENTO.includes(motivo);
-        badge.className = `bd-badge ${esVencimiento ? 'bd-badge--ven' : 'bd-badge--dev'}`;
-        badge.textContent = esVencimiento
-            ? '📋 Se guardará en: Control de Vencimientos'
-            : '📦 Se guardará en: Devoluciones / Acciones';
-        badge.style.display = 'flex';
-    }
-
-    // Actualizar el texto del botón submit según el tipo de registro
-    function updateSubmitLabel(motivo) {
-        const esVencimiento = MOTIVOS_VENCIMIENTO.includes(motivo);
-        const btnText = $('btnText');
-        if (btnText) {
-            btnText.textContent = esVencimiento ? 'Registrar control de vencimiento' : 'Enviar devolución';
-        }
-    }
 
     // ── Submit & clear ──
     els.btnSubmit.addEventListener('click', submitForm);
     els.btnClear.addEventListener('click', clearForm);
 
-    // Live validation on visible fields only
+    // Live validation
     const requiredFields = ['fEmail', 'fQty', 'fExp', 'fBranch', 'fEvent'];
     requiredFields.forEach((id) => {
         const el = $(id);
@@ -277,15 +246,38 @@ async function init() {
         el.addEventListener('blur', () => validateField(id));
         el.addEventListener('input', () => clearFieldError(id));
     });
-    // fBranch y fEvent son selects, escuchar 'change'
     ['fBranch', 'fEvent'].forEach((id) => {
         const el = $(id);
         if (!el) return;
         el.addEventListener('change', () => clearFieldError(id));
     });
+    // Re-validar fecha al cambiarla
+    els.fExp.addEventListener('change', () => validateField('fExp'));
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// ─────────────────────────────────────────────
+// UI HELPERS — BADGE Y LABEL
+// ─────────────────────────────────────────────
+
+function toggleBdBadge(motivo) {
+    const badge = $('bdBadge');
+    if (!badge || !motivo) { badge && (badge.style.display = 'none'); return; }
+    const esVen = MOTIVOS_VENCIMIENTO.includes(motivo);
+    badge.className = 'bd-badge ' + (esVen ? 'bd-badge--ven' : 'bd-badge--dev');
+    badge.textContent = esVen
+        ? '📋 Se guardará en: Control de Vencimientos'
+        : '📦 Se guardará en: Devoluciones / Acciones';
+    badge.style.display = 'flex';
+}
+
+function updateSubmitLabel(motivo) {
+    const btnText = $('btnText');
+    if (!btnText) return;
+    const esVen = MOTIVOS_VENCIMIENTO.includes(motivo);
+    btnText.textContent = esVen ? 'Registrar control de vencimiento' : 'Enviar acción / devolución';
+}
 
 // ─────────────────────────────────────────────
 // PRODUCTOS
@@ -302,7 +294,6 @@ async function cargarProductos() {
     }
 }
 
-// Strips leading zeros for safe comparison
 function normalizeCode(val) {
     if (val == null || val === '') return '';
     return String(val).trim().replace(/^0+(?=\d)/, '');
@@ -310,61 +301,41 @@ function normalizeCode(val) {
 
 async function fetchProducto(code) {
     const normCode = normalizeCode(code);
-    return state.productos.find(p => {
-        return normalizeCode(p.EAN) === normCode || normalizeCode(p.INTERNO) === normCode;
-    }) || null;
+    return state.productos.find(p =>
+        normalizeCode(p.EAN) === normCode || normalizeCode(p.INTERNO) === normCode
+    ) || null;
 }
 
 // ─────────────────────────────────────────────
 // DETECCIÓN DE PRODUCTOS PESABLES
 // ─────────────────────────────────────────────
-//
-//  EAN de balanza: 13 dígitos que empiezan con "2"
-//  Formato:  2 P IIIII WWWWW C
-//    P     = prefijo adicional (1 dígito, ej: 3)
-//    IIIII = código interno del producto (5 dígitos, zero-padded)
-//    WWWWW = peso en gramos (5 dígitos, zero-padded)
-//    C     = dígito verificador
-//
-//  Ejemplo: 2301144015348
-//    23 → prefijo pesable
-//    01144 → interno 1144
-//    01534 → 1534 g = 1.534 kg
-//    8 → check digit
-//
 function parsePesableEAN(ean) {
     const s = String(ean).trim().replace(/\s/g, '');
-    if (s.length !== 13) return null;
-    if (!s.startsWith('2')) return null;          // todos los EAN pesables empiezan con 2
-    const internoRaw = s.slice(2, 7);             // 5 dígitos del interno
-    const pesoRaw = s.slice(7, 12);            // 5 dígitos del peso en gramos
-    const interno = String(parseInt(internoRaw, 10));
-    const pesoGr = parseInt(pesoRaw, 10);
+    if (s.length !== 13 || !s.startsWith('2')) return null;
+    const internoRaw = s.slice(2, 7);
+    const pesoRaw    = s.slice(7, 12);
+    const interno    = String(parseInt(internoRaw, 10));
+    const pesoGr     = parseInt(pesoRaw, 10);
     if (isNaN(pesoGr) || pesoGr <= 0) return null;
-    const pesoKg = pesoGr / 1000;
-    return { interno, pesoGr, pesoKg };
+    return { interno, pesoGr, pesoKg: pesoGr / 1000 };
 }
-
 
 async function triggerLookup(code) {
     showProductCardLoading();
-    const pesable = parsePesableEAN(code);
+    const pesable    = parsePesableEAN(code);
     const lookupCode = pesable ? pesable.interno : code;
-    const data = await fetchProducto(lookupCode);
-    if (data) {
-        fillProductData(data, pesable);
-    } else {
-        showProductCardNotFound();
-    }
+    const data       = await fetchProducto(lookupCode);
+    if (data) fillProductData(data, pesable);
+    else showProductCardNotFound();
 }
 
 async function triggerExtLookup(code) {
     els.extInput.classList.remove('ext-input--reading', 'ext-input--found');
     setExtStatus('reading', `Buscando: ${code}`);
     showProductCardLoading();
-    const pesable = parsePesableEAN(code);
+    const pesable    = parsePesableEAN(code);
     const lookupCode = pesable ? pesable.interno : code;
-    const data = await fetchProducto(lookupCode);
+    const data       = await fetchProducto(lookupCode);
     if (data) {
         els.fBarcode.value = code;
         clearFieldError('fBarcode');
@@ -373,7 +344,6 @@ async function triggerExtLookup(code) {
         setExtStatus('found', `✓ ${data.DESCRIPCION ? data.DESCRIPCION.slice(0, 40) : 'Producto encontrado'}`);
         fillProductData(data, pesable);
         if (navigator.vibrate) navigator.vibrate([60, 20, 60]);
-        // Si es pesable la cantidad ya se autocompleta — ir al siguiente campo
         setTimeout(() => pesable ? els.fExp.focus() : els.fQty.focus(), 150);
     } else {
         els.fBarcode.value = '';
@@ -386,75 +356,58 @@ async function triggerExtLookup(code) {
 
 function fillProductData(data, pesable = null) {
     state.productData = data;
+    state.isPesable   = !!pesable;
+    state.pesoKg      = pesable ? pesable.pesoKg : null;
 
-    // ── Estado pesable ──────────────────────────────────────
-    state.isPesable = !!pesable;
-    state.pesoKg = pesable ? pesable.pesoKg : null;
-
-    // ── Inputs ocultos para el payload ──────────────────────
-    // En pesable guardamos el EAN base del producto (no el de balanza)
     els.fBarcode.value = String(data.EAN || data.INTERNO || '');
-    els.fDesc.value = data.DESCRIPCION || '';
+    els.fDesc.value    = data.DESCRIPCION || '';
     clearFieldError('fBarcode');
 
-    // ── Campo cantidad ──────────────────────────────────────
     if (pesable) {
-        // Autocompletar con el peso en kg y bloquear el campo
-        els.fQty.value = pesable.pesoKg.toFixed(3);
+        els.fQty.value   = pesable.pesoKg.toFixed(3);
         els.fQty.readOnly = true;
         els.fQty.classList.add('qty--pesable');
         clearFieldError('fQty');
-        // Mostrar hint con el peso
         if (els.qtyPesableHint) {
-            els.qtyPesableHint.textContent =
-                `⚖ Pesable · ${pesable.pesoGr.toLocaleString('es-AR')} g = ${pesable.pesoKg.toFixed(3)} kg`;
+            els.qtyPesableHint.textContent = `⚖ Pesable · ${pesable.pesoGr.toLocaleString('es-AR')} g = ${pesable.pesoKg.toFixed(3)} kg`;
             els.qtyPesableHint.style.display = 'flex';
         }
     } else {
-        // Modo normal: campo editable, sin hint
         els.fQty.readOnly = false;
         els.fQty.classList.remove('qty--pesable');
         if (els.qtyPesableHint) els.qtyPesableHint.style.display = 'none';
     }
 
-    // ── Product card ────────────────────────────────────────
     els.pcDescripcion.textContent = data.DESCRIPCION || '-';
-    els.pcProveedor.textContent = data.PROVEEDOR || '-';
-    els.pcGramaje.textContent = data.GRAMAJE || '-';
-    els.pcUxb.textContent = data.UXB != null ? `${data.UXB} u.` : '-';
-    const sector = data.SECTOR || '';
+    els.pcProveedor.textContent   = data.PROVEEDOR   || '-';
+    els.pcGramaje.textContent     = data.GRAMAJE      || '-';
+    els.pcUxb.textContent         = data.UXB != null ? `${data.UXB} u.` : '-';
+
+    const sector  = data.SECTOR  || '';
     const seccion = data.SECCION || '';
-    els.pcSector.textContent = sector && seccion
-        ? `${sector} › ${seccion}`
-        : (sector || seccion || '-');
+    els.pcSector.textContent = sector && seccion ? `${sector} › ${seccion}` : (sector || seccion || '-');
+
     const eanParts = [];
     if (data.EAN) eanParts.push(`EAN ${data.EAN}`);
-    if (data.INTERNO && String(data.INTERNO) !== String(data.EAN))
-        eanParts.push(`INT ${data.INTERNO}`);
+    if (data.INTERNO && String(data.INTERNO) !== String(data.EAN)) eanParts.push(`INT ${data.INTERNO}`);
     els.pcEan.textContent = eanParts.length ? eanParts.join('  ·  ') : '-';
 
     const pvpEl = $('pcPvp');
     if (pvpEl) {
         const pvp = data['PVP SUPER'];
         pvpEl.textContent = pvp != null
-            ? `$${Number(pvp).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-            : '-';
+            ? `$${Number(pvp).toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : '-';
     }
 
-    // Estado visual de la card
     if (pesable) {
         showProductCardFound();
         els.pcState.textContent = `Pesable · ${pesable.pesoKg.toFixed(3)} kg`;
     } else {
         showProductCardFound();
     }
-    showToast('ok', pesable
-        ? `Pesable encontrado · ${pesable.pesoKg.toFixed(3)} kg`
-        : 'Producto encontrado'
-    );
+    showToast('ok', pesable ? `Pesable encontrado · ${pesable.pesoKg.toFixed(3)} kg` : 'Producto encontrado');
 }
 
-// ── Product card states ──
 function showProductCardLoading() {
     els.productCard.classList.add('visible');
     els.productCard.dataset.state = 'loading';
@@ -513,13 +466,13 @@ function onSearchInput() {
 }
 
 function renderSearchResults(query) {
-    const q = normalize(query);
+    const q     = normalize(query);
     const field = state.searchField;
 
     if (q.length < 2) {
         els.searchStateEmpty.style.display = 'flex';
-        els.searchStateNone.style.display = 'none';
-        els.searchResults.style.display = 'none';
+        els.searchStateNone.style.display  = 'none';
+        els.searchResults.style.display    = 'none';
         els.searchCount.textContent = '';
         return;
     }
@@ -527,20 +480,12 @@ function renderSearchResults(query) {
     const matches = state.productos.filter(p => {
         if (field === 'all') {
             return (
-                normalize(p.DESCRIPCION).includes(q) ||
-                normalize(p.PROVEEDOR).includes(q) ||
-                normalize(p.SECTOR).includes(q) ||
-                normalize(p.SECCION).includes(q) ||
-                normalize(String(p.EAN ?? '')).includes(q) ||
-                normalize(String(p.INTERNO ?? '')).includes(q)
+                normalize(p.DESCRIPCION).includes(q) || normalize(p.PROVEEDOR).includes(q) ||
+                normalize(p.SECTOR).includes(q)      || normalize(p.SECCION).includes(q)   ||
+                normalize(String(p.EAN ?? '')).includes(q) || normalize(String(p.INTERNO ?? '')).includes(q)
             );
         }
-        if (field === 'EAN') {
-            return (
-                normalize(String(p.EAN ?? '')).includes(q) ||
-                normalize(String(p.INTERNO ?? '')).includes(q)
-            );
-        }
+        if (field === 'EAN') return normalize(String(p.EAN ?? '')).includes(q) || normalize(String(p.INTERNO ?? '')).includes(q);
         return normalize(String(p[field] ?? '')).includes(q);
     });
 
@@ -549,13 +494,13 @@ function renderSearchResults(query) {
     if (matches.length === 0) {
         els.searchStateNone.style.display = 'flex';
         els.searchTermDisplay.textContent = `"${query}"`;
-        els.searchResults.style.display = 'none';
+        els.searchResults.style.display   = 'none';
         els.searchCount.textContent = 'Sin resultados';
         return;
     }
 
     els.searchStateNone.style.display = 'none';
-    els.searchResults.style.display = 'block';
+    els.searchResults.style.display   = 'block';
 
     const shown = matches.slice(0, 80);
     const total = matches.length;
@@ -564,36 +509,27 @@ function renderSearchResults(query) {
         : `${total} resultado${total !== 1 ? 's' : ''}`;
 
     els.searchResults.innerHTML = shown.map((p, i) => {
-        const desc = highlight(p.DESCRIPCION || '—', q);
-        const prov = highlight(p.PROVEEDOR || '—', q);
-        const eanRaw = String(p.EAN ?? '');
-        const intRaw = String(p.INTERNO ?? '');
-        const eanHL = highlight(eanRaw, q);
-        const intHL = highlight(intRaw, q);
-        const eanBadge = eanRaw ? `<span class="sr-ean">EAN ${eanHL}</span>` : '';
-        const intBadge = intRaw && intRaw !== eanRaw ? `<span class="sr-ean sr-ean--int">INT ${intHL}</span>` : '';
-        const sect = p.SECTOR ? `<span class="sr-tag">${esc(p.SECTOR)}</span>` : '';
-        const secc = p.SECCION ? `<span class="sr-tag">${esc(p.SECCION)}</span>` : '';
-        const gramaje = p.GRAMAJE ? `<span class="sr-tag sr-tag--gramaje">${esc(p.GRAMAJE)}</span>` : '';
-        const pvp = p['PVP SUPER'] != null
-            ? `<span class="sr-tag sr-tag--pvp">$${Number(p['PVP SUPER']).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>`
-            : '';
-
+        const desc    = highlight(p.DESCRIPCION || '—', q);
+        const prov    = highlight(p.PROVEEDOR   || '—', q);
+        const eanRaw  = String(p.EAN     ?? '');
+        const intRaw  = String(p.INTERNO ?? '');
+        const eanBadge = eanRaw ? `<span class="sr-ean">EAN ${highlight(eanRaw, q)}</span>` : '';
+        const intBadge = intRaw && intRaw !== eanRaw ? `<span class="sr-ean sr-ean--int">INT ${highlight(intRaw, q)}</span>` : '';
+        const sect     = p.SECTOR  ? `<span class="sr-tag">${esc(p.SECTOR)}</span>`                                             : '';
+        const secc     = p.SECCION ? `<span class="sr-tag">${esc(p.SECCION)}</span>`                                            : '';
+        const gramaje  = p.GRAMAJE ? `<span class="sr-tag sr-tag--gramaje">${esc(p.GRAMAJE)}</span>`                            : '';
+        const pvp      = p['PVP SUPER'] != null
+            ? `<span class="sr-tag sr-tag--pvp">$${Number(p['PVP SUPER']).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>` : '';
         return `
         <li class="sr-item" role="option" tabindex="0" data-idx="${i}">
             <div class="sr-main">
                 <div class="sr-desc">${desc}</div>
-                <div class="sr-meta">
-                    <span class="sr-prov">${prov}</span>
-                    ${eanBadge}${intBadge}
-                </div>
+                <div class="sr-meta"><span class="sr-prov">${prov}</span>${eanBadge}${intBadge}</div>
             </div>
             <div class="sr-right">
                 <div class="sr-tags">${gramaje}${sect}${secc}${pvp}</div>
                 <svg class="sr-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                     stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                </svg>
+                     stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
             </div>
         </li>`;
     }).join('');
@@ -604,7 +540,7 @@ function renderSearchResults(query) {
         li.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectSearchProduct(p); }
             if (e.key === 'ArrowDown') { e.preventDefault(); (li.nextElementSibling || li).focus(); }
-            if (e.key === 'ArrowUp') { e.preventDefault(); (li.previousElementSibling || li).focus(); }
+            if (e.key === 'ArrowUp')   { e.preventDefault(); (li.previousElementSibling || li).focus(); }
         });
     });
 }
@@ -614,7 +550,6 @@ function selectSearchProduct(p) {
     if (navigator.vibrate) navigator.vibrate([60, 20, 60]);
     fillProductData(p);
     closeSearchModal();
-    // Foco al siguiente campo requerido vacío
     setTimeout(() => {
         if (!els.fQty.value) els.fQty.focus();
         else if (!els.fExp.value) els.fExp.focus();
@@ -622,7 +557,7 @@ function selectSearchProduct(p) {
 }
 
 // ─────────────────────────────────────────────
-// BARCODE SCANNER (cámara)
+// BARCODE SCANNER
 // ─────────────────────────────────────────────
 function openScanner() {
     if (state.scannerActive) return;
@@ -639,14 +574,10 @@ async function startScanner() {
             fps: 10,
             qrbox: { width: 260, height: 120 },
             formatsToSupport: [
-                Html5QrcodeSupportedFormats.EAN_13,
-                Html5QrcodeSupportedFormats.EAN_8,
-                Html5QrcodeSupportedFormats.UPC_A,
-                Html5QrcodeSupportedFormats.UPC_E,
-                Html5QrcodeSupportedFormats.CODE_128,
-                Html5QrcodeSupportedFormats.CODE_39,
-                Html5QrcodeSupportedFormats.QR_CODE,
-                Html5QrcodeSupportedFormats.ITF,
+                Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+                Html5QrcodeSupportedFormats.UPC_A,  Html5QrcodeSupportedFormats.UPC_E,
+                Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.ITF,
             ],
             aspectRatio: 4 / 3,
             disableFlip: false,
@@ -671,10 +602,7 @@ function onBarcodeScanned(decodedText) {
 
 async function closeScanner() {
     if (state.html5QrCode) {
-        try {
-            if (state.scannerActive) await state.html5QrCode.stop();
-            state.html5QrCode.clear();
-        } catch (_) { }
+        try { if (state.scannerActive) await state.html5QrCode.stop(); state.html5QrCode.clear(); } catch (_) {}
         state.html5QrCode = null;
     }
     state.scannerActive = false;
@@ -691,38 +619,27 @@ function triggerFileInput(camera) {
     els.fPhoto.value = '';
     els.fPhoto.click();
 }
-
 function onPhotoZoneClick(e) {
     if (e.target.closest('.photo-preview')) return;
     if (e.target.closest('.photo-btns')) return;
     if (!state.photoBase64) triggerFileInput(false);
 }
-
 function onPhotoSelected(e) {
     const file = e.target.files[0];
-    if (!file) return;
-    processPhoto(file);
+    if (file) processPhoto(file);
 }
-
 function processPhoto(file) {
-    if (!file.type.startsWith('image/')) {
-        showToast('err', 'El archivo debe ser una imagen.');
-        return;
-    }
+    if (!file.type.startsWith('image/')) { showToast('err', 'El archivo debe ser una imagen.'); return; }
     const MAX_MB = 5;
-    if (file.size > MAX_MB * 1024 * 1024) {
-        $('ePhoto').classList.add('show');
-        showToast('err', 'La imagen supera los 5 MB.');
-        return;
-    }
+    if (file.size > MAX_MB * 1024 * 1024) { $('ePhoto').classList.add('show'); showToast('err', 'La imagen supera los 5 MB.'); return; }
     $('ePhoto').classList.remove('show');
     const reader = new FileReader();
     reader.onload = (ev) => {
         compressImage(ev.target.result, file.type, (compressedBase64, mime) => {
             state.photoBase64 = compressedBase64;
-            state.photoMime = mime;
-            state.photoName = file.name;
-            els.photoImg.src = `data:${mime};base64,${compressedBase64}`;
+            state.photoMime   = mime;
+            state.photoName   = file.name;
+            els.photoImg.src  = `data:${mime};base64,${compressedBase64}`;
             els.photoName.textContent = file.name;
             els.photoPreview.classList.add('show');
             els.photoPlaceholder.classList.add('hide');
@@ -730,7 +647,6 @@ function processPhoto(file) {
     };
     reader.readAsDataURL(file);
 }
-
 function compressImage(dataUrl, originalMime, callback) {
     const img = new Image();
     img.onload = () => {
@@ -743,18 +659,13 @@ function compressImage(dataUrl, originalMime, callback) {
         const canvas = document.createElement('canvas');
         canvas.width = width; canvas.height = height;
         canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        const outputMime = 'image/jpeg';
-        const base64 = canvas.toDataURL(outputMime, 0.75).split(',')[1];
-        callback(base64, outputMime);
+        callback(canvas.toDataURL('image/jpeg', 0.75).split(',')[1], 'image/jpeg');
     };
     img.onerror = () => callback(dataUrl.split(',')[1], originalMime);
     img.src = dataUrl;
 }
-
 function removePhoto() {
-    state.photoBase64 = null;
-    state.photoMime = null;
-    state.photoName = null;
+    state.photoBase64 = null; state.photoMime = null; state.photoName = null;
     els.fPhoto.value = '';
     els.photoPreview.classList.remove('show');
     els.photoPlaceholder.classList.remove('hide');
@@ -762,30 +673,35 @@ function removePhoto() {
 }
 
 // ─────────────────────────────────────────────
-// VALIDATION
+// VALIDACIÓN
 // ─────────────────────────────────────────────
-// fBarcode se valida chequeando si hay productData o el hidden tiene valor
-// fDesc lo seteamos automáticamente, no se valida por separado
-
 const validationRules = {
-    fEmail: { required: true, type: 'emailOrName' },
-    fBarcode: { required: true },
-    fQty: { required: true, min: 1, integer: true },   // se ajusta en validateAll si isPesable
-    fExp: { required: true },
-    fBranch: { required: true },
-    fEvent: { required: true },
-    fDiscount: { required: false, min: 1, max: 99, integer: true }, // condicional — se activa en validateAll
+    fEmail:    { required: true, type: 'emailOrName' },
+    fBarcode:  { required: true },
+    fQty:      { required: true, min: 1, integer: true },
+    fExp:      { required: true },
+    fBranch:   { required: true },
+    fEvent:    { required: true },
+    fDiscount: { required: false, min: 1, max: 99, integer: true },
 };
 
 const errorMap = {
-    fEmail: 'eEmail',
-    fBarcode: 'eBarcode',
-    fQty: 'eQty',
-    fExp: 'eExp',
-    fBranch: 'eBranch',
-    fEvent: 'eEvent',
-    fDiscount: 'eDiscount',
+    fEmail: 'eEmail', fBarcode: 'eBarcode', fQty: 'eQty',
+    fExp: 'eExp', fBranch: 'eBranch', fEvent: 'eEvent', fDiscount: 'eDiscount',
 };
+
+/**
+ * Retorna string "YYYY-MM-DD" de mañana (hora local del navegador, Argentina).
+ * Usado para el atributo min del campo de fecha en Control de Vencimiento.
+ */
+function getTomorrowStr() {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const yyyy = d.getFullYear();
+    const mm   = String(d.getMonth() + 1).padStart(2, '0');
+    const dd   = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
 
 function validateField(fieldId) {
     const rule = validationRules[fieldId];
@@ -796,16 +712,32 @@ function validateField(fieldId) {
     let ok = true;
 
     if (rule.required && !val) ok = false;
+
     if (ok && rule.type === 'emailOrName' && val) {
         const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
-        const isName = val.trim().length >= 3;
+        const isName  = val.trim().length >= 3;
         if (!isEmail && !isName) ok = false;
     }
     if (ok && rule.min !== undefined && (isNaN(Number(val)) || Number(val) < rule.min)) ok = false;
     if (ok && rule.max !== undefined && Number(val) > rule.max) ok = false;
     if (ok && rule.integer && val && !Number.isInteger(Number(val))) ok = false;
 
-    // fBarcode: hidden, error va en su contenedor visible
+    // ── Validación especial: fecha de vencimiento ──
+    // Si el tipo de registro es "CONTROL DE VENCIMIENTO", la fecha mínima es mañana.
+    if (fieldId === 'fExp' && ok && val && MOTIVOS_VENCIMIENTO.includes(els.fEvent.value)) {
+        const minStr = getTomorrowStr();
+        if (val < minStr) {
+            ok = false;
+            // Actualizar mensaje de error dinámicamente
+            const errEl = $('eExp');
+            if (errEl) errEl.textContent = 'Para Control de Vencimiento la fecha debe ser a partir de mañana.';
+        }
+    } else {
+        // Restaurar mensaje por defecto
+        const errEl = $('eExp');
+        if (errEl && errEl.textContent.includes('mañana')) errEl.textContent = 'Seleccioná la fecha.';
+    }
+
     if (fieldId === 'fBarcode') {
         const errEl = $('eBarcode');
         if (errEl) errEl.classList.toggle('show', !ok);
@@ -831,16 +763,15 @@ function validateAll() {
 
     // Ajustar regla de cantidad según tipo de producto
     validationRules.fQty = state.isPesable
-        ? { required: true, min: 0.001 }          // pesable: decimal en kg
-        : { required: true, min: 1, integer: true }; // normal: entero ≥ 1
+        ? { required: true, min: 0.001 }
+        : { required: true, min: 1, integer: true };
 
     for (const fieldId of Object.keys(validationRules)) {
-        // fDiscount: solo validar si el panel está visible
         if (fieldId === 'fDiscount') {
             if (els.discountWrap.style.display !== 'none') {
                 const val = els.fDiscount.value.trim();
                 const num = Number(val);
-                const ok = val !== '' && !isNaN(num) && Number.isInteger(num) && num >= 1 && num <= 99;
+                const ok  = val !== '' && !isNaN(num) && Number.isInteger(num) && num >= 1 && num <= 99;
                 els.fDiscount.classList.toggle('err', !ok);
                 const errEl = $('eDiscount');
                 if (errEl) errEl.classList.toggle('show', !ok);
@@ -854,52 +785,47 @@ function validateAll() {
 }
 
 // ─────────────────────────────────────────────
-// FORM SUBMISSION
+// ENVÍO DEL FORMULARIO
 // ─────────────────────────────────────────────
 async function submitForm() {
     if (state.submitting) return;
     if (!validateAll()) {
         showToast('err', 'Corregí los campos marcados antes de enviar.');
-        // Scroll al primer error visible
         const firstErr = document.querySelector('.ferr.show');
         if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
     }
 
     const payload = {
-        // ── Campos del formulario ──────────────────────────────
-        email: els.fEmail.value.trim(),
+        action: 'submitForm',
+        usuario:  els.fEmail.value.trim(),
         sucursal: els.fBranch.value,
-        // Si es "OTRO DESCUENTO", concatenar el % → "OTRO DESCUENTO 35% OFF"
-        evento: (() => {
+        event: (() => {
             const base = els.fEvent.value;
             if (base === 'OTRO DESCUENTO' && els.fDiscount.value.trim()) {
                 return `OTRO DESCUENTO ${els.fDiscount.value.trim()}% OFF`;
             }
             return base;
         })(),
-        cantidad: els.fQty.value.trim(),
-        esPesable: state.isPesable,
+        cantidad:       els.fQty.value.trim(),
+        esPesable:      state.isPesable,
         unidadCantidad: state.isPesable ? 'kg' : 'unidades',
-        vencimiento: els.fExp.value,
-        aclaracion: els.fNote.value.trim(),
-        lote: els.fLot.value.trim(),
-        comentarios: els.fComment.value.trim(),
-        // ── Datos del producto (hidden + state) ────────────────
-        codigoBarra: els.fBarcode.value.trim(),
-        descripcion: els.fDesc.value.trim(),
-        codInterno: state.productData?.INTERNO || null,
-        proveedor: state.productData?.PROVEEDOR || null,
-        codProveedor: state.productData?.['COD.PROVEEDOR'] || null,
-        gramaje: state.productData?.GRAMAJE || null,
-        uxb: state.productData?.UXB || null,
-        sector: state.productData?.SECTOR || null,
-        seccion: state.productData?.SECCION || null,
-        departamento: state.productData?.SECTOR || null,
-               // ── Foto ───────────────────────────────────────────────
-        photoBase64: state.photoBase64 || null,
-        photoMime: state.photoMime || null,
-        photoName: state.photoName || null,
+        fechaVenc:      els.fExp.value,
+        aclaracion:     els.fNote.value.trim(),
+        lote:           els.fLot.value.trim(),
+        comentarios:    els.fComment.value.trim(),
+        ean:            els.fBarcode.value.trim(),
+        descripcion:    els.fDesc.value.trim(),
+        codInterno:     state.productData?.INTERNO            || null,
+        proveedor:      state.productData?.PROVEEDOR          || null,
+        codProv:        state.productData?.['COD.PROVEEDOR']  || null,
+        gramaje:        state.productData?.GRAMAJE            || null,
+        uxb:            state.productData?.UXB                || null,
+        sector:         state.productData?.SECTOR             || null,
+        seccion:        state.productData?.SECCION            || null,
+        photoBase64:    state.photoBase64 || null,
+        photoMime:      state.photoMime   || null,
+        photoName:      state.photoName   || null,
     };
 
     setLoading(true);
@@ -907,7 +833,7 @@ async function submitForm() {
     if (APPS_SCRIPT_URL === 'PEGA_AQUI_TU_URL_DE_APPS_SCRIPT') {
         console.log('📋 [DEMO MODE] Datos que se enviarían:', payload);
         await delay(1500);
-        handleSuccess();
+        handleSuccess({ action: 'created', bd: 'devoluciones' });
         return;
     }
 
@@ -918,10 +844,15 @@ async function submitForm() {
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
+
         if (data.success) {
-            handleSuccess();
+            handleSuccess(data);
         } else {
-            throw new Error(data.message || 'Error desconocido del servidor.');
+            // Errores de validación de stock — mostrar con duración mayor
+            setLoading(false);
+            const duration = (data.errorType === 'NO_STOCK_RECORD' || data.errorType === 'STOCK_INSUFICIENTE')
+                ? 7000 : 4000;
+            showToast('err', data.message || 'Error desconocido del servidor.', duration);
         }
     } catch (err) {
         console.error('Error al enviar:', err);
@@ -930,33 +861,46 @@ async function submitForm() {
     }
 }
 
-function handleSuccess() {
+/**
+ * Maneja el éxito del envío con mensajes diferenciados:
+ *  - action 'updated': stock sumado a registro existente
+ *  - action 'created', bd 'vencimientos': nuevo control de vencimiento
+ *  - action 'created', bd 'devoluciones': nueva acción/devolución
+ */
+function handleSuccess(result = {}) {
     setLoading(false);
     state.sentCount++;
     localStorage.setItem('devCount', state.sentCount);
     updateCounter();
-    showToast('ok', '¡Devolución registrada correctamente!');
+
+    let msg;
+    if (result.action === 'updated') {
+        msg = `✓ Stock actualizado · antes: ${result.cantidadAnterior} → ahora: ${result.cantidadNueva} u.`;
+    } else if (result.bd === 'vencimientos') {
+        msg = '✓ Control de vencimiento registrado correctamente';
+    } else {
+        msg = '✓ Acción/Devolución registrada correctamente';
+    }
+
+    showToast('ok', msg, 4500);
     clearForm();
 }
 
 function clearForm() {
-    // Limpia inputs visibles (excepto file e extInput)
     document.querySelectorAll('input:not(#fPhoto):not(#extInput), select, textarea').forEach((el) => {
         if (el.type !== 'hidden') el.value = '';
         el.classList.remove('err');
     });
-    // Limpia hidden inputs
     els.fBarcode.value = '';
-    els.fDesc.value = '';
-    // Reset discount
+    els.fDesc.value    = '';
     els.discountWrap.style.display = 'none';
     els.fDiscount.value = '';
-    // Reset restricción de fecha (quitar max/min que pudo quedar de un motivo previo)
+    // Reset fecha — quitar restricciones
     els.fExp.removeAttribute('min');
     els.fExp.removeAttribute('max');
     // Reset pesable
     state.isPesable = false;
-    state.pesoKg = null;
+    state.pesoKg    = null;
     els.fQty.readOnly = false;
     els.fQty.classList.remove('qty--pesable');
     if (els.qtyPesableHint) els.qtyPesableHint.style.display = 'none';
@@ -964,7 +908,12 @@ function clearForm() {
     document.querySelectorAll('.ferr').forEach((el) => el.classList.remove('show'));
     els.scannedOk.classList.remove('show');
 
-    // Reset ext panel
+    // Reset badge y label
+    const badge = $('bdBadge');
+    if (badge) badge.style.display = 'none';
+    const btnText = $('btnText');
+    if (btnText) btnText.textContent = 'Enviar formulario';
+
     if (els.extInput) {
         els.extInput.value = '';
         els.extInput.classList.remove('ext-input--reading', 'ext-input--found');
@@ -981,28 +930,46 @@ function clearForm() {
 function toggleDiscountInput(motivo) {
     const isDiscount = motivo === 'OTRO DESCUENTO';
     els.discountWrap.style.display = isDiscount ? 'block' : 'none';
-    if (!isDiscount) {
-        els.fDiscount.value = '';
-        clearFieldError('fDiscount');
+    if (!isDiscount) { els.fDiscount.value = ''; clearFieldError('fDiscount'); }
+    else setTimeout(() => els.fDiscount.focus(), 80);
+}
+
+// ─────────────────────────────────────────────
+// RESTRICCIÓN DE FECHA
+// ─────────────────────────────────────────────
+
+/**
+ * Para "CONTROL DE VENCIMIENTO": la fecha mínima es mañana (no se puede
+ * cargar stock de un producto que ya venció o vence hoy).
+ *
+ * FIX TIMEZONE ARGENTINA:
+ * Usamos hora local del navegador para calcular "mañana".
+ * El string "YYYY-MM-DD" que devuelve el input <type="date"> ya está
+ * en hora local, así que la comparación con el string de mañana es directa.
+ */
+function applyDateRestriction(motivo) {
+    if (MOTIVOS_VENCIMIENTO.includes(motivo)) {
+        const tomorrow = getTomorrowStr();
+        els.fExp.setAttribute('min', tomorrow);
+        els.fExp.removeAttribute('max');
+        // Si ya hay una fecha cargada que no cumple el mínimo, limpiarla
+        if (els.fExp.value && els.fExp.value < tomorrow) {
+            els.fExp.value = '';
+            showToast('wrn', 'La fecha de vencimiento debe ser a partir de mañana.');
+        }
     } else {
-        setTimeout(() => els.fDiscount.focus(), 80);
+        els.fExp.removeAttribute('min');
+        els.fExp.removeAttribute('max');
     }
 }
 
 // ─────────────────────────────────────────────
 // UI HELPERS
 // ─────────────────────────────────────────────
-function applyDateRestriction(motivo) {
-    // Sin restricciones — se permite cualquier fecha para todos los motivos
-    els.fExp.removeAttribute('min');
-    els.fExp.removeAttribute('max');
-}
-
 function setLoading(on) {
-    state.submitting = on;
+    state.submitting     = on;
     els.btnSubmit.disabled = on;
 
-    // Mostrar/ocultar el overlay de bloqueo total
     if (on) {
         if (typeof window.showSendingOverlay === 'function') window.showSendingOverlay();
     } else {
@@ -1012,11 +979,13 @@ function setLoading(on) {
     if (on) {
         els.btnText.textContent = 'Enviando...';
         const sp = document.createElement('div');
-        sp.className = 'spinner';
-        sp.id = '_spinner';
+        sp.className = 'spinner'; sp.id = '_spinner';
         els.btnSubmit.insertBefore(sp, els.btnText);
     } else {
-        els.btnText.textContent = 'Enviar devolución';
+        const currentMotivo = els.fEvent.value;
+        els.btnText.textContent = MOTIVOS_VENCIMIENTO.includes(currentMotivo)
+            ? 'Registrar control de vencimiento'
+            : 'Enviar acción / devolución';
         const sp = $('_spinner');
         if (sp) sp.remove();
     }
@@ -1041,9 +1010,7 @@ function updateCounter() {
     }
 }
 
-function delay(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
+function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
 // ─────────────────────────────────────────────
 // SEARCH UTILS
@@ -1055,7 +1022,7 @@ function normalize(str) {
 
 function highlight(text, query) {
     if (!text || !query) return esc(text || '');
-    const normText = normalize(text);
+    const normText  = normalize(text);
     const normQuery = normalize(query);
     const result = [];
     let i = 0;
@@ -1071,8 +1038,6 @@ function highlight(text, query) {
 
 function esc(str) {
     return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
