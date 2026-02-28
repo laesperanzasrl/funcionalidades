@@ -255,12 +255,21 @@ async function init() {
     });
 
     // Live validation
+    // DESPUÉS
     const requiredFields = ['fEmail', 'fQty', 'fExp', 'fBranch', 'fEvent'];
     requiredFields.forEach((id) => {
         const el = $(id);
         if (!el) return;
         el.addEventListener('blur', () => validateField(id));
-        el.addEventListener('input', () => clearFieldError(id));
+        el.addEventListener('input', () => {
+            // Normalizar coma → punto para usuarios AR/ES en campo cantidad
+            if (id === 'fQty' && el.value.includes(',')) {
+                const pos = el.selectionStart;
+                el.value = el.value.replace(',', '.');
+                try { el.setSelectionRange(pos, pos); } catch (_) { }
+            }
+            clearFieldError(id);
+        });
     });
     ['fBranch', 'fEvent'].forEach((id) => {
         const el = $(id);
@@ -328,9 +337,9 @@ function parsePesableEAN(ean) {
     const s = String(ean).trim().replace(/\s/g, '');
     if (s.length !== 13 || !s.startsWith('2')) return null;
     const internoRaw = s.slice(2, 7);
-    const pesoRaw    = s.slice(7, 12);
-    const interno    = String(parseInt(internoRaw, 10));
-    const pesoGr     = parseInt(pesoRaw, 10);
+    const pesoRaw = s.slice(7, 12);
+    const interno = String(parseInt(internoRaw, 10));
+    const pesoGr = parseInt(pesoRaw, 10);
     if (isNaN(pesoGr) || pesoGr <= 0) return null;
     return { interno, pesoGr, pesoKg: pesoGr / 1000 };
 }
@@ -340,9 +349,9 @@ function parsePesableEAN(ean) {
  * Retorna true si el usuario debe poder ingresar kg con decimales.
  */
 function esSectorPesable(data) {
-    const sectorUp  = (data.SECTOR  || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const sectorUp = (data.SECTOR || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const seccionUp = (data.SECCION || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const eanStr    = String(data.EAN || data.INTERNO || '');
+    const eanStr = String(data.EAN || data.INTERNO || '');
     return (
         SECTORES_PESABLES_KEYS.some(k => sectorUp.includes(k) || seccionUp.includes(k)) ||
         eanStr.startsWith('23')
@@ -351,9 +360,9 @@ function esSectorPesable(data) {
 
 async function triggerLookup(code) {
     showProductCardLoading();
-    const pesable    = parsePesableEAN(code);
+    const pesable = parsePesableEAN(code);
     const lookupCode = pesable ? pesable.interno : code;
-    const data       = await fetchProducto(lookupCode);
+    const data = await fetchProducto(lookupCode);
     if (data) fillProductData(data, pesable);
     else showProductCardNotFound();
 }
@@ -362,9 +371,9 @@ async function triggerExtLookup(code) {
     els.extInput.classList.remove('ext-input--reading', 'ext-input--found');
     setExtStatus('reading', `Buscando: ${code}`);
     showProductCardLoading();
-    const pesable    = parsePesableEAN(code);
+    const pesable = parsePesableEAN(code);
     const lookupCode = pesable ? pesable.interno : code;
-    const data       = await fetchProducto(lookupCode);
+    const data = await fetchProducto(lookupCode);
     if (data) {
         els.fBarcode.value = code;
         clearFieldError('fBarcode');
@@ -385,16 +394,16 @@ async function triggerExtLookup(code) {
 
 function fillProductData(data, pesable = null) {
     state.productData = data;
-    state.isPesable   = !!pesable;
-    state.pesoKg      = pesable ? pesable.pesoKg : null;
+    state.isPesable = !!pesable;
+    state.pesoKg = pesable ? pesable.pesoKg : null;
 
     els.fBarcode.value = String(data.EAN || data.INTERNO || '');
-    els.fDesc.value    = data.DESCRIPCION || '';
+    els.fDesc.value = data.DESCRIPCION || '';
     clearFieldError('fBarcode');
 
     if (pesable) {
         // ── Pesable con peso en EAN → campo readonly ──
-        els.fQty.value    = pesable.pesoKg.toFixed(3);
+        els.fQty.value = pesable.pesoKg.toFixed(3);
         els.fQty.readOnly = true;
         els.fQty.classList.add('qty--pesable');
         els.fQty.setAttribute('step', '0.001');
@@ -441,11 +450,11 @@ function fillProductData(data, pesable = null) {
 
     // ── Tarjeta de producto ──
     els.pcDescripcion.textContent = data.DESCRIPCION || '-';
-    els.pcProveedor.textContent   = data.PROVEEDOR   || '-';
-    els.pcGramaje.textContent     = data.GRAMAJE      || '-';
-    els.pcUxb.textContent         = data.UXB != null ? `${data.UXB} u.` : '-';
+    els.pcProveedor.textContent = data.PROVEEDOR || '-';
+    els.pcGramaje.textContent = data.GRAMAJE || '-';
+    els.pcUxb.textContent = data.UXB != null ? `${data.UXB} u.` : '-';
 
-    const sector  = data.SECTOR  || '';
+    const sector = data.SECTOR || '';
     const seccion = data.SECCION || '';
     els.pcSector.textContent = sector && seccion ? `${sector} › ${seccion}` : (sector || seccion || '-');
 
@@ -534,13 +543,13 @@ function onSearchInput() {
 }
 
 function renderSearchResults(query) {
-    const q     = normalize(query);
+    const q = normalize(query);
     const field = state.searchField;
 
     if (q.length < 2) {
         els.searchStateEmpty.style.display = 'flex';
-        els.searchStateNone.style.display  = 'none';
-        els.searchResults.style.display    = 'none';
+        els.searchStateNone.style.display = 'none';
+        els.searchResults.style.display = 'none';
         els.searchCount.textContent = '';
         return;
     }
@@ -549,7 +558,7 @@ function renderSearchResults(query) {
         if (field === 'all') {
             return (
                 normalize(p.DESCRIPCION).includes(q) || normalize(p.PROVEEDOR).includes(q) ||
-                normalize(p.SECTOR).includes(q)      || normalize(p.SECCION).includes(q)   ||
+                normalize(p.SECTOR).includes(q) || normalize(p.SECCION).includes(q) ||
                 normalize(String(p.EAN ?? '')).includes(q) || normalize(String(p.INTERNO ?? '')).includes(q)
             );
         }
@@ -562,13 +571,13 @@ function renderSearchResults(query) {
     if (matches.length === 0) {
         els.searchStateNone.style.display = 'flex';
         els.searchTermDisplay.textContent = `"${query}"`;
-        els.searchResults.style.display   = 'none';
+        els.searchResults.style.display = 'none';
         els.searchCount.textContent = 'Sin resultados';
         return;
     }
 
     els.searchStateNone.style.display = 'none';
-    els.searchResults.style.display   = 'block';
+    els.searchResults.style.display = 'block';
 
     const shown = matches.slice(0, 80);
     const total = matches.length;
@@ -577,16 +586,16 @@ function renderSearchResults(query) {
         : `${total} resultado${total !== 1 ? 's' : ''}`;
 
     els.searchResults.innerHTML = shown.map((p, i) => {
-        const desc    = highlight(p.DESCRIPCION || '—', q);
-        const prov    = highlight(p.PROVEEDOR   || '—', q);
-        const eanRaw  = String(p.EAN     ?? '');
-        const intRaw  = String(p.INTERNO ?? '');
+        const desc = highlight(p.DESCRIPCION || '—', q);
+        const prov = highlight(p.PROVEEDOR || '—', q);
+        const eanRaw = String(p.EAN ?? '');
+        const intRaw = String(p.INTERNO ?? '');
         const eanBadge = eanRaw ? `<span class="sr-ean">EAN ${highlight(eanRaw, q)}</span>` : '';
         const intBadge = intRaw && intRaw !== eanRaw ? `<span class="sr-ean sr-ean--int">INT ${highlight(intRaw, q)}</span>` : '';
-        const sect     = p.SECTOR  ? `<span class="sr-tag">${esc(p.SECTOR)}</span>`  : '';
-        const secc     = p.SECCION ? `<span class="sr-tag">${esc(p.SECCION)}</span>` : '';
-        const gramaje  = p.GRAMAJE ? `<span class="sr-tag sr-tag--gramaje">${esc(p.GRAMAJE)}</span>` : '';
-        const pvp      = p['PVP SUPER'] != null
+        const sect = p.SECTOR ? `<span class="sr-tag">${esc(p.SECTOR)}</span>` : '';
+        const secc = p.SECCION ? `<span class="sr-tag">${esc(p.SECCION)}</span>` : '';
+        const gramaje = p.GRAMAJE ? `<span class="sr-tag sr-tag--gramaje">${esc(p.GRAMAJE)}</span>` : '';
+        const pvp = p['PVP SUPER'] != null
             ? `<span class="sr-tag sr-tag--pvp">$${Number(p['PVP SUPER']).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>` : '';
         // Indicador pesable
         const isPes = esSectorPesable(p);
@@ -611,7 +620,7 @@ function renderSearchResults(query) {
         li.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectSearchProduct(p); }
             if (e.key === 'ArrowDown') { e.preventDefault(); (li.nextElementSibling || li).focus(); }
-            if (e.key === 'ArrowUp')   { e.preventDefault(); (li.previousElementSibling || li).focus(); }
+            if (e.key === 'ArrowUp') { e.preventDefault(); (li.previousElementSibling || li).focus(); }
         });
     });
 }
@@ -646,7 +655,7 @@ async function startScanner() {
             qrbox: { width: 260, height: 120 },
             formatsToSupport: [
                 Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
-                Html5QrcodeSupportedFormats.UPC_A,  Html5QrcodeSupportedFormats.UPC_E,
+                Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
                 Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
                 Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.ITF,
             ],
@@ -673,7 +682,7 @@ function onBarcodeScanned(decodedText) {
 
 async function closeScanner() {
     if (state.html5QrCode) {
-        try { if (state.scannerActive) await state.html5QrCode.stop(); state.html5QrCode.clear(); } catch (_) {}
+        try { if (state.scannerActive) await state.html5QrCode.stop(); state.html5QrCode.clear(); } catch (_) { }
         state.html5QrCode = null;
     }
     state.scannerActive = false;
@@ -708,9 +717,9 @@ function processPhoto(file) {
     reader.onload = (ev) => {
         compressImage(ev.target.result, file.type, (compressedBase64, mime) => {
             state.photoBase64 = compressedBase64;
-            state.photoMime   = mime;
-            state.photoName   = file.name;
-            els.photoImg.src  = `data:${mime};base64,${compressedBase64}`;
+            state.photoMime = mime;
+            state.photoName = file.name;
+            els.photoImg.src = `data:${mime};base64,${compressedBase64}`;
             els.photoName.textContent = file.name;
             els.photoPreview.classList.add('show');
             els.photoPlaceholder.classList.add('hide');
@@ -747,12 +756,12 @@ function removePhoto() {
 // VALIDACIÓN
 // ─────────────────────────────────────────────
 const validationRules = {
-    fEmail:    { required: true, type: 'emailOrName' },
-    fBarcode:  { required: true },
-    fQty:      { required: true, min: 1, integer: true },
-    fExp:      { required: true },
-    fBranch:   { required: true },
-    fEvent:    { required: true },
+    fEmail: { required: true, type: 'emailOrName' },
+    fBarcode: { required: true },
+    fQty: { required: true, min: 1, integer: true },
+    fExp: { required: true },
+    fBranch: { required: true },
+    fEvent: { required: true },
     fDiscount: { required: false, min: 1, max: 99, integer: true },
 };
 
@@ -765,12 +774,17 @@ function getTomorrowStr() {
     const d = new Date();
     d.setDate(d.getDate() + 1);
     const yyyy = d.getFullYear();
-    const mm   = String(d.getMonth() + 1).padStart(2, '0');
-    const dd   = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd}`;
 }
 
 function validateField(fieldId) {
+    if (fieldId === 'fQty') {
+        validationRules.fQty = state.isPesable
+            ? { required: true, min: 0.001 }
+            : { required: true, min: 1, integer: true };
+    }
     const rule = validationRules[fieldId];
     if (!rule) return true;
     const el = $(fieldId);
@@ -782,12 +796,13 @@ function validateField(fieldId) {
 
     if (ok && rule.type === 'emailOrName' && val) {
         const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
-        const isName  = val.trim().length >= 3;
+        const isName = val.trim().length >= 3;
         if (!isEmail && !isName) ok = false;
     }
-    if (ok && rule.min !== undefined && (isNaN(Number(val)) || Number(val) < rule.min)) ok = false;
-    if (ok && rule.max !== undefined && Number(val) > rule.max) ok = false;
-    if (ok && rule.integer && val && !Number.isInteger(Number(val))) ok = false;
+    const numVal = Number(val.replace(',', '.'));   // ← normaliza coma AR
+    if (ok && rule.min !== undefined && (isNaN(numVal) || numVal < rule.min)) ok = false;
+    if (ok && rule.max !== undefined && numVal > rule.max) ok = false;
+    if (ok && rule.integer && val && !Number.isInteger(numVal)) ok = false;
 
     if (fieldId === 'fExp' && ok && val && MOTIVOS_VENCIMIENTO.includes(els.fEvent.value)) {
         const minStr = getTomorrowStr();
@@ -834,7 +849,7 @@ function validateAll() {
             if (els.discountWrap.style.display !== 'none') {
                 const val = els.fDiscount.value.trim();
                 const num = Number(val);
-                const ok  = val !== '' && !isNaN(num) && Number.isInteger(num) && num >= 1 && num <= 99;
+                const ok = val !== '' && !isNaN(num) && Number.isInteger(num) && num >= 1 && num <= 99;
                 els.fDiscount.classList.toggle('err', !ok);
                 const errEl = $('eDiscount');
                 if (errEl) errEl.classList.toggle('show', !ok);
@@ -853,7 +868,7 @@ function validateAll() {
 function buildPayload() {
     return {
         action: 'submitForm',
-        usuario:  els.fEmail.value.trim(),
+        usuario: els.fEmail.value.trim(),
         sucursal: els.fBranch.value,
         event: (() => {
             const base = els.fEvent.value;
@@ -862,25 +877,25 @@ function buildPayload() {
             }
             return base;
         })(),
-        cantidad:       els.fQty.value.trim(),
-        esPesable:      state.isPesable,
+        cantidad: els.fQty.value.trim().replace(',', '.'),
+        esPesable: state.isPesable,
         unidadCantidad: state.isPesable ? 'kg' : 'unidades',
-        fechaVenc:      els.fExp.value,
-        aclaracion:     els.fNote.value.trim(),
-        lote:           els.fLot.value.trim(),
-        comentarios:    els.fComment.value.trim(),
-        ean:            els.fBarcode.value.trim(),
-        descripcion:    els.fDesc.value.trim(),
-        codInterno:     state.productData?.INTERNO            || null,
-        proveedor:      state.productData?.PROVEEDOR          || null,
-        codProv:        state.productData?.['COD.PROVEEDOR']  || null,
-        gramaje:        state.productData?.GRAMAJE            || null,
-        uxb:            state.productData?.UXB                || null,
-        sector:         state.productData?.SECTOR             || null,
-        seccion:        state.productData?.SECCION            || null,
-        photoBase64:    state.photoBase64 || null,
-        photoMime:      state.photoMime   || null,
-        photoName:      state.photoName   || null,
+        fechaVenc: els.fExp.value,
+        aclaracion: els.fNote.value.trim(),
+        lote: els.fLot.value.trim(),
+        comentarios: els.fComment.value.trim(),
+        ean: els.fBarcode.value.trim(),
+        descripcion: els.fDesc.value.trim(),
+        codInterno: state.productData?.INTERNO || null,
+        proveedor: state.productData?.PROVEEDOR || null,
+        codProv: state.productData?.['COD.PROVEEDOR'] || null,
+        gramaje: state.productData?.GRAMAJE || null,
+        uxb: state.productData?.UXB || null,
+        sector: state.productData?.SECTOR || null,
+        seccion: state.productData?.SECCION || null,
+        photoBase64: state.photoBase64 || null,
+        photoMime: state.photoMime || null,
+        photoName: state.photoName || null,
     };
 }
 
@@ -907,30 +922,30 @@ function addToList() {
     // Guardar contexto de display
     const listItem = {
         ...payload,
-        _listId:      Date.now() + Math.random(),
-        _desc:        els.fDesc.value.trim() || els.fBarcode.value.trim() || '—',
-        _ean:         els.fBarcode.value.trim(),
-        _qty:         els.fQty.value.trim(),
-        _unit:        state.isPesable ? 'kg' : 'u.',
-        _venc:        els.fExp.value,
-        _sucursal:    els.fBranch.value,
-        _event:       payload.event,
+        _listId: Date.now() + Math.random(),
+        _desc: els.fDesc.value.trim() || els.fBarcode.value.trim() || '—',
+        _ean: els.fBarcode.value.trim(),
+        _qty: els.fQty.value.trim(),
+        _unit: state.isPesable ? 'kg' : 'u.',
+        _venc: els.fExp.value,
+        _sucursal: els.fBranch.value,
+        _event: payload.event,
     };
 
     state.productList.push(listItem);
     renderProductList();
 
     // Guardar campos comunes para acelerar la carga del siguiente
-    const savedEmail  = els.fEmail.value;
+    const savedEmail = els.fEmail.value;
     const savedBranch = els.fBranch.value;
-    const savedEvent  = els.fEvent.value;
+    const savedEvent = els.fEvent.value;
 
     clearFormFields();                // limpia campos del producto
 
     // Restaurar los comunes
-    els.fEmail.value  = savedEmail;
+    els.fEmail.value = savedEmail;
     els.fBranch.value = savedBranch;
-    els.fEvent.value  = savedEvent;
+    els.fEvent.value = savedEvent;
     toggleBdBadge(savedEvent);
     toggleDiscountInput(savedEvent);
     updateSubmitLabel(savedEvent);
@@ -951,9 +966,9 @@ function removeFromList(listId) {
 window.removeFromList = removeFromList; // acceso desde onclick inline
 
 function renderProductList() {
-    const section   = $('productListSection');
+    const section = $('productListSection');
     const container = $('productListContainer');
-    const sendText  = $('btnSendListText');
+    const sendText = $('btnSendListText');
     const listCount = $('listCountBadge');
 
     if (!section) return;
@@ -1015,7 +1030,7 @@ async function sendList() {
 
         const item = { ...state.productList[i] };
         // Limpiar props de display antes de enviar
-        ['_listId','_desc','_ean','_qty','_unit','_venc','_sucursal','_event'].forEach(k => delete item[k]);
+        ['_listId', '_desc', '_ean', '_qty', '_unit', '_venc', '_sucursal', '_event'].forEach(k => delete item[k]);
 
         try {
             if (APPS_SCRIPT_URL === 'PEGA_AQUI_TU_URL_DE_APPS_SCRIPT') {
@@ -1125,11 +1140,11 @@ function clearFormFields() {
         if (el) { el.value = ''; el.classList.remove('err'); }
     });
     els.fBarcode.value = '';
-    els.fDesc.value    = '';
+    els.fDesc.value = '';
 
     // Reset pesable
     state.isPesable = false;
-    state.pesoKg    = null;
+    state.pesoKg = null;
     els.fQty.readOnly = false;
     els.fQty.classList.remove('qty--pesable');
     els.fQty.setAttribute('step', '1');
@@ -1159,7 +1174,7 @@ function clearForm() {
         el.classList.remove('err');
     });
     els.fBarcode.value = '';
-    els.fDesc.value    = '';
+    els.fDesc.value = '';
     els.discountWrap.style.display = 'none';
     els.fDiscount.value = '';
 
@@ -1169,7 +1184,7 @@ function clearForm() {
 
     // Reset pesable
     state.isPesable = false;
-    state.pesoKg    = null;
+    state.pesoKg = null;
     els.fQty.readOnly = false;
     els.fQty.classList.remove('qty--pesable');
     els.fQty.setAttribute('step', '1');
@@ -1230,12 +1245,12 @@ function applyDateRestriction(motivo) {
 // UI HELPERS
 // ─────────────────────────────────────────────
 function setLoading(on) {
-    state.submitting       = on;
+    state.submitting = on;
     els.btnSubmit.disabled = on;
 
-    const btnAddList  = $('btnAddList');
+    const btnAddList = $('btnAddList');
     const btnSendList = $('btnSendList');
-    if (btnAddList)  btnAddList.disabled  = on;
+    if (btnAddList) btnAddList.disabled = on;
     if (btnSendList) btnSendList.disabled = on;
 
     if (on) {
@@ -1290,7 +1305,7 @@ function normalize(str) {
 
 function highlight(text, query) {
     if (!text || !query) return esc(text || '');
-    const normText  = normalize(text);
+    const normText = normalize(text);
     const normQuery = normalize(query);
     const result = [];
     let i = 0;
