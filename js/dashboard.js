@@ -1,0 +1,1612 @@
+// ══════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════
+
+let loteMode = false;
+let loteSeleccionados = new Map(); // sucKey → { id, desc, ean, fechaVenc, suc, cantActual }
+let loteQueue = []; // { id, desc, ean, fechaVenc, suc, op, cant, dest, cantActual }
+let SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwj0qEOm9THbYxw0TYek2Oot3dlL1wn7YmPLtYknFzrGBQJXFnd-kh7yxXtFgYFyC-B/exec";
+let devData = []; // Devoluciones completo
+let venData = []; // Vencimientos completo
+let devMap = new Map(); // id → record devoluciones
+let venGrupos = []; // grupos computados para tabla vencimientos
+let openGrupos = new Set();
+let openSucs = new Set();
+
+let venProdGrupos = [];   // productos agrupados por EAN
+let filteredVenProd = [];  // resultado filtrado por EAN
+let openProds = new Set(); // EANs expandidos (nivel 1)
+
+let filteredVen = [];
+let filteredAcc = [];
+let filteredNc = [];
+let selectedIds = new Set();
+let modalCb = null;
+
+let accPreset = 'today';
+let accDateFrom = null, accDateTo = null;
+let accPage = 1, ncPage = 1;
+const PAGE_SIZE = 50;
+
+let _autoTimer = null, _cdTimer = null, _nextRefresh = null;
+const AUTO_MS = 30 * 60 * 1000;
+
+const URG_ORDER = { VENCIDO: 0, CRITICO: 1, URGENTE: 2, PROXIMO: 3, ATENCION: 4, NORMAL: 5 };
+const URG_LABELS = { VENCIDO: 'VENCIDO', CRITICO: 'CRÍTICO', URGENTE: 'URGENTE', PROXIMO: 'PRÓXIMO', ATENCION: 'ATENCIÓN', NORMAL: 'NORMAL' };
+const BAR_CLRS = { VENCIDO: 'var(--venc-v-fg)', CRITICO: 'var(--venc-c-fg)', URGENTE: 'var(--venc-u-fg)', PROXIMO: 'var(--venc-p-fg)', ATENCION: 'var(--venc-a-fg)', NORMAL: 'var(--venc-n-fg)' };
+
+// ADICIÓN PARA STOCK Y TRANSFERENCIAS
+const SUCURSALES_LIST = ['HIPER', 'CENTRO', 'RIBERA', 'MAYORISTA', 'PROVEEDOR', 'OTRO'];
+let currentTransferData = null;
+let currentAdjustData = null; // { id, delta, sucursal, cantActual }
+// ══════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════
+window.onload = () => {
+  showPanel('resumen');
+  if (SCRIPT_URL) {
+    document.getElementById('configModal').classList.remove('open');
+    loadData();
+  } else {
+    document.getElementById('configModal').classList.add('open');
+  }
+};
+
+// ══════════════════════════════════════════════════════
+//  NAV
+// ══════════════════════════════════════════════════════
+const PANEL_TITLES = {
+  resumen: 'Resumen General', vencimientos: 'Control de Vencimientos',
+  acciones: 'Registros de Acciones', metricas: 'Métricas Compras', nc: 'Gestión N/C'
+};
+function showPanel(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sb-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  const nav = document.getElementById('nav-' + id);
+  if (nav) nav.classList.add('active');
+  document.getElementById('topbarTitle').textContent = PANEL_TITLES[id] || id;
+  closeSidebar();
+}
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('backdrop').classList.toggle('open') }
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('backdrop').classList.remove('open') }
+
+function goVencFilter(urg) { document.getElementById('vf-urg').value = urg || ''; applyVencFilters(); showPanel('vencimientos'); }
+function filterAutoVencidos() {
+  document.getElementById('af-motivo').value = 'VENCIDO';
+  setAccPreset('all', document.querySelectorAll('#acc-presets .dp')[6]);
+  showPanel('acciones');
+}
+function filterAccEstado(est) { document.getElementById('af-estado').value = est || ''; setAccPreset('all', document.querySelectorAll('#acc-presets .dp')[6]); showPanel('acciones'); }
+
+// ══════════════════════════════════════════════════════
+//  AUTO-REFRESH
+// ══════════════════════════════════════════════════════
+function startAutoRefresh() {
+  if (_autoTimer) clearTimeout(_autoTimer);
+  if (_cdTimer) clearInterval(_cdTimer);
+  _nextRefresh = Date.now() + AUTO_MS;
+  _autoTimer = setTimeout(loadData, AUTO_MS);
+  _cdTimer = setInterval(() => {
+    const rem = _nextRefresh - Date.now();
+    if (rem <= 0) { clearInterval(_cdTimer); return; }
+    const m = Math.floor(rem / 60000), s = Math.floor((rem % 60000) / 1000);
+    const el = document.getElementById('syncTime');
+    if (el) el.textContent = (el.dataset.base || '') + ' · 🔄 ' + m + ':' + String(s).padStart(2, '0');
+  }, 1000);
+}
+
+// ══════════════════════════════════════════════════════
+//  DATA LOADING
+// ══════════════════════════════════════════════════════
+async function loadData() {
+  if (!SCRIPT_URL) { openConfig(); return; }
+  const btn = document.getElementById('syncBtn');
+  btn.classList.add('loading');
+  document.getElementById('syncIcon').textContent = '⏳';
+  showSpinner('Cargando datos…');
+  if (_autoTimer) clearTimeout(_autoTimer);
+  if (_cdTimer) clearInterval(_cdTimer);
+
+  try {
+    const [devRes, venRes] = await Promise.all([
+      fetch(`${SCRIPT_URL}?action=getHistorial&bd=devoluciones&_t=${Date.now()}`),
+      fetch(`${SCRIPT_URL}?action=getHistorial&bd=vencimientos&_t=${Date.now()}`)
+    ]);
+    const [devJson, venJson] = await Promise.all([devRes.json(), venRes.json()]);
+
+    if (!devJson.success) throw new Error(devJson.message || 'Error BD Devoluciones');
+    if (!venJson.success) throw new Error(venJson.message || 'Error BD Vencimientos');
+
+    processDevData(devJson.data || []);
+    processVenData(venJson.data || []);
+    updateAll();
+
+    const timeStr = 'Actualizado: ' + new Date().toLocaleTimeString('es-AR');
+    const el = document.getElementById('syncTime');
+    el.dataset.base = timeStr;
+    el.textContent = timeStr;
+    document.getElementById('statusDot').className = 'status-dot online';
+    startAutoRefresh();
+  } catch (err) {
+    const el = document.getElementById('syncTime');
+    el.dataset.base = '⚠️ Error';
+    el.textContent = '⚠️ Error de conexión';
+    document.getElementById('statusDot').className = 'status-dot';
+    console.error(err);
+    startAutoRefresh();
+  } finally {
+    hideSpinner();
+    btn.classList.remove('loading');
+    document.getElementById('syncIcon').textContent = '🔄';
+  }
+}
+
+function processDevData(raw) {
+  devData = raw.map(r => ({
+    id: r['ID'] || '',
+    fecha: parseDate(r['FECHA REGISTRO'] || r['FECHA'] || ''),
+    sucursal: r['SUCURSAL'] || '',
+    usuario: r['USUARIO'] || '',
+    ean: String(r['EAN'] || ''),
+    codInterno: r['COD. INTERNO'] || '',
+    descripcion: r['DESCRIPCION'] || '',
+    gramaje: r['GRAMAJE'] || '',
+    cantidad: r['CANTIDAD'] || '',
+    fechaVenc: r['FECHA VENC.'] || '',
+    sector: r['SECTOR'] || '',
+    seccion: r['SECCION'] || '',
+    proveedor: r['PROVEEDOR'] || '',
+    codProv: r['COD. PROVEEDOR'] || '',
+    motivo: r['MOTIVO'] || '',
+    lote: r['LOTE'] || '',
+    aclaracion: r['ACLARACION'] || '',
+    comentarios: r['COMENTARIOS'] || '',
+    fotoRaw: r['ARCHIVO ADJUNTO'] || '',
+    estado: r['ESTADO'] || 'PENDIENTE',
+    obsNC: r['OBSERVACION N/C'] || '',
+  })).filter(r => r.id);
+
+  devMap.clear();
+  devData.forEach(r => devMap.set(r.id, r));
+  document.getElementById('recCount').textContent = devData.length + ' acciones · ' + venData.length + ' vencimientos';
+}
+
+function processVenData(raw) {
+  venData = raw.map(r => {
+    const fv = r['FECHA VENCIMIENTO'] || r['FECHA VENC.'] || '';
+    const dias = calcDias(fv);
+    return {
+      id: r['ID'] || '',
+      fechaReg: parseRegDate(r['FECHA REGISTRO'] || ''),
+      sucursal: String(r['SUCURSAL'] || ''),
+      usuario: r['USUARIO'] || '',
+      ean: String(r['EAN'] || ''),
+      codInterno: r['COD. INTERNO'] || '',
+      descripcion: r['DESCRIPCION'] || '',
+      gramaje: r['GRAMAJE'] || '',
+      cantidad: r['CANTIDAD'] || '',
+      fechaVenc: fv,
+      sector: r['SECTOR'] || '',
+      seccion: r['SECCION'] || '',
+      proveedor: r['PROVEEDOR'] || '',
+      lote: r['LOTE'] || '',
+      aclaracion: r['ACLARACION'] || '',
+      estadoGest: String(r['ESTADO GESTION'] || 'ACTIVO').toUpperCase(),
+      idAccion: r['ID ACCION'] || '',
+      _dias: dias,
+      _urg: getUrg(dias),
+    };
+  });
+
+  buildVenGrupos();
+  document.getElementById('recCount').textContent = devData.length + ' acciones · ' + venData.length + ' vencimientos';
+}
+
+function updateAll() {
+  populateFilterSelects();
+  updateResumenKPIs();
+  renderAlertFeed();
+  applyVencFilters();
+  setAccPreset(accPreset, document.querySelector('#acc-presets .dp.active'));
+  renderMetricasPanel();
+  renderProvTable();
+  applyNcFilters();
+  updateNavBadges();
+}
+
+// ══════════════════════════════════════════════════════
+//  URGENCIA
+// ══════════════════════════════════════════════════════
+function calcDias(str) {
+  if (!str) return null;
+  const s = String(str).trim();
+  let d;
+  if (/^\d{2}[-\/]\d{2}[-\/]\d{4}/.test(s)) { const [dd, mm, yyyy] = s.split(/[-\/]/); d = new Date(+yyyy, +mm - 1, +dd); }
+  else if (/^\d{4}[-\/]\d{2}[-\/]\d{2}/.test(s)) { d = new Date(s.slice(0, 10)); }
+  else { d = new Date(s); }
+  if (isNaN(d)) return null;
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0); d.setHours(0, 0, 0, 0);
+  return Math.round((d - hoy) / 86400000);
+}
+function getUrg(dias) {
+  if (dias === null) return 'NORMAL';
+  if (dias <= 0) return 'VENCIDO';
+  if (dias <= 6) return 'CRITICO';
+  if (dias <= 14) return 'URGENTE';
+  if (dias <= 21) return 'PROXIMO';
+  if (dias <= 45) return 'ATENCION';
+  return 'NORMAL';
+}
+
+// ══════════════════════════════════════════════════════
+//  BUILD VEN GRUPOS
+//  CAMBIO: filtra sucursales con cantidad <= 0
+// ══════════════════════════════════════════════════════
+function buildVenGrupos() {
+  const sucMap = new Map();
+  venData.forEach(r => {
+    const k = r.ean + '||' + r.fechaVenc + '||' + r.sucursal;
+    if (!sucMap.has(k)) sucMap.set(k, { ean: r.ean, fechaVenc: r.fechaVenc, suc: r.sucursal, registros: [] });
+    sucMap.get(k).registros.push(r);
+  });
+
+  const sucEntries = [];
+  sucMap.forEach(e => {
+    e.registros.sort((a, b) => {
+      if (!a.fechaReg && !b.fechaReg) return 0;
+      if (!a.fechaReg) return 1;
+      if (!b.fechaReg) return -1;
+      return b.fechaReg - a.fechaReg;
+    });
+    e.latest = e.registros[0];
+
+    // ── FILTRO: no mostrar sucursales con 0 unidades ──────────
+    const cantActual = parseFloat(String(e.latest.cantidad || 0).replace(',', '.')) || 0;
+    if (cantActual <= 0) return; // Skip — limpia el dashboard
+
+    e.controles = e.registros;
+    e.diasDesde = diasDesde(e.latest.fechaReg);
+    sucEntries.push(e);
+  });
+
+  const map = new Map();
+  sucEntries.forEach(se => {
+    const k = se.ean + '||' + se.fechaVenc;
+    if (!map.has(k)) map.set(k, { key: k, ean: se.ean, fechaVenc: se.fechaVenc, sucursales: [] });
+    map.get(k).sucursales.push(se);
+  });
+
+  // Filtrar grupos que quedaron sin sucursales
+  venGrupos = [...map.values()]
+    .filter(g => g.sucursales.length > 0)
+    .map(g => {
+      g.dias = g.sucursales[0].latest._dias;
+      g.urg = getUrg(g.dias);
+      g.desc = g.sucursales.reduce((b, se) => se.latest.descripcion || b, '—');
+      g.prov = g.sucursales.reduce((b, se) => se.latest.proveedor || b, '');
+      g.totalU = g.sucursales.reduce((s, se) => s + (parseFloat(String(se.latest.cantidad || 0).replace(',', '.')) || 0), 0);
+      const ests = g.sucursales.map(se => se.latest.estadoGest.replace(/\s+/g, '_'));
+      if (ests.some(e => e === 'ACTIVO')) g.grupoEstado = 'ACTIVO';
+      else if (ests.every(e => e === 'RETIRADO')) g.grupoEstado = 'RETIRADO';
+      else g.grupoEstado = 'ACCION_TOMADA';
+      g.maxDiasDesde = Math.max(...g.sucursales.map(se => se.diasDesde ?? 0));
+      g.hasAccion = g.sucursales.some(se => {
+        if (se.latest.idAccion) return true;
+        const eanG = String(se.latest.ean || '').trim();
+        const fvG = String(se.latest.fechaVenc || '').trim().slice(0, 10);
+        const sucG = (se.suc || '').toUpperCase().trim();
+        return devData.some(d =>
+          String(d.ean || '').trim() === eanG &&
+          String(d.fechaVenc || '').trim().slice(0, 10) === fvG &&
+          (d.sucursal || '').toUpperCase().trim() === sucG
+        );
+      });
+      return g;
+    });
+}
+
+function diasDesde(date) {
+  if (!date) return null;
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const d = new Date(date); d.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.round((hoy - d) / 86400000));
+}
+
+// ══════════════════════════════════════════════════════
+//  RESUMEN PANEL
+// ══════════════════════════════════════════════════════
+function updateResumenKPIs() {
+  const activos = venGrupos.filter(g => g.grupoEstado === 'ACTIVO');
+  const vc = { VENCIDO: 0, CRITICO: 0, URGENTE: 0, PROXIMO: 0, ATENCION: 0, NORMAL: 0 };
+  activos.forEach(g => vc[g.urg] = (vc[g.urg] || 0) + 1);
+  document.getElementById('rv-total').textContent = activos.length;
+  document.getElementById('rv-vencido').textContent = vc.VENCIDO;
+  document.getElementById('rv-critico').textContent = vc.CRITICO;
+  document.getElementById('rv-urgente').textContent = vc.URGENTE;
+  document.getElementById('rv-proximo').textContent = vc.PROXIMO;
+  document.getElementById('rv-atencion').textContent = vc.ATENCION;
+  document.getElementById('rv-normal').textContent = vc.NORMAL;
+
+  document.getElementById('ra-total').textContent = devData.length;
+  document.getElementById('ra-nc').textContent = devData.filter(r => r.estado === 'N/C RECIBIDA').length;
+  document.getElementById('ra-pend').textContent = devData.filter(r => r.estado === 'PENDIENTE').length;
+  document.getElementById('ra-gest').textContent = devData.filter(r => r.estado === 'EN GESTION').length;
+  document.getElementById('ra-rech').textContent = devData.filter(r => r.estado === 'RECHAZADA').length;
+
+  const vinc = venData.filter(r => r.idAccion && devMap.has(r.idAccion)).length;
+  document.getElementById('ra-vinc').textContent = vinc;
+  const autoV = devData.filter(r => r.usuario === 'SISTEMA AUTO').length;
+  const elAutoV = document.getElementById('ra-autov'); if (elAutoV) elAutoV.textContent = autoV;
+}
+
+function renderAlertFeed() {
+  const critical = venGrupos.filter(g => g.grupoEstado === 'ACTIVO' && (g.urg === 'VENCIDO' || g.urg === 'CRITICO' || g.urg === 'URGENTE')).sort((a, b) => URG_ORDER[a.urg] - URG_ORDER[b.urg] || (a.dias ?? 99) - (b.dias ?? 99)).slice(0, 12);
+  const el = document.getElementById('alertFeed');
+  if (!critical.length) { el.innerHTML = '<div class="empty"><div class="ei">✅</div><p>Sin alertas críticas activas</p></div>'; return; }
+  el.innerHTML = '<div class="alert-feed">' + critical.map(g => `
+    <div class="alert-item ${g.urg}" onclick="goVencFilter('${g.urg}')">
+      <div class="ai-top">
+        <span class="ai-desc" title="${esc(g.desc)}">${esc(g.desc)}</span>
+        <span class="urg ${g.urg}">${g.dias !== null ? (g.dias <= 0 ? 'VENCIDO' : g.dias + 'd') : ''} ${URG_LABELS[g.urg]}</span>
+      </div>
+      <div class="ai-meta">${esc(g.ean)} · ${esc(g.prov || '—')} · ${g.sucursales.length} suc.</div>
+      <div class="ai-badges">
+        ${g.sucursales.map(se => `<span class="suc-b ${(se.latest.estadoGest || 'ACTIVO').replace(/\s+/g, '-')}">${esc(se.suc)}</span>`).join('')}
+        ${g.hasAccion ? `<span class="linked-indicator">🔗 acción vinculada</span>` : ''}
+        ${g.hasAccion && g.sucursales.some(se => se.controles.some(r => r.idAccion && devMap.get(r.idAccion) && devMap.get(r.idAccion).usuario === 'SISTEMA AUTO')) ? `<span class="auto-tag">⚡ AUTO</span>` : ''}
+      </div>
+    </div>`).join('') + '</div>';
+}
+
+function updateNavBadges() {
+  const critCount = venGrupos.filter(g => g.grupoEstado === 'ACTIVO' && (g.urg === 'VENCIDO' || g.urg === 'CRITICO')).length;
+  const pendCount = devData.filter(r => r.estado === 'PENDIENTE').length;
+  const critBadge = document.getElementById('nav-badge-crit');
+  const pendBadge = document.getElementById('nav-badge-pend');
+  if (critCount > 0) { critBadge.textContent = critCount; critBadge.style.display = '' } else critBadge.style.display = 'none';
+  if (pendCount > 0) { pendBadge.textContent = pendCount; pendBadge.style.display = '' } else pendBadge.style.display = 'none';
+}
+
+// ══════════════════════════════════════════════════════
+//  VENCIMIENTOS PANEL
+// ══════════════════════════════════════════════════════
+
+function filterByUrg(urg) {
+  document.getElementById('vf-urg').value = urg || '';
+  applyVencFilters();
+}
+
+function applyVencFilters() {
+  const buscar = (document.getElementById('vf-buscar').value || '').toLowerCase().trim();
+  const prov = document.getElementById('vf-prov').value;
+  const suc = document.getElementById('vf-suc').value;
+  const urg = document.getElementById('vf-urg').value;
+  const periodo = parseInt(document.getElementById('vf-periodo').value || '0');
+  const estado = document.getElementById('vf-estado').value;
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+
+  filteredVen = venGrupos.filter(g => {
+    if (buscar) { const hay = [g.ean, g.desc, g.prov, ...g.sucursales.flatMap(se => se.controles.map(r => r.lote || ''))].join(' ').toLowerCase(); if (!hay.includes(buscar)) return false; }
+    if (prov && !g.sucursales.some(se => se.latest.proveedor === prov)) return false;
+    if (suc && !g.sucursales.some(se => se.suc === suc)) return false;
+    if (urg && g.urg !== urg) return false;
+    if (periodo > 0) { const ok = g.sucursales.some(se => se.controles.some(r => r.fechaReg && (hoy - r.fechaReg) / 86400000 <= periodo)); if (!ok) return false; }
+    if (estado) {
+      const norm = estado.replace(/\s+/g, '_');
+      if (estado === 'ACTIVO' && g.grupoEstado !== 'ACTIVO') return false;
+      if (estado === 'ACCION TOMADA' && g.grupoEstado !== 'ACCION_TOMADA') return false;
+      if (estado === 'RETIRADO' && g.grupoEstado !== 'RETIRADO') return false;
+    }
+    return true;
+  });
+  filteredVen.sort((a, b) => { const d = URG_ORDER[a.urg] - URG_ORDER[b.urg]; return d !== 0 ? d : (a.dias ?? 9999) - (b.dias ?? 9999) });
+  filteredVenProd = regroupByEan(filteredVen);
+  renderVencTable();
+}
+
+function regroupByEan(groups) {
+  const map = new Map();
+  groups.forEach(g => {
+    if (!map.has(g.ean)) map.set(g.ean, { ean: g.ean, desc: g.desc, prov: g.prov, vencGrupos: [] });
+    map.get(g.ean).vencGrupos.push(g);
+  });
+  return [...map.values()].map(p => {
+    p.vencGrupos.sort((a, b) => URG_ORDER[a.urg] - URG_ORDER[b.urg] || (a.dias ?? 9999) - (b.dias ?? 9999));
+    p.worstUrg = p.vencGrupos[0]?.urg ?? 'NORMAL';
+    p.worstDias = p.vencGrupos[0]?.dias ?? null;
+    p.allSucs = [...new Set(p.vencGrupos.flatMap(g => g.sucursales.map(s => s.suc)))];
+    p.totalU = p.vencGrupos.reduce((s, g) => s + (g.totalU || 0), 0);
+    return p;
+  }).sort((a, b) => URG_ORDER[a.worstUrg] - URG_ORDER[b.worstUrg] || (a.worstDias ?? 9999) - (b.worstDias ?? 9999));
+}
+
+function getSucClass(suc) {
+  const s = (suc || '').toUpperCase();
+  if (s.includes('HIPER')) return 'suc-hiper';
+  if (s.includes('CENTRO')) return 'suc-centro';
+  if (s.includes('RIBERA')) return 'suc-ribera';
+  if (s.includes('MAYORISTA')) return 'suc-mayorista';
+  return 'suc-default';
+}
+function getSucColorVar(suc) {
+  const s = (suc || '').toUpperCase();
+  if (s.includes('HIPER')) return '#ffd166';
+  if (s.includes('CENTRO')) return '#60a5fa';
+  if (s.includes('RIBERA')) return '#f87171';
+  if (s.includes('MAYORISTA')) return '#c084fc';
+  return '#475569';
+}
+
+function toggleProd(row, ean) {
+  const opening = !openProds.has(ean);
+  if (opening) openProds.add(ean); else openProds.delete(ean);
+  row.classList.toggle('open', opening);
+
+  document.querySelectorAll('tr.venc-grupo-row, tr.suc-row, tr.ctrl-row').forEach(r => {
+    if (r.dataset.prodEan !== ean) return;
+    if (!opening) {
+      r.classList.remove('visible', 'open', 'suc-open');
+      if (r.dataset.grupoKey) openGrupos.delete(r.dataset.grupoKey);
+      if (r.dataset.sucKey) openSucs.delete(r.dataset.sucKey);
+    } else {
+      if (r.classList.contains('venc-grupo-row')) r.classList.add('visible');
+    }
+  });
+}
+
+function clearVencFilters() {
+  ['vf-buscar', 'vf-prov', 'vf-suc', 'vf-urg', 'vf-periodo', 'vf-estado'].forEach(id => { const el = document.getElementById(id); el.tagName === 'INPUT' ? el.value = '' : el.value = ''; });
+  applyVencFilters();
+}
+
+function renderVencTable() {
+  const wrap = document.getElementById('vencTableWrap');
+  const sinAccion = filteredVen.filter(g => g.grupoEstado === 'ACTIVO').length;
+  const conAccion = filteredVen.filter(g => g.grupoEstado !== 'ACTIVO').length;
+  document.getElementById('venc-count').innerHTML = `<strong>${filteredVenProd.length}</strong> producto${filteredVenProd.length !== 1 ? 's' : ''}`;
+  document.getElementById('venc-detail').innerHTML = `⚠ <strong>${sinAccion}</strong> grupos sin acción · ✓ <strong>${conAccion}</strong> gestionados`;
+
+  if (!filteredVenProd.length) {
+    wrap.innerHTML = '<div class="empty"><div class="ei">🔍</div><p>Sin resultados</p></div>';
+    return;
+  }
+
+  const NCOLS = 7;
+  let html = `<table><thead><tr>
+    <th style="width:160px">Urgencia máx.</th>
+    <th>EAN</th><th>Descripción</th>
+    <th class="c-right">Total u.</th><th>Proveedor</th>
+    <th>Sucursales</th><th>Fechas vencimiento</th>
+  </tr></thead><tbody>`;
+
+  filteredVenProd.forEach(prod => {
+    const isProdOpen = openProds.has(prod.ean);
+    const barPct = prod.worstDias === null ? 0 : Math.max(0, Math.min(100, Math.round(prod.worstDias / 90 * 100)));
+
+    const sucBadges = prod.allSucs.map(s =>
+      `<span class="suc-b ${getSucClass(s)}">${esc(s)}</span>`
+    ).join('');
+
+    const vencMini = prod.vencGrupos.map(g =>
+      `<span class="urg ${g.urg}" style="font-size:9px;padding:2px 5px">${fmtDateOnly(g.fechaVenc)} ${g.dias !== null ? (g.dias <= 0 ? '⚠' : g.dias + 'd') : ''}</span>`
+    ).join(' ');
+
+    const prodTotal = prod.vencGrupos.reduce((sum, g) =>
+      sum + g.sucursales.reduce((s2, se) =>
+        s2 + (parseFloat(String(se.latest.cantidad || 0).replace(',', '.')) || 0), 0), 0);
+
+    // ── NIVEL 1: fila producto ──────────────────────────────────────
+    html += `
+    <tr class="prod-row${isProdOpen ? ' open' : ''}" onclick="toggleProd(this,'${esc(prod.ean)}')">
+      <td>
+        <div class="dias-cell">
+          <span class="dias-num ${prod.worstUrg}">${prod.worstDias !== null ? prod.worstDias : '—'}</span>
+          <div class="dias-right">
+            <span class="urg ${prod.worstUrg}">${URG_LABELS[prod.worstUrg]}</span>
+            <div class="dias-bar"><div class="dias-bar-fill bar-colors-${prod.worstUrg}" style="width:${barPct}%"></div></div>
+          </div>
+        </div>
+      </td>
+      <td class="c-mono" style="font-size:11px;color:var(--text2)">${esc(prod.ean)}</td>
+      <td class="c-main"><span class="expand-icon">▶</span>${esc(prod.desc)}</td>
+      <td class="c-right c-mono">${prodTotal}</td>
+      <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;color:var(--text2)" title="${esc(prod.prov)}">${esc(prod.prov || '—')}</td>
+      <td><div class="suc-badges">${sucBadges}</div></td>
+      <td>${vencMini}</td>
+    </tr>`;
+
+    // ── NIVEL 2: filas por fecha de vencimiento ──────────────────────
+    prod.vencGrupos.forEach(g => {
+      const isGrupoOpen = openGrupos.has(g.key);
+      const sucFilter = document.getElementById('vf-suc').value;
+      const sucVis = sucFilter ? g.sucursales.filter(se => se.suc === sucFilter) : g.sucursales;
+      const gBarPct = g.dias === null ? 0 : Math.max(0, Math.min(100, Math.round(g.dias / 90 * 100)));
+
+      const gSucBadges = sucVis.map(se =>
+        `<span class="suc-b ${getSucClass(se.suc)}">${esc(se.suc || '—')}</span>`
+      ).join('');
+
+      const grupoTotal = sucVis.reduce((s, se) =>
+        s + (parseFloat(String(se.latest.cantidad || 0).replace(',', '.')) || 0), 0);
+
+      html += `
+      <tr class="venc-grupo-row${isProdOpen ? ' visible' : ''}${isGrupoOpen ? ' open' : ''}"
+          data-prod-ean="${esc(prod.ean)}"
+          data-grupo-key="${esc(g.key)}"
+          onclick="toggleGrupo(this,'${esc(g.key)}')">
+        <td>
+          <div class="dias-cell">
+            <span class="dias-num ${g.urg}" style="font-size:14px">${g.dias !== null ? g.dias : '—'}</span>
+            <div class="dias-right">
+              <span class="urg ${g.urg}" style="font-size:9px">${URG_LABELS[g.urg]}</span>
+              <div class="dias-bar"><div class="dias-bar-fill bar-colors-${g.urg}" style="width:${gBarPct}%"></div></div>
+            </div>
+          </div>
+        </td>
+        <td colspan="2" style="color:var(--text2)">
+          <span class="expand-icon">▶</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px">Vence: <strong>${fmtDateOnly(g.fechaVenc)}</strong></span>
+          <span style="font-size:10px;color:var(--text3);margin-left:10px">${g.sucursales.length} suc · ${grupoTotal} u.</span>
+        </td>
+        <td class="c-right c-mono">${grupoTotal}</td>
+        <td></td>
+        <td><div class="suc-badges">${gSucBadges}</div></td>
+        <td></td>
+      </tr>`;
+
+      // ── NIVEL 3: filas por sucursal ────────────────────────────────
+      sucVis.forEach(se => {
+        const f = se.latest;
+        const est = (f.estadoGest || 'ACTIVO').replace(/\s+/g, '-');
+        const idAcc = f.idAccion || '';
+        const nControles = se.controles.length;
+        const hasHistory = nControles > 1;
+        const sucKey = g.key + '||' + se.suc;
+        const isSucOpen = openSucs.has(sucKey);
+        const showRow = isProdOpen && isGrupoOpen;
+        const sucColor = getSucColorVar(se.suc);
+
+        const cantActualSuc = parseFloat(String(f.cantidad || 0).replace(',', '.')) || 0;
+
+        const ctrlBadge = `<span class="ctrl-badge ${hasHistory ? 'multi' : 'single'}">${nControles} control${nControles !== 1 ? 'es' : ''}</span>`;
+
+        const _eanF = String(f.ean || '').trim();
+        const _fvF = fmtDateOnly(f.fechaVenc);
+        const _sucF = (f.sucursal || '').toUpperCase().trim();
+        const linkedDevs = devData.filter(d =>
+          String(d.ean || '').trim() === _eanF &&
+          fmtDateOnly(d.fechaVenc) === _fvF &&
+          (d.sucursal || '').toUpperCase().trim() === _sucF
+        ).sort((a, b) => {
+          if (!a.fecha && !b.fecha) return 0;
+          if (!a.fecha) return 1;
+          if (!b.fecha) return -1;
+          return b.fecha - a.fecha;
+        });
+
+        const devChip = linkedDevs.length > 0
+          ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">${linkedDevs.map(d => {
+            const motLabel = d.motivo ? ` · ${d.motivo}` : '';
+            const fechaLabel = d.fecha ? ` (${fmtDateDisp(d.fecha)})` : '';
+            const autoLabel = d.usuario === 'SISTEMA AUTO' ? ' ⚡' : '';
+            return `<span class="dev-chip" onclick="openDevModal(event,'${esc(d.id)}')" title="${esc(d.id)}${motLabel}${fechaLabel}">${esc(d.id)}${autoLabel} ↗</span>`;
+          }).join('')
+          }</div>`
+          : `<span style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:10px">Sin acción</span>`;
+
+        const loteCheckbox = loteMode ? `
+          <input type="checkbox"
+            data-suc-key="${esc(sucKey)}"
+            ${loteSeleccionados.has(sucKey) ? 'checked' : ''}
+            onclick="event.stopPropagation();toggleLoteRow('${esc(sucKey)}','${esc(f.id)}','${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}','${esc(f.sucursal || '')}',${cantActualSuc},this)"
+            style="cursor:pointer;accent-color:#60a5fa;width:14px;height:14px;flex-shrink:0">
+        ` : '';
+
+        // ── BOTÓN "REGISTRAR VENCIMIENTO" ─────────────────────────────
+        // Solo aparece cuando: urgencia VENCIDO + estado ACTIVO + hay stock
+        const btnRegistrarVencimiento = (!loteMode && g.urg === 'VENCIDO' && est === 'ACTIVO' && cantActualSuc > 0)
+          ? `<button
+                  onclick="registrarVencimientoManual(event,'${esc(f.id)}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}')"
+                  class="btn-action"
+                  style="background:#3d0000;color:#ff4444;border:1px solid #9b1c1c;font-weight:800;padding:6px 12px;font-size:11px"
+                  title="Registrar las ${cantActualSuc} u. como vencidas, crea registro de devolución y pone el stock en 0">
+                  🚨 Registrar Vencimiento
+                </button>`
+          : '';
+
+        html += `
+        <tr class="suc-row${showRow ? ' visible' : ''}${isSucOpen ? ' suc-open' : ''}"
+            data-suc-key="${esc(sucKey)}"
+            data-prod-ean="${esc(prod.ean)}"
+            data-grupo-key="${esc(g.key)}">
+          <td colspan="${NCOLS}" style="padding:0">
+            <div class="suc-card${hasHistory ? ' has-history' : ''}${isSucOpen ? ' suc-open' : ''}"
+                 style="border-left-color:${sucColor}"
+                 ${hasHistory ? `onclick="toggleSuc(event,'${esc(sucKey)}')"` : ''}>
+              <div class="suc-card-hdr" style="border-left:3px solid ${sucColor}20">
+                <div class="suc-card-hdr-l">
+                  ${loteCheckbox}
+                  ${hasHistory ? `<span class="suc-exp-icon">▶</span>` : `<span style="color:var(--text3);font-size:10px">↳</span>`}
+                  <span class="suc-name" style="color:${sucColor}">${esc(f.sucursal || '—')}</span>
+                  ${ctrlBadge}
+                  ${staleBadgeHtml(se.diasDesde, true)}
+                </div>
+                <div class="suc-card-hdr-r">
+                  <span class="eg ${est}">${est.replace(/-/g, ' ')}</span>
+                </div>
+              </div>
+              <div class="suc-card-body">
+                <div class="sf"><div class="sf-lbl">Controlado por</div><div class="sf-val${!f.usuario ? ' empty' : ''}">${f.usuario || '—'}</div></div>
+                <div class="sf"><div class="sf-lbl">Fecha control</div><div class="sf-val mono">${fmtDate(f.fechaReg || '')}</div></div>
+                <div class="sf"><div class="sf-lbl">Unidades</div><div class="sf-val mono" id="qty-${f.id}">${cantActualSuc}</div></div>
+                <div class="sf"><div class="sf-lbl">Lote</div><div class="sf-val mono${!f.lote ? ' empty' : ''}">${f.lote || '—'}</div></div>
+                ${!loteMode ? `
+<div class="sf medium">
+  <div class="sf-lbl">Ajuste / Movimientos</div>
+  <div class="sf-val" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:3px">
+    <button onclick="abrirModalTransferencia(event,'${f.id}','${esc(f.sucursal)}',${cantActualSuc})" class="btn-action btn-transfer-sm">⇄ Transferir</button>
+    <button onclick="ajustarStock(event,'${f.id}',1)"  class="btn-action btn-adj-pos">＋ Ajuste</button>
+    <button onclick="ajustarStock(event,'${f.id}',-1)" class="btn-action btn-adj-neg">－ Ajuste</button>
+    ${btnRegistrarVencimiento}
+  </div>
+</div>
+` : `
+<div class="sf">
+  <div class="sf-lbl">Ajuste / Movimientos</div>
+  <div class="sf-val" style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:10px;margin-top:3px">
+    ☑ Seleccionado para lote
+  </div>
+</div>
+`}
+                <div class="sf wide"><div class="sf-lbl">Acción${linkedDevs.length > 1 ? 'es' : ''} vinculada${linkedDevs.length > 1 ? 's' : ''} (${linkedDevs.length || 'sin acción'})</div><div class="sf-val" style="margin-top:2px">${devChip}</div></div>
+                ${f.aclaracion ? `<div class="sf wide"><div class="sf-lbl">Aclaración</div><div class="sf-val">${esc(f.aclaracion)}</div></div>` : ''}
+              </div>
+            </div>
+          </td>
+        </tr>`;
+
+        // ── NIVEL 4: historial de controles ───────────────────────────
+        se.controles.forEach((ctrl, idx) => {
+          const isLatest = idx === 0;
+          const ctrlEst = (ctrl.estadoGest || 'ACTIVO').replace(/\s+/g, '-');
+          const ctrlAcc = ctrl.idAccion || '';
+          const showCtrl = showRow && isSucOpen;
+
+          let deltaHtml = '';
+          if (idx < se.controles.length - 1) {
+            const older = se.controles[idx + 1];
+            if (ctrl.fechaReg && older.fechaReg) {
+              const diff = Math.round((ctrl.fechaReg - older.fechaReg) / 86400000);
+              const cls = diff > 0 ? 'pos' : diff < 0 ? 'neg' : 'neu';
+              deltaHtml = `<span class="delta ${cls}">${diff > 0 ? '+' : ''}${diff}d vs anterior</span>`;
+            }
+          }
+
+          const ctrlChip = ctrlAcc
+            ? `<span class="dev-chip" onclick="openDevModal(event,'${esc(ctrlAcc)}')">${esc(ctrlAcc)} ↗</span>`
+            : '';
+
+          html += `
+          <tr class="ctrl-row${showCtrl ? ' visible' : ''}"
+              data-suc-key="${esc(sucKey)}"
+              data-prod-ean="${esc(prod.ean)}"
+              data-grupo-key="${esc(g.key)}">
+            <td colspan="${NCOLS}" style="padding:0">
+              <div class="ctrl-card${isLatest ? ' is-latest' : ''}">
+                <div class="ctrl-num-wrap">
+                  <div style="display:flex;flex-direction:column;gap:3px">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--text3)">N° Ctrl</span>
+                    <div style="display:flex;align-items:center;gap:5px">
+                      <span class="ctrl-n${isLatest ? ' latest' : ''}">C${nControles - idx}</span>
+                      ${isLatest ? `<span class="ult-badge">✓ ÚLTIMO</span>` : ''}
+                    </div>
+                  </div>
+                </div>
+                <div class="ctrl-fields">
+                  <div class="ctrl-field"><div class="cf-lbl">Fecha</div><div class="cf-val mono${isLatest ? ' latest' : ''}">${fmtDate(ctrl.fechaReg || '')}</div></div>
+                  <div class="ctrl-field"><div class="cf-lbl">Usuario</div><div class="cf-val${isLatest ? ' latest' : ''}">${esc(ctrl.usuario || '—')}</div></div>
+                  <div class="ctrl-field"><div class="cf-lbl">Unidades</div><div class="cf-val${isLatest ? ' latest' : ''}">${ctrl.cantidad ? ctrl.cantidad + ' u' : '—'}</div></div>
+                  <div class="ctrl-field"><div class="cf-lbl">Lote</div><div class="cf-val mono${isLatest ? ' latest' : ''}">${esc(ctrl.lote || '—')}</div></div>
+                  ${isLatest
+              ? `<div class="ctrl-field"><div class="cf-lbl">Días desde</div><div style="margin-top:2px">${staleBadgeHtml(se.diasDesde, true)}</div></div>`
+              : (deltaHtml ? `<div class="ctrl-field"><div class="cf-lbl">Intervalo</div><div style="margin-top:2px">${deltaHtml}</div></div>` : '')
+            }
+                  <div class="ctrl-field"><div class="cf-lbl">Estado</div><div class="cf-val${isLatest ? ' latest' : ''}"><span class="eg ${ctrlEst}" style="font-size:8px;padding:2px 5px">${ctrlEst.replace(/-/g, ' ')}</span></div></div>
+                  ${ctrlAcc ? `<div class="ctrl-field"><div class="cf-lbl">Acción</div><div style="margin-top:2px">${ctrlChip}</div></div>` : ''}
+                </div>
+              </div>
+            </td>
+          </tr>`;
+        });
+      });
+    });
+  });
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function toggleGrupo(row, key) {
+  const opening = !openGrupos.has(key);
+  if (opening) openGrupos.add(key); else openGrupos.delete(key);
+  row.classList.toggle('open', opening);
+
+  document.querySelectorAll('tr.suc-row, tr.ctrl-row').forEach(r => {
+    if (r.dataset.grupoKey !== key) return;
+    if (!opening) {
+      r.classList.remove('visible', 'suc-open');
+      if (r.dataset.sucKey) openSucs.delete(r.dataset.sucKey);
+    } else {
+      if (r.classList.contains('suc-row')) r.classList.add('visible');
+    }
+  });
+}
+
+function toggleSuc(evt, sucKey) {
+  if (evt.target.classList.contains('dev-chip')) return;
+  const opening = !openSucs.has(sucKey);
+  if (opening) openSucs.add(sucKey); else openSucs.delete(sucKey);
+  document.querySelectorAll(`tr.suc-row[data-suc-key="${sucKey}"]`).forEach(r => r.classList.toggle('suc-open', opening));
+  document.querySelectorAll(`tr.ctrl-row[data-suc-key="${sucKey}"]`).forEach(r => r.classList.toggle('visible', opening));
+}
+
+// ══════════════════════════════════════════════════════
+//  REGISTRAR VENCIMIENTO MANUAL
+//  Crea un DEV con motivo=VENCIDO y pone stock en 0
+// ══════════════════════════════════════════════════════
+async function registrarVencimientoManual(evt, venId, suc, cant, desc, ean, fechaVenc) {
+  evt.stopPropagation();
+
+  document.getElementById('cm-title').textContent = '🚨 Registrar producto como Vencido';
+  document.getElementById('cm-text').textContent = `¿Registrar ${cant} u. de "${desc}" en ${suc} como VENCIDO?`;
+  document.getElementById('cm-details').innerHTML = `
+        <div style="background:#3d0000;border:1px solid #9b1c1c;padding:10px 14px;border-radius:7px;font-size:12px;color:#ff8080;margin-bottom:8px">
+          <strong>Esta acción va a:</strong>
+          <ul style="margin-top:6px;padding-left:16px;line-height:1.8">
+            <li>Crear un registro de devolución por <strong>VENCIDO</strong> con ${cant} u.</li>
+            <li>Poner el stock de esta sucursal en <strong>0</strong></li>
+            <li>El producto desaparecerá del dashboard (stock = 0)</li>
+          </ul>
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)">
+          EAN: ${esc(ean)} · SUC: ${esc(suc)} · Vence: ${fmtDateOnly(fechaVenc)}
+        </div>`;
+
+  modalCb = async () => {
+    document.getElementById('confirmModal').classList.remove('open');
+    showSpinner('Registrando vencimiento…');
+    try {
+      const res = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'registrarVencimientoManual',
+          idVen: venId
+        })
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast(true, `Vencimiento registrado: ${cant} u. → ${json.devId}`);
+        await loadData();
+      } else {
+        showToast(false, json.message || 'Error al registrar vencimiento');
+      }
+    } catch (e) {
+      showToast(false, 'Error de red al registrar vencimiento');
+      console.error(e);
+    }
+    hideSpinner();
+  };
+
+  document.getElementById('cm-confirm').onclick = () => {
+    if (modalCb) { const cb = modalCb; modalCb = null; cb(); }
+  };
+  document.getElementById('confirmModal').classList.add('open');
+}
+
+// ══════════════════════════════════════════════════════
+//  ACCIONES PANEL
+// ══════════════════════════════════════════════════════
+function setAccPreset(preset, btn) {
+  accPreset = preset;
+  document.querySelectorAll('#acc-presets .dp').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  document.getElementById('acc-date-from').style.display = 'none';
+  document.getElementById('acc-date-to').style.display = 'none';
+  if (preset === 'custom') { accDateFrom = null; accDateTo = null; document.getElementById('acc-date-from').style.display = ''; document.getElementById('acc-date-to').style.display = ''; }
+  else if (preset === 'all') { accDateFrom = null; accDateTo = null; }
+  else {
+    const days = { today: 0, yesterday: 1, '3d': 3, '7d': 7, '14d': 14, '30d': 30 }[preset] ?? 0;
+    accDateTo = new Date(); accDateTo.setHours(23, 59, 59, 999);
+    if (preset === 'yesterday') { const y = new Date(now); y.setDate(y.getDate() - 1); accDateFrom = y; accDateTo = new Date(y); accDateTo.setHours(23, 59, 59, 999); }
+    else { accDateFrom = new Date(now); accDateFrom.setDate(accDateFrom.getDate() - days); }
+  }
+  applyAccFilters();
+}
+
+function applyAccFilters() {
+  const suc = document.getElementById('af-suc').value;
+  const prov = document.getElementById('af-prov').value;
+  const mot = document.getElementById('af-motivo').value;
+  const est = document.getElementById('af-estado').value;
+  const search = (document.getElementById('acc-search').value || '').toLowerCase();
+  let from = accDateFrom, to = accDateTo;
+  if (accPreset === 'custom') {
+    const f = document.getElementById('af-date-from').value;
+    const t = document.getElementById('af-date-to').value;
+    from = f ? new Date(f) : null;
+    to = t ? new Date(t + 'T23:59:59') : null;
+  }
+  filteredAcc = devData.filter(r => {
+    if (suc && r.sucursal !== suc) return false;
+    if (prov && r.proveedor !== prov) return false;
+    if (mot && r.motivo !== mot) return false;
+    if (est && r.estado !== est) return false;
+    if (from && r.fecha && r.fecha < from) return false;
+    if (to && r.fecha && r.fecha > to) return false;
+    if (search) { const hay = [r.descripcion, r.ean, r.lote, r.proveedor, r.sucursal, r.motivo].join(' ').toLowerCase(); if (!hay.includes(search)) return false; }
+    return true;
+  });
+  accPage = 1;
+  renderAccTable();
+}
+
+function clearAccFilters() {
+  ['af-suc', 'af-prov', 'af-motivo', 'af-estado'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('acc-search').value = '';
+  setAccPreset('all', document.querySelectorAll('#acc-presets .dp')[6]);
+}
+
+function renderAccTable() {
+  const start = (accPage - 1) * PAGE_SIZE;
+  const page = filteredAcc.slice(start, start + PAGE_SIZE);
+  const tbody = document.getElementById('accTableBody');
+  if (!filteredAcc.length) { tbody.innerHTML = '<div class="empty"><div class="ei">🔍</div><p>No hay registros con los filtros aplicados</p></div>'; document.getElementById('accPagination').style.display = 'none'; return; }
+
+  const venIdAccionSet = new Set(venData.map(r => r.idAccion).filter(Boolean));
+
+  tbody.innerHTML = `<div class="table-scroll"><table>
+    <thead><tr>
+      <th>ID</th><th>Fecha</th><th>Sucursal</th>
+      <th>Descripción</th><th>EAN</th><th class="c-right">Cant.</th>
+      <th>Vencimiento</th><th>Proveedor</th><th>Motivo</th><th>Lote</th><th>Estado</th><th>Vinculado</th>
+    </tr></thead>
+    <tbody>${page.map(r => `
+      <tr>
+        <td class="c-id">${r.id}</td>
+        <td class="c-mono" style="font-size:11px">${fmtDateDisp(r.fecha)}</td>
+        <td><span class="b-tag">${r.sucursal || '—'}</span></td>
+        <td class="c-main">${esc(r.descripcion || '—')}</td>
+        <td class="c-mono" style="font-size:11px">${r.ean || '—'}</td>
+        <td class="c-right c-mono">${r.cantidad || '—'}</td>
+        <td>${vencBadge(r.fechaVenc)}</td>
+        <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis">${esc(r.proveedor || '—')}</td>
+        <td>${motivoBadge(r.motivo)}</td>
+        <td class="c-mono" style="font-size:11px">${r.lote || '—'}</td>
+        <td>${estadoBadge(r.estado)}</td>
+        <td>${venIdAccionSet.has(r.id) ? `<span class="linked-indicator" style="cursor:pointer;font-size:9px" title="Tiene vencimiento vinculado">🔗 venc.</span>` : '<span style="color:var(--text3);font-size:10px;font-family:\'IBM Plex Mono\',monospace">—</span>'}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+  renderPagination('accPagination', filteredAcc.length, accPage, p => { accPage = p; renderAccTable() });
+}
+
+// ══════════════════════════════════════════════════════
+//  MÉTRICAS PANEL
+// ══════════════════════════════════════════════════════
+function renderMetricasPanel() {
+  const d = devData;
+  document.getElementById('mk-total').textContent = d.length;
+  document.getElementById('mk-nc').textContent = d.filter(r => r.estado === 'N/C RECIBIDA').length;
+  document.getElementById('mk-pend').textContent = d.filter(r => r.estado === 'PENDIENTE' || r.estado === 'EN GESTION').length;
+  document.getElementById('mk-rech').textContent = d.filter(r => r.estado === 'RECHAZADA').length;
+  document.getElementById('mk-prov').textContent = new Set(d.map(r => r.proveedor).filter(Boolean)).size;
+  document.getElementById('mk-suc').textContent = new Set(d.map(r => r.sucursal).filter(Boolean)).size;
+
+  renderBarChart('ch-motivo', countBy(d, 'motivo'), '#4f8eff');
+  renderBarChart('ch-sucursal', countBy(d, 'sucursal'), '#22d87a');
+  renderBarChart('ch-sector', countBy(d, 'sector'), '#a67cff');
+  renderBarChart('ch-prov-nc', countBy(d.filter(r => r.estado === 'N/C RECIBIDA'), 'proveedor'), '#f5a623', 10);
+}
+
+function countBy(arr, key, limit) {
+  const map = {}; arr.forEach(r => { const v = r[key] || '(sin datos)'; map[v] = (map[v] || 0) + 1 });
+  let ent = Object.entries(map).sort((a, b) => b[1] - a[1]);
+  if (limit) ent = ent.slice(0, limit);
+  return ent;
+}
+
+function renderBarChart(id, entries, color, maxItems = 15) {
+  const el = document.getElementById(id);
+  if (!entries.length) { el.innerHTML = '<div class="empty" style="padding:14px"><p>Sin datos</p></div>'; return; }
+  const max = entries[0][1];
+  el.innerHTML = entries.slice(0, maxItems).map(([label, val]) => `
+    <div class="bar-row">
+      <div class="bar-lbl" title="${esc(label)}">${esc(label)}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.max(6, Math.round(val / max * 100))}%;background:${color}"><span class="bar-num">${val}</span></div></div>
+    </div>`).join('');
+}
+
+function renderProvTable() {
+  const search = (document.getElementById('prov-search')?.value || '').toLowerCase();
+  const provs = [...new Set(devData.map(r => r.proveedor).filter(Boolean))].sort();
+  const rows = provs.filter(p => p.toLowerCase().includes(search)).map(prov => {
+    const d = devData.filter(r => r.proveedor === prov);
+    const pend = d.filter(r => r.estado === 'PENDIENTE').length;
+    const gest = d.filter(r => r.estado === 'EN GESTION').length;
+    const nc = d.filter(r => r.estado === 'N/C RECIBIDA').length;
+    const rech = d.filter(r => r.estado === 'RECHAZADA').length;
+    const cob = d.length ? Math.round(nc / d.length * 100) : 0;
+    return { prov, total: d.length, pend, gest, nc, rech, cob };
+  });
+  if (!rows.length) { document.getElementById('provTableBody').innerHTML = '<tr><td colspan="7"><div class="empty"><p>Sin datos</p></div></td></tr>'; return; }
+  document.getElementById('provTableBody').innerHTML = rows.map(r => `
+    <tr>
+      <td style="font-weight:600;color:var(--text)">${esc(r.prov)}</td>
+      <td class="c-right c-mono">${r.total}</td>
+      <td class="c-right">${r.pend ? `<span class="badge b-pend">${r.pend}</span>` : '—'}</td>
+      <td class="c-right">${r.gest ? `<span class="badge b-gest">${r.gest}</span>` : '—'}</td>
+      <td class="c-right">${r.nc ? `<span class="badge b-nc">${r.nc}</span>` : '—'}</td>
+      <td class="c-right">${r.rech ? `<span class="badge b-rech">${r.rech}</span>` : '—'}</td>
+      <td style="min-width:120px"><div class="nc-progress"><div class="prog-track"><div class="prog-fill" style="width:${r.cob}%"></div></div><span class="c-mono" style="font-size:10px;min-width:32px">${r.cob}%</span></div></td>
+    </tr>`).join('');
+}
+
+// ══════════════════════════════════════════════════════
+//  N/C PANEL
+// ══════════════════════════════════════════════════════
+function applyNcFilters() {
+  const prov = document.getElementById('ncf-prov')?.value || '';
+  const est = document.getElementById('ncf-estado')?.value || '';
+  const suc = document.getElementById('ncf-suc')?.value || '';
+  const mot = document.getElementById('ncf-motivo')?.value || '';
+  const search = (document.getElementById('ncf-search')?.value || '').toLowerCase();
+  filteredNc = devData.filter(r => {
+    if (prov && r.proveedor !== prov) return false;
+    if (est && r.estado !== est) return false;
+    if (suc && r.sucursal !== suc) return false;
+    if (mot && r.motivo !== mot) return false;
+    if (search) { const hay = [r.descripcion, r.ean, r.lote, r.proveedor, r.sucursal, r.id].join(' ').toLowerCase(); if (!hay.includes(search)) return false; }
+    return true;
+  });
+  ncPage = 1;
+  renderNcTable();
+}
+
+function renderNcTable() {
+  const start = (ncPage - 1) * PAGE_SIZE;
+  const page = filteredNc.slice(start, start + PAGE_SIZE);
+  const tbody = document.getElementById('ncTableBody');
+  if (!filteredNc.length) { tbody.innerHTML = '<div class="empty"><div class="ei">🔍</div><p>Sin resultados</p></div>'; document.getElementById('ncPagination').style.display = 'none'; return; }
+
+  tbody.innerHTML = `<div class="table-scroll"><table>
+    <thead><tr>
+      <th style="width:36px"></th>
+      <th>ID</th><th>Fecha</th><th>Sucursal</th>
+      <th>Descripción</th><th>EAN</th><th class="c-right">Cant.</th>
+      <th>Venc.</th><th>Proveedor</th><th>Motivo</th><th>Lote</th><th>Estado</th><th>Obs. N/C</th>
+    </tr></thead>
+    <tbody>${page.map(r => `
+      <tr>
+        <td><input type="checkbox" ${selectedIds.has(r.id) ? 'checked' : ''} onchange="toggleRow('${r.id}',this)"></td>
+        <td class="c-id">${r.id}</td>
+        <td class="c-mono" style="font-size:11px">${fmtDateDisp(r.fecha)}</td>
+        <td><span class="b-tag">${r.sucursal || '—'}</span></td>
+        <td class="c-main">${esc(r.descripcion || '—')}</td>
+        <td class="c-mono" style="font-size:11px">${r.ean || '—'}</td>
+        <td class="c-right c-mono">${r.cantidad || '—'}</td>
+        <td>${vencBadge(r.fechaVenc)}</td>
+        <td>${esc(r.proveedor || '—')}</td>
+        <td>${motivoBadge(r.motivo)}</td>
+        <td class="c-mono" style="font-size:11px">${r.lote || '—'}</td>
+        <td>${estadoBadge(r.estado)}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;color:var(--text2);font-size:11px">${r.obsNC || '—'}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+  renderPagination('ncPagination', filteredNc.length, ncPage, p => { ncPage = p; renderNcTable() });
+}
+
+function toggleRow(id, cb) { if (cb.checked) selectedIds.add(id); else selectedIds.delete(id); updateBulkBar(); }
+function toggleSelectAll() { const c = document.getElementById('selectAll').checked; filteredNc.forEach(r => { if (c) selectedIds.add(r.id); else selectedIds.delete(r.id) }); renderNcTable(); updateBulkBar(); }
+function clearSelection() { selectedIds.clear(); document.getElementById('selectAll').checked = false; renderNcTable(); updateBulkBar(); }
+function updateBulkBar() { const n = selectedIds.size; document.getElementById('bulkCount').textContent = n + ' registro' + (n === 1 ? '' : 's') + ' seleccionado' + (n === 1 ? '' : 's'); document.getElementById('bulkBar').classList.toggle('visible', n > 0); }
+
+function applyBulkAction() {
+  const estado = document.getElementById('bulkEstado').value;
+  const obs = document.getElementById('bulkObs').value.trim();
+  if (!estado && !obs) { alert('Seleccioná un estado o escribí una observación.'); return; }
+  if (!selectedIds.size) { alert('No hay registros seleccionados.'); return; }
+  const ids = [...selectedIds];
+  document.getElementById('cm-title').textContent = '✏️ Confirmar actualización masiva';
+  document.getElementById('cm-text').textContent = `Se actualizarán ${ids.length} registro${ids.length === 1 ? '' : 's'}:`;
+  document.getElementById('cm-details').innerHTML = `
+    ${estado ? `<div style="background:var(--blue-d);border:1px solid var(--blue);padding:8px 12px;border-radius:7px;font-size:12px;margin-bottom:6px">Estado → <strong>${esc(estado)}</strong></div>` : ''}
+    ${obs ? `<div style="background:var(--blue-d);border:1px solid var(--blue);padding:8px 12px;border-radius:7px;font-size:12px">Obs N/C → <em>${esc(obs)}</em></div>` : ''}
+    <p style="font-size:10px;color:var(--text3);margin-top:8px;font-family:'IBM Plex Mono',monospace">IDs: ${ids.slice(0, 8).join(', ')}${ids.length > 8 ? '…' : ''}</p>`;
+  modalCb = () => executeBulkUpdate(ids, estado, obs);
+  document.getElementById('cm-confirm').onclick = () => { if (modalCb) { const cb = modalCb; modalCb = null; cb(); } };
+  document.getElementById('confirmModal').classList.add('open');
+}
+
+async function executeBulkUpdate(ids, estado, obs) {
+  document.getElementById('confirmModal').classList.remove('open');
+  modalCb = null;
+  showSpinner('Procesando 0 / ' + ids.length + '…');
+  let ok = 0, err = 0;
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i];
+    showSpinner('Procesando ' + (i + 1) + ' / ' + ids.length + '…');
+    try {
+      const payload = { action: 'updateRecord', id };
+      if (estado) payload.estado = estado;
+      if (obs) payload.observacionNC = obs;
+      const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+      const json = await res.json();
+      if (json.success) { ok++; const r = devData.find(x => x.id === id); if (r) { if (estado) r.estado = estado; if (obs) r.obsNC = obs; } }
+      else err++;
+    } catch (e) { err++; }
+  }
+  hideSpinner();
+  clearSelection();
+  applyNcFilters();
+  renderMetricasPanel();
+  renderProvTable();
+  applyAccFilters();
+  updateResumenKPIs();
+  updateNavBadges();
+  showToast(err === 0, ok + ' actualizado' + (ok === 1 ? '' : 's') + (err ? ' · ' + err + ' error' + (err === 1 ? '' : 's') : ''));
+}
+
+function closeModal() { document.getElementById('confirmModal').classList.remove('open'); modalCb = null; }
+document.getElementById('confirmModal').addEventListener('click', e => { if (e.target === document.getElementById('confirmModal')) closeModal(); });
+
+// ══════════════════════════════════════════════════════
+//  DEV DETAIL MODAL
+// ══════════════════════════════════════════════════════
+function openDevModal(evt, id) {
+  evt.stopPropagation();
+  const rec = devMap.get(id);
+  document.getElementById('dd-id').textContent = id;
+  document.getElementById('dd-desc').textContent = rec ? (rec.descripcion || '—') : '—';
+  const body = document.getElementById('dd-body');
+  if (!rec) { body.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">No se encontró <strong>${esc(id)}</strong> en BD Devoluciones.</div>`; document.getElementById('devDetailModal').classList.add('open'); return; }
+
+  const estadoCls = (rec.estado || 'PENDIENTE').replace(/[\s\/]/g, '-');
+  const fotoMatch = String(rec.fotoRaw || '').match(/https?:\/\/[^"')]+/);
+  const nc = rec.obsNC || '';
+  const f = (lbl, val, opts = {}) => {
+    const isEmpty = !val || val === '';
+    return `<div class="dev-field${opts.full ? ' full' : ''}">
+      <div class="dev-fl">${lbl}</div>
+      <div class="dev-fv${opts.mono ? ' mono' : ''}${isEmpty ? ' empty' : ''}">${isEmpty ? '—' : esc(String(val))}</div>
+    </div>`;
+  };
+  body.innerHTML = `
+    <div class="dev-estado-badge ${estadoCls}">${rec.estado || 'PENDIENTE'}</div>
+    <div class="dev-grid">
+      ${f('Sucursal', rec.sucursal)}${f('Usuario', rec.usuario)}
+      ${f('Fecha registro', fmtDateDisp(rec.fecha))}${f('Motivo', rec.motivo)}
+      ${f('EAN', rec.ean, { mono: true })}${f('Cód. interno', rec.codInterno, { mono: true })}
+      ${f('Gramaje', rec.gramaje)}${f('Cantidad', rec.cantidad)}
+      ${f('Fecha vencimiento', fmtVenc(rec.fechaVenc), { mono: true })}${f('Sector/Sección', [rec.sector, rec.seccion].filter(Boolean).join(' / '))}
+      ${f('Proveedor', rec.proveedor)}${f('Cód. proveedor', rec.codProv, { mono: true })}
+      ${f('Lote', rec.lote, { mono: true })}${f('Aclaración', rec.aclaracion)}
+      ${rec.comentarios ? f('Comentarios', rec.comentarios, { full: true }) : ''}
+    </div>
+    ${fotoMatch ? `<a class="photo-link" href="${fotoMatch[0]}" target="_blank">📎 Ver foto adjunta</a>` : ''}
+    ${nc ? `<div class="nc-obs-box"><div class="nc-obs-lbl">Observación N/C</div><div style="font-size:12px;color:var(--text)">${esc(nc)}</div></div>` : ''}
+  `;
+  document.getElementById('devDetailModal').classList.add('open');
+}
+function closeDevModal(evt) { if (evt && evt.target !== document.getElementById('devDetailModal')) return; document.getElementById('devDetailModal').classList.remove('open'); }
+
+// ══════════════════════════════════════════════════════
+//  POPULATE SELECTS
+// ══════════════════════════════════════════════════════
+function populateFilterSelects() {
+  const provs = [...new Set([...devData.map(r => r.proveedor), ...venData.map(r => r.proveedor)].filter(Boolean))].sort();
+  const sucs = [...new Set([...devData.map(r => r.sucursal), ...venData.map(r => r.sucursal)].filter(Boolean))].sort();
+  const motivos = [...new Set(devData.map(r => r.motivo).filter(Boolean))].sort();
+  const venSucs = [...new Set(venData.map(r => r.sucursal).filter(Boolean))].sort();
+  const venProvs = [...new Set(venData.map(r => r.proveedor).filter(Boolean))].sort();
+
+  fillSel('af-suc', sucs); fillSel('af-prov', provs); fillSel('af-motivo', motivos);
+  fillSel('vf-prov', venProvs); fillSel('vf-suc', venSucs);
+  fillSel('ncf-prov', provs); fillSel('ncf-suc', sucs); fillSel('ncf-motivo', motivos);
+}
+function fillSel(id, vals) { const s = document.getElementById(id); if (!s) return; const cur = s.value; s.innerHTML = '<option value="">Todos/Todas</option>'; vals.forEach(v => { const o = new Option(v, v); s.add(o) }); s.value = cur; }
+
+// ══════════════════════════════════════════════════════
+//  STALE BADGE
+// ══════════════════════════════════════════════════════
+function staleStyle(dias) {
+  if (dias === null) return { fg: '#525e72', bg: '#1c2030', br: '#252a38', icon: '?' };
+  if (dias <= 3) return { fg: '#4ade80', bg: '#0a1f0a', br: '#14532d', icon: '✓' };
+  if (dias <= 7) return { fg: '#a3e635', bg: '#172100', br: '#2d4a00', icon: '●' };
+  if (dias <= 14) return { fg: '#d4e635', bg: '#1e2200', br: '#3d4700', icon: '●' };
+  if (dias <= 21) return { fg: '#fbbf24', bg: '#2d2200', br: '#78350f', icon: '●' };
+  if (dias <= 30) return { fg: '#fb923c', bg: '#2d1500', br: '#7c2d12', icon: '!' };
+  if (dias <= 45) return { fg: '#f87171', bg: '#2d0c0c', br: '#7f1d1d', icon: '!!' };
+  return { fg: '#ff3333', bg: '#3d0000', br: '#9b1c1c', icon: '⚠' };
+}
+function staleBadgeHtml(dias, mini = false) {
+  const s = staleStyle(dias);
+  const txt = s.icon + ' ' + (dias === null ? 'sin fecha' : `hace ${dias}d`);
+  return `<span class="stale" style="color:${s.fg};background:${s.bg};border-color:${s.br};font-size:${mini ? '9px' : '10px'}">${txt}</span>`;
+}
+
+// ══════════════════════════════════════════════════════
+//  BADGE HELPERS
+// ══════════════════════════════════════════════════════
+function estadoBadge(est) {
+  const map = { 'PENDIENTE': 'b-pend', 'EN GESTION': 'b-gest', 'N/C RECIBIDA': 'b-nc', 'RECHAZADA': 'b-rech' };
+  return `<span class="badge ${map[est] || 'b-pend'}">${esc(est || 'PENDIENTE')}</span>`;
+}
+function motivoBadge(m) {
+  if (!m) return `<span class="mb mb-otro">—</span>`;
+  const u = m.toUpperCase();
+  let cls = 'mb-otro';
+  if (u === 'ACCION 2X1' || u === 'VENCIDO ACCION 2X1') cls = 'mb-2x1';
+  else if (u === 'ACCION 50% OFF' || u === 'VENCIDO ACCION 50% OFF') cls = 'mb-50off';
+  else if (u === 'OTRO DESCUENTO') cls = 'mb-desc';
+  else if (u === 'VENCIDO') cls = 'mb-venc';
+  else if (u === 'ROTO/DAÑADO' || u === 'MAL ESTADO') cls = 'mb-dano';
+  return `<span class="mb ${cls}">${esc(m)}</span>`;
+}
+function vencBadge(str) {
+  const txt = fmtVenc(str);
+  if (txt === '—') return `<span class="vb vb-nd">—</span>`;
+  const parts = txt.split('-');
+  if (parts.length !== 3) return `<span class="vb-nd">${txt}</span>`;
+  const d = new Date(+parts[2], +parts[1] - 1, +parts[0]);
+  const diff = Math.ceil((d - new Date()) / 86400000);
+  let cls = 'vb-ok';
+  if (diff < 0) cls = 'vb-exp'; else if (diff <= 7) cls = 'vb-crit'; else if (diff <= 30) cls = 'vb-warn';
+  const icon = diff < 0 ? '💀' : diff <= 7 ? '🔴' : diff <= 30 ? '🟡' : '🟢';
+  return `<span class="vb ${cls}">${icon} ${txt}</span>`;
+}
+
+// ══════════════════════════════════════════════════════
+//  DATE / FORMAT HELPERS
+// ══════════════════════════════════════════════════════
+function parseDate(str) {
+  if (!str) return null;
+  const s = String(str).trim(); let m;
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/); if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+  return null;
+}
+function parseRegDate(str) {
+  if (!str) return null;
+  const m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5], +m[6]);
+  const m2 = str.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m2) return new Date(+m2[3], +m2[2] - 1, +m2[1]);
+  const d = new Date(str); return isNaN(d) ? null : d;
+}
+function fmtDate(v) {
+  if (!v) return '—';
+  if (v instanceof Date) return v.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const s = String(v).trim();
+  const m1 = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}:\d{2}))?/);
+  if (m1) return m1[4] ? `${m1[1]}-${m1[2]}-${m1[3]} ${m1[4]}` : `${m1[1]}-${m1[2]}-${m1[3]}`;
+  const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[\sT]+(\d{2}:\d{2}))?/);
+  if (m2) return m2[4] ? `${m2[3]}-${m2[2]}-${m2[1]} ${m2[4]}` : `${m2[3]}-${m2[2]}-${m2[1]}`;
+  return s.slice(0, 16);
+}
+function fmtDateOnly(str) { if (!str) return '—'; return fmtDate(str).split(' ')[0]; }
+function fmtDateDisp(d) { if (!d) return '—'; if (d instanceof Date) return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }); return fmtDate(d); }
+function fmtVenc(str) {
+  if (!str) return '—';
+  const s = String(str).trim(); let m;
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if (m) return m[3].padStart(2, '0') + '-' + m[2].padStart(2, '0') + '-' + m[1];
+  m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/); if (m) return m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0') + '-' + m[3];
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) return m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0') + '-' + m[3];
+  return s;
+}
+function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') }
+
+// ══════════════════════════════════════════════════════
+//  PAGINATION
+// ══════════════════════════════════════════════════════
+const _pageCbs = {};
+function renderPagination(containerId, total, current, cb) {
+  const el = document.getElementById(containerId);
+  const tp = Math.ceil(total / PAGE_SIZE);
+  if (tp <= 1) { el.style.display = 'none'; return; }
+  _pageCbs[containerId] = cb;
+  el.style.display = 'flex';
+  const shown = Math.min(current * PAGE_SIZE, total);
+  let html = `<span>Mostrando ${(current - 1) * PAGE_SIZE + 1}–${shown} de ${total}</span><div class="page-btns">`;
+  html += `<button class="page-btn" data-pg="${current - 1}" data-cb="${containerId}" ${current === 1 ? 'disabled' : ''}>←</button>`;
+  for (let i = Math.max(1, current - 2); i <= Math.min(tp, current + 2); i++)html += `<button class="page-btn${i === current ? ' active' : ''}" data-pg="${i}" data-cb="${containerId}">${i}</button>`;
+  html += `<button class="page-btn" data-pg="${current + 1}" data-cb="${containerId}" ${current === tp ? 'disabled' : ''}>→</button></div>`;
+  el.innerHTML = html;
+  el.querySelectorAll('button[data-pg]').forEach(btn => btn.addEventListener('click', () => { if (!btn.disabled) { const c = _pageCbs[btn.dataset.cb]; if (c) c(+btn.dataset.pg); } }));
+}
+
+// ══════════════════════════════════════════════════════
+//  EXPORT
+// ══════════════════════════════════════════════════════
+function barcodeDataUrl(ean) {
+  const canvas = document.createElement('canvas');
+  const code = String(ean || '').replace(/\D/g, '');
+  if (!code) return null;
+  const fmt = /^\d{13}$/.test(code) ? 'ean13' : (/^\d{8}$/.test(code) ? 'ean8' : 'code128');
+  try { JsBarcode(canvas, code, { format: fmt, displayValue: false, margin: 6, width: 3, height: 90 }); }
+  catch (e) { try { JsBarcode(canvas, code, { format: 'code128', displayValue: false, margin: 6, width: 3, height: 90 }); } catch (e2) { return null; } }
+  return canvas.toDataURL('image/png').split(',')[1];
+}
+
+async function exportAccXlsx() {
+  const rows = filteredAcc;
+  if (!rows.length) { alert('No hay registros para exportar.'); return; }
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Acciones');
+  ws.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: .3, right: .3, top: .4, bottom: .4, header: .2, footer: .2 } };
+  ws.columns = [{ key: 'bc', width: 26 }, { key: 'fecha', width: 12 }, { key: 'suc', width: 16 }, { key: 'desc', width: 34 }, { key: 'gram', width: 10 }, { key: 'cant', width: 10 }, { key: 'venc', width: 13 }, { key: 'prov', width: 24 }, { key: 'mot', width: 22 }, { key: 'lote', width: 14 }, { key: 'est', width: 16 }];
+  const hRow = ws.addRow(['COD-BAR', 'Fecha', 'Sucursal', 'Descripción', 'Gramaje', 'Cantidad', 'Fecha Venc.', 'Proveedor', 'Motivo', 'Lote', 'Estado']);
+  hRow.height = 22;
+  hRow.eachCell(c => { c.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D111F' } }; c.alignment = { horizontal: 'center', vertical: 'middle' }; c.border = { bottom: { style: 'medium', color: { argb: 'FF4f8eff' } } } });
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const isEven = i % 2 === 1;
+    const dRow = ws.addRow(['', r.fecha ? r.fecha.toLocaleDateString('es-AR') : '', r.sucursal || '', r.descripcion || '', r.gramaje || '', r.cantidad || '', fmtVenc(r.fechaVenc), r.proveedor || '', r.motivo || '', r.lote || '', r.estado || '']);
+    dRow.height = 70;
+    dRow.eachCell({ includeEmpty: true }, (c, col) => {
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isEven ? 'FFF5F7FF' : 'FFFFFFFF' } };
+      c.alignment = { vertical: 'middle', horizontal: col === 1 ? 'center' : 'left', wrapText: col === 4 };
+      c.font = { size: 10 };
+      c.border = { bottom: { style: 'thin', color: { argb: 'FFDDDDDD' } }, right: { style: 'thin', color: { argb: 'FFDDDDDD' } } };
+    });
+    const ec = dRow.getCell(11);
+    const ecMap = { 'PENDIENTE': { bg: 'FFFFF3CD', fg: 'FF856404' }, 'EN GESTION': { bg: 'FFD1ECF1', fg: 'FF0C5460' }, 'N/C RECIBIDA': { bg: 'FFD4EDDA', fg: 'FF155724' }, 'RECHAZADA': { bg: 'FFF8D7DA', fg: 'FF721C24' } };
+    const ecv = ecMap[r.estado];
+    if (ecv) { ec.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ecv.bg } }; ec.font = { size: 10, bold: true, color: { argb: ecv.fg } }; }
+    const b64 = barcodeDataUrl(r.ean);
+    if (b64) { const imgId = wb.addImage({ base64: b64, extension: 'png' }); ws.addImage(imgId, { tl: { col: .08, row: i + 1 + .06 }, ext: { width: 145, height: 60 }, editAs: 'oneCell' }); }
+  }
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 1, topLeftCell: 'A2', activeCell: 'A2' }];
+  try {
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'acciones_' + fmtIso(new Date()) + '.xlsx'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  } catch (err) { alert('Error al generar Excel: ' + err.message); }
+}
+
+function exportNcXlsx() {
+  const rows = selectedIds.size > 0 ? filteredNc.filter(r => selectedIds.has(r.id)) : filteredNc;
+  if (!rows.length) { alert('No hay registros para exportar.'); return; }
+  const headers = ['ID', 'Fecha', 'Sucursal', 'EAN', 'Descripción', 'Gramaje', 'Cantidad', 'Fecha Venc.', 'Proveedor', 'Motivo', 'Lote', 'Estado', 'Obs. N/C'];
+  const wsData = [headers, ...rows.map(r => [r.id, r.fecha ? r.fecha.toLocaleDateString('es-AR') : '', r.sucursal, r.ean, r.descripcion, r.gramaje, r.cantidad, fmtVenc(r.fechaVenc), r.proveedor, r.motivo, r.lote, r.estado, r.obsNC])];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{ wch: 22 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 32 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 14 }, { wch: 16 }, { wch: 28 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Gestión NC');
+  XLSX.writeFile(wb, 'gestion_nc_' + fmtIso(new Date()) + '.xlsx');
+}
+
+function fmtIso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+// ══════════════════════════════════════════════════════
+//  SPINNER / TOAST
+// ══════════════════════════════════════════════════════
+function showSpinner(msg) { document.getElementById('spinnerMsg').textContent = msg || 'Procesando…'; document.getElementById('spinnerOverlay').classList.add('active'); }
+function hideSpinner() { document.getElementById('spinnerOverlay').classList.remove('active'); }
+function showToast(isOk, msg) {
+  const t = document.createElement('div');
+  t.className = 'toast ' + (isOk ? 'success' : 'error');
+  t.textContent = (isOk ? '✅ ' : '⚠️ ') + msg;
+  document.body.appendChild(t);
+  setTimeout(() => { if (t.parentNode) t.remove(); }, 5000);
+}
+
+// ══════════════════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════════════════
+function openConfig() { document.getElementById('urlInput').value = SCRIPT_URL; document.getElementById('configModal').classList.add('open'); }
+function saveConfig() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url.startsWith('http')) { document.getElementById('urlInput').style.borderColor = 'var(--red)'; return; }
+  SCRIPT_URL = url; localStorage.setItem('nexus_script_url', url);
+  document.getElementById('configModal').classList.remove('open');
+  loadData();
+}
+
+// ══════════════════════════════════════════════════════
+//  GESTIÓN DE STOCK Y TRANSFERENCIAS
+// ══════════════════════════════════════════════════════
+
+function ajustarStock(evt, id, delta) {
+  if (evt) evt.stopPropagation();
+  const elQty = document.getElementById(`qty-${id}`);
+  const cantActual = elQty ? parseInt(elQty.textContent) || 0 : 0;
+  const item = venData.find(v => v.id === id);
+  const suc = item ? item.sucursal : '';
+  currentAdjustData = { id, delta, cantActual, suc };
+  const isPos = delta > 0;
+  document.getElementById('adjModalTitle').textContent = isPos ? '＋ Ajuste positivo' : '－ Ajuste negativo';
+  document.getElementById('adjModalTitle').style.color = isPos ? 'var(--green)' : 'var(--red)';
+  document.getElementById('adjModalSubtitle').textContent = `${esc(suc)} · Sin restricciones de cantidad`;
+  document.getElementById('adjCurrentStock').textContent = cantActual;
+  document.getElementById('adjustQty').value = 1;
+  const btn = document.getElementById('adjConfirmBtn');
+  btn.style.background = isPos ? 'var(--green)' : 'var(--red)';
+  btn.style.color = isPos ? '#000' : '#fff';
+  document.getElementById('modalAdjust').style.display = 'flex';
+  setTimeout(() => document.getElementById('adjustQty').focus(), 100);
+}
+
+function abrirModalTransferencia(evt, id, origen, max) {
+  if (evt) evt.stopPropagation();
+  currentTransferData = { id, origen, max };
+  const modal = document.getElementById('modalTransfer');
+  const select = document.getElementById('destSucursal');
+  const inputQty = document.getElementById('transferQty');
+  const labelMax = document.getElementById('transferMaxLabel');
+  if (!modal || !select) { console.error("No se encontró el modal de transferencia"); return; }
+  select.innerHTML = '';
+  const sucursales = ['HIPER', 'CENTRO', 'RIBERA', 'MAYORISTA', 'PROVEEDOR', 'OTRO'];
+  sucursales.filter(s => s !== origen).forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    select.appendChild(opt);
+  });
+  labelMax.textContent = `Disponible para mover: ${max}`;
+  inputQty.max = max;
+  inputQty.value = max;
+  modal.style.display = 'flex';
+}
+
+function cerrarModalTransfer() {
+  const modal = document.getElementById('modalTransfer');
+  if (modal) modal.style.display = 'none';
+}
+
+async function ejecutarTransferencia() {
+  const dest = document.getElementById('destSucursal').value;
+  const cant = parseInt(document.getElementById('transferQty').value);
+  const max = currentTransferData.max;
+  if (!cant || cant <= 0 || isNaN(cant)) { showToast(false, 'Ingresá una cantidad válida.'); return; }
+  if (cant > max) {
+    showToast(false, `No podés transferir más de ${max} u.`);
+    document.getElementById('transferQty').value = max;
+    document.getElementById('transferQty').focus();
+    return;
+  }
+  showSpinner('Procesando transferencia...');
+  cerrarModalTransfer();
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'transferStock', idOrigen: currentTransferData.id, sucursalDestino: dest, cantidad: cant })
+    });
+    const result = await res.json();
+    if (result.success) { showToast(true, `Transferencia: ${cant} u. → ${dest}`); await loadData(); }
+    else { showToast(false, result.message || 'Error en la operación'); }
+  } catch (e) { showToast(false, 'Error de red'); console.error(e); }
+  hideSpinner();
+}
+
+function cerrarModalAdjust() {
+  document.getElementById('modalAdjust').style.display = 'none';
+  currentAdjustData = null;
+}
+
+async function ejecutarAjuste() {
+  const qty = parseInt(document.getElementById('adjustQty').value);
+  if (!qty || qty <= 0 || isNaN(qty)) { showToast(false, 'Ingresá una cantidad válida (≥ 1)'); return; }
+  const { id, delta, cantActual } = currentAdjustData;
+  const nuevaCant = cantActual + (delta * qty);
+  cerrarModalAdjust();
+  showSpinner('Actualizando stock...');
+  try {
+    const response = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'updateStock', id, nuevaCant })
+    });
+    const json = await response.json();
+    if (json.success) {
+      const elQty = document.getElementById('qty-' + id);
+      if (elQty) elQty.textContent = nuevaCant;
+      const item = venData.find(v => v.id === id);
+      if (item) item.cantidad = nuevaCant;
+      showToast(true, 'Stock: ' + cantActual + ' → ' + nuevaCant + ' u.');
+    } else { showToast(false, json.message || 'Error al actualizar'); }
+  } catch (e) { showToast(false, 'Error de red al actualizar stock'); console.error(e); }
+  hideSpinner();
+}
+
+// ══════════════════════════════════════════════════════
+//  MODO LOTE
+// ══════════════════════════════════════════════════════
+
+function toggleLoteMode() {
+  loteMode = !loteMode;
+  const btn = document.getElementById('btnLoteMode');
+  btn.classList.toggle('active', loteMode);
+  btn.textContent = loteMode ? '✕ Salir de Lote' : '🗂 Modo Lote';
+  if (!loteMode) {
+    loteSeleccionados.clear(); loteQueue = [];
+    document.getElementById('loteModeBar').classList.remove('visible');
+    document.getElementById('loteQueueWrap').classList.remove('visible');
+  }
+  renderVencTable();
+}
+
+function toggleLoteRow(sucKey, id, desc, ean, fechaVenc, suc, cantActual, checkbox) {
+  if (checkbox.checked) { loteSeleccionados.set(sucKey, { id, desc, ean, fechaVenc, suc, cantActual }); }
+  else { loteSeleccionados.delete(sucKey); loteQueue = loteQueue.filter(op => op.sucKey !== sucKey); renderLoteQueue(); }
+  updateLoteModeBar();
+}
+
+function updateLoteModeBar() {
+  const n = loteSeleccionados.size;
+  document.getElementById('loteCount').textContent = `${n} sucursal${n !== 1 ? 'es' : ''} seleccionada${n !== 1 ? 's' : ''}`;
+  document.getElementById('loteModeBar').classList.toggle('visible', n > 0);
+  loteSeleccionados.forEach((item, sucKey) => {
+    const yaEsta = loteQueue.some(op => op.sucKey === sucKey);
+    if (!yaEsta) {
+      loteQueue.push({ sucKey, id: item.id, desc: item.desc, ean: item.ean, fechaVenc: item.fechaVenc, suc: item.suc, cantActual: item.cantActual, op: 'adj_pos', cant: 1, dest: '' });
+    }
+  });
+  renderLoteQueue();
+}
+
+function limpiarSeleccionLote() {
+  loteSeleccionados.clear(); loteQueue = [];
+  renderLoteQueue();
+  document.getElementById('loteModeBar').classList.remove('visible');
+  renderVencTable();
+}
+
+function vaciarColaLote() {
+  loteQueue = []; loteSeleccionados.clear();
+  renderLoteQueue();
+  document.getElementById('loteModeBar').classList.remove('visible');
+  renderVencTable();
+}
+
+function renderLoteQueue() {
+  const tbody = document.getElementById('loteQueueBody');
+  const wrap = document.getElementById('loteQueueWrap');
+  document.getElementById('loteQueueCount').textContent = `${loteQueue.length} operación${loteQueue.length !== 1 ? 'es' : ''}`;
+  document.getElementById('btnEjecutarLote').disabled = loteQueue.length === 0;
+  if (!loteQueue.length) {
+    wrap.classList.remove('visible');
+    tbody.innerHTML = '<tr><td colspan="9"><div class="empty" style="padding:20px"><p>Seleccioná filas y configurá operaciones</p></div></td></tr>';
+    return;
+  }
+  wrap.classList.add('visible');
+  tbody.innerHTML = loteQueue.map((op, idx) => {
+    const opBadgeCls = op.op === 'adj_pos' ? 'lote-op-adj-pos' : op.op === 'adj_neg' ? 'lote-op-adj-neg' : op.op === 'adj_directo' ? 'lote-op-adj-directo' : 'lote-op-transfer';
+    const sucursales = ['HIPER', 'CENTRO', 'RIBERA', 'MAYORISTA', 'PROVEEDOR', 'OTRO'].filter(s => s !== op.suc);
+    const destOpts = sucursales.map(s => `<option value="${s}" ${op.dest === s ? 'selected' : ''}>${s}</option>`).join('');
+    const destCell = op.op === 'transfer'
+      ? `<select class="lote-dest-select" onchange="loteQueue[${idx}].dest=this.value"><option value="">— Elegir —</option>${destOpts}</select>`
+      : op.op === 'adj_directo'
+        ? `<span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--cyan)">→ reemplaza stock</span>`
+        : `<span style="color:var(--text3);font-size:10px">—</span>`;
+    const qtyMin = op.op === 'adj_directo' ? 0 : 1;
+    const qtyVal = op.op === 'adj_directo' ? (op.cantDirecta ?? op.cantActual) : op.cant;
+    const qtyPlaceholder = op.op === 'adj_directo' ? 'Stock final' : 'Cantidad';
+    const qtyOnChange = op.op === 'adj_directo'
+      ? `loteQueue[${idx}].cantDirecta=parseInt(this.value)>=0?parseInt(this.value):0`
+      : `loteQueue[${idx}].cant=parseInt(this.value)||1`;
+    const qtyTitle = op.op === 'adj_directo'
+      ? `<div style="font-size:9px;color:var(--cyan);font-family:'IBM Plex Mono',monospace;margin-top:2px;">stock final</div>`
+      : `<div style="font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:2px;">delta</div>`;
+    return `<tr>
+      <td class="c-main" style="max-width:180px">${esc(op.desc)}</td>
+      <td class="c-mono" style="font-size:10px">${esc(op.ean)}</td>
+      <td class="c-mono" style="font-size:10px">${fmtDateOnly(op.fechaVenc)}</td>
+      <td><span class="suc-b ${getSucClass(op.suc)}">${esc(op.suc)}</span></td>
+      <td class="c-right c-mono">${op.cantActual}</td>
+      <td>
+        <select class="lote-op-select" onchange="loteQueue[${idx}].op=this.value;renderLoteQueue()">
+          <option value="adj_pos"      ${op.op === 'adj_pos' ? 'selected' : ''}>＋ Ajuste positivo</option>
+          <option value="adj_neg"      ${op.op === 'adj_neg' ? 'selected' : ''}>－ Ajuste negativo</option>
+          <option value="adj_directo"  ${op.op === 'adj_directo' ? 'selected' : ''}>✎ Ajuste directo (reemplazar)</option>
+          <option value="transfer"     ${op.op === 'transfer' ? 'selected' : ''}>⇄ Transferencia</option>
+        </select>
+      </td>
+      <td>
+        <div>
+          <input type="number" class="lote-qty-input" min="${qtyMin}" value="${qtyVal}" placeholder="${qtyPlaceholder}"
+                 onchange="${qtyOnChange}" oninput="${qtyOnChange}">
+          ${qtyTitle}
+        </div>
+      </td>
+      <td>${destCell}</td>
+      <td><button class="lote-remove" onclick="quitarDeLote(${idx})" title="Quitar">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function quitarDeLote(idx) {
+  const op = loteQueue[idx];
+  loteSeleccionados.delete(op.sucKey);
+  loteQueue.splice(idx, 1);
+  renderLoteQueue();
+  updateLoteModeBar();
+  const cb = document.querySelector(`input[data-suc-key="${op.sucKey}"]`);
+  if (cb) cb.checked = false;
+}
+
+async function ejecutarLote() {
+  if (!loteQueue.length) return;
+  for (const op of loteQueue) {
+    if (op.op === 'adj_directo') {
+      if (op.cantDirecta === undefined || op.cantDirecta === null || op.cantDirecta < 0) { showToast(false, `Stock final inválido en: ${op.desc} (${op.suc})`); return; }
+    } else if (!op.cant || op.cant <= 0) { showToast(false, `Cantidad inválida en: ${op.desc} (${op.suc})`); return; }
+    if (op.op === 'transfer') {
+      if (!op.dest) { showToast(false, `Falta destino en: ${op.desc} (${op.suc})`); return; }
+      if (op.cantActual <= 0) { showToast(false, `Sin stock en: ${op.desc} (${op.suc})`); return; }
+      if (op.cant > op.cantActual) { showToast(false, `Stock insuficiente en: ${op.desc} (${op.suc})`); return; }
+    }
+  }
+  const total = loteQueue.length;
+  showSpinner(`Procesando 0 / ${total}…`);
+  const resultados = [];
+  let ok = 0, err = 0;
+  for (let i = 0; i < loteQueue.length; i++) {
+    const op = loteQueue[i];
+    showSpinner(`Procesando ${i + 1} / ${total}…`);
+    try {
+      let payload, nuevaCant;
+      if (op.op === 'adj_pos') { nuevaCant = op.cantActual + op.cant; payload = { action: 'updateStock', id: op.id, nuevaCant }; }
+      else if (op.op === 'adj_neg') { nuevaCant = op.cantActual - op.cant; payload = { action: 'updateStock', id: op.id, nuevaCant }; }
+      else if (op.op === 'adj_directo') { nuevaCant = op.cantDirecta; payload = { action: 'updateStock', id: op.id, nuevaCant }; }
+      else { nuevaCant = op.cantActual - op.cant; payload = { action: 'transferStock', idOrigen: op.id, sucursalDestino: op.dest, cantidad: op.cant }; }
+      const res = await fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+      const json = await res.json();
+      if (json.success) {
+        ok++; resultados.push({ ...op, resultado: 'OK', nuevaCant: nuevaCant ?? '—' });
+        const item = venData.find(v => v.id === op.id);
+        if (item && op.op !== 'transfer') item.cantidad = nuevaCant;
+      } else { err++; resultados.push({ ...op, resultado: 'ERROR: ' + (json.message || '?'), nuevaCant: '—' }); }
+    } catch (e) { err++; resultados.push({ ...op, resultado: 'ERROR: red', nuevaCant: '—' }); }
+  }
+  hideSpinner();
+  exportLoteExcel(resultados);
+  showToast(err === 0, `${ok} op${ok !== 1 ? 's' : ''} ejecutada${ok !== 1 ? 's' : ''}${err ? ` · ${err} error${err !== 1 ? 'es' : ''}` : ''}`);
+  loteQueue = []; loteSeleccionados.clear();
+  document.getElementById('loteModeBar').classList.remove('visible');
+  await loadData();
+}
+
+function exportLoteExcel(resultados) {
+  if (!resultados.length) return;
+  const headers = ['Producto', 'EAN', 'Vencimiento', 'Sucursal', 'Stock Anterior', 'Operación', 'Cantidad', 'Destino', 'Nuevo Stock', 'Resultado', 'Fecha'];
+  const now = new Date().toLocaleString('es-AR');
+  const wsData = [headers, ...resultados.map(op => [
+    op.desc, op.ean, fmtDateOnly(op.fechaVenc), op.suc, op.cantActual,
+    op.op === 'adj_pos' ? 'Ajuste +' : op.op === 'adj_neg' ? 'Ajuste -' : op.op === 'adj_directo' ? 'Ajuste directo' : 'Transferencia',
+    op.cant, op.dest || '—', op.nuevaCant, op.resultado, now
+  ])];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{ wch: 32 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 24 }, { wch: 18 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Lote');
+  XLSX.writeFile(wb, 'operaciones_lote_' + fmtIso(new Date()) + '.xlsx');
+}
+
+function abrirModalLote() {
+  if (!loteQueue.length) return;
+  document.getElementById('loteQueueWrap').classList.add('visible');
+  const modal = document.getElementById('modalConfirmLote');
+  const n = loteQueue.length;
+  document.getElementById('confirmLoteResumen').textContent = `Estás por ejecutar ${n} operación${n !== 1 ? 'es' : ''} en lote. ¿Confirmar?`;
+  modal.style.display = 'flex';
+}
+
+function cerrarModalConfirmLote() { document.getElementById('modalConfirmLote').style.display = 'none'; }
+function confirmarEjecutarLote() { cerrarModalConfirmLote(); ejecutarLote(); }

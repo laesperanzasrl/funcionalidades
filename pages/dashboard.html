@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEXUS · Control Operativo</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="../css/dashboard.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+</head>
+
+<body>
+
+  <!-- SPINNER -->
+  <div class="spinner-overlay" id="spinnerOverlay">
+    <div class="spin-ring"></div>
+    <div class="spin-msg" id="spinnerMsg">Cargando...</div>
+  </div>
+
+  <!-- CONFIG MODAL -->
+  <div class="modal-overlay" id="configModal" style="z-index:700">
+    <div class="modal-box">
+      <h3>⚙️ Configurar endpoint</h3>
+      <p>Pegá la URL de tu Web App de Google Apps Script que sirve ambas bases de datos.</p>
+      <input class="modal-input" id="urlInput" type="text" placeholder="https://script.google.com/macros/s/XXXXX/exec">
+      <button class="btn btn-primary" style="width:100%" onclick="saveConfig()">Conectar dashboard</button>
+    </div>
+  </div>
+
+  <!-- DEV DETAIL MODAL -->
+  <div class="modal-overlay" id="devDetailModal" onclick="closeDevModal(event)">
+    <div class="modal-box" style="max-width:600px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#a78bfa" id="dd-id">—</div>
+          <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-top:3px" id="dd-desc">—</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeDevModal()">✕</button>
+      </div>
+      <div id="dd-body"></div>
+    </div>
+  </div>
+
+  <!-- CONFIRM MODAL -->
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal-box">
+      <h3 id="cm-title">Confirmar</h3>
+      <p id="cm-text">¿Querés continuar?</p>
+      <div id="cm-details"></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" id="cm-confirm">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR BACKDROP -->
+  <div class="overlay-bk" id="backdrop" onclick="closeSidebar()"></div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-logo">
+      <div class="sb-logo-title">NE<em>XUS</em></div>
+      <div class="sb-logo-sub">Control Operativo · v3.0</div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sb-section">General</div>
+      <button class="sb-item" id="nav-resumen" onclick="showPanel('resumen')">
+        <span class="icon">🏠</span> Resumen
+      </button>
+
+      <div class="sb-section">Vencimientos</div>
+      <button class="sb-item" id="nav-vencimientos" onclick="showPanel('vencimientos')">
+        <span class="icon">⏰</span> Control Vencimientos
+        <span class="badge-count" id="nav-badge-crit" style="display:none">0</span>
+      </button>
+
+      <div class="sb-section">Acciones &amp; N/C</div>
+      <button class="sb-item" id="nav-acciones" onclick="showPanel('acciones')">
+        <span class="icon">📋</span> Registros
+      </button>
+      <button class="sb-item" id="nav-metricas" onclick="showPanel('metricas')">
+        <span class="icon">📊</span> Métricas Compras
+      </button>
+      <button class="sb-item" id="nav-nc" onclick="showPanel('nc')">
+        <span class="icon">🧾</span> Gestión N/C
+        <span class="badge-count amber" id="nav-badge-pend" style="display:none">0</span>
+      </button>
+    </nav>
+    <div class="sb-bottom">
+      <button class="sync-btn" id="syncBtn" onclick="loadData()">
+        <span id="syncIcon">🔄</span> Actualizar
+      </button>
+      <div class="sync-time" id="syncTime">Sin datos</div>
+      <div class="auto-badge">⏱ Auto: 30 min</div>
+      <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:8px;font-size:11px" onclick="openConfig()">⚙
+        Configuración</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+      <div class="topbar-title" id="topbarTitle">Resumen</div>
+      <div class="topbar-right">
+        <div class="status-dot" id="statusDot"></div>
+        <span class="rec-count" id="recCount">— registros</span>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ══ PANEL: RESUMEN ══ -->
+      <div class="panel" id="panel-resumen">
+        <div class="page-title">Resumen General</div>
+        <div class="page-sub">Vista combinada de vencimientos y acciones en tiempo real</div>
+
+        <!-- KPIs Vencimientos -->
+        <div class="section-divider">
+          <span class="section-divider-label">⏰ vencimientos activos</span>
+          <div class="section-divider-line"></div>
+        </div>
+        <div class="kpi-grid cols-7" style="margin-bottom:20px">
+          <div class="kpi-card kt" onclick="showPanel('vencimientos')">
+            <div class="kpi-lbl">Total activos</div>
+            <div class="kpi-val" id="rv-total">—</div>
+            <div class="kpi-sub">sin acción tomada</div>
+          </div>
+          <div class="kpi-card kv" onclick="goVencFilter('VENCIDO')">
+            <div class="kpi-lbl">Vencido</div>
+            <div class="kpi-val" id="rv-vencido">—</div>
+            <div class="kpi-sub">≤ 0 días</div>
+          </div>
+          <div class="kpi-card kc" onclick="goVencFilter('CRITICO')">
+            <div class="kpi-lbl">Crítico</div>
+            <div class="kpi-val" id="rv-critico">—</div>
+            <div class="kpi-sub">1–6 días</div>
+          </div>
+          <div class="kpi-card ku" onclick="goVencFilter('URGENTE')">
+            <div class="kpi-lbl">Urgente</div>
+            <div class="kpi-val" id="rv-urgente">—</div>
+            <div class="kpi-sub">7–14 días</div>
+          </div>
+          <div class="kpi-card kp" onclick="goVencFilter('PROXIMO')">
+            <div class="kpi-lbl">Próximo</div>
+            <div class="kpi-val" id="rv-proximo">—</div>
+            <div class="kpi-sub">15–21 días</div>
+          </div>
+          <div class="kpi-card ka" onclick="goVencFilter('ATENCION')">
+            <div class="kpi-lbl">Atención</div>
+            <div class="kpi-val" id="rv-atencion">—</div>
+            <div class="kpi-sub">22–45 días</div>
+          </div>
+          <div class="kpi-card kn" onclick="goVencFilter('NORMAL')">
+            <div class="kpi-lbl">Normal</div>
+            <div class="kpi-val" id="rv-normal">—</div>
+            <div class="kpi-sub">&gt; 45 días</div>
+          </div>
+        </div>
+
+        <!-- KPIs Acciones -->
+        <div class="section-divider">
+          <span class="section-divider-label">📋 acciones / devoluciones</span>
+          <div class="section-divider-line"></div>
+        </div>
+        <div class="kpi-grid cols-7" style="margin-bottom:20px">
+          <div class="kpi-card kb" onclick="showPanel('acciones')">
+            <div class="kpi-lbl">Total acciones</div>
+            <div class="kpi-val" id="ra-total">—</div>
+            <div class="kpi-sub">registros</div>
+          </div>
+          <div class="kpi-card kg" onclick="filterAccEstado('N/C RECIBIDA')">
+            <div class="kpi-lbl">N/C Recibidas</div>
+            <div class="kpi-val" id="ra-nc">—</div>
+            <div class="kpi-sub">cerradas</div>
+          </div>
+          <div class="kpi-card kam" onclick="filterAccEstado('PENDIENTE')">
+            <div class="kpi-lbl">Pendientes</div>
+            <div class="kpi-val" id="ra-pend">—</div>
+            <div class="kpi-sub">sin gestión</div>
+          </div>
+          <div class="kpi-card kb" onclick="filterAccEstado('EN GESTION')">
+            <div class="kpi-lbl">En Gestión</div>
+            <div class="kpi-val" id="ra-gest">—</div>
+            <div class="kpi-sub">en proceso</div>
+          </div>
+          <div class="kpi-card kr" onclick="filterAccEstado('RECHAZADA')">
+            <div class="kpi-lbl">Rechazadas</div>
+            <div class="kpi-val" id="ra-rech">—</div>
+            <div class="kpi-sub">cerradas</div>
+          </div>
+          <div class="kpi-card kpur">
+            <div class="kpi-lbl">Vinculadas</div>
+            <div class="kpi-val" id="ra-vinc">—</div>
+            <div class="kpi-sub">venc → acción</div>
+          </div>
+          <div class="kpi-card kn" onclick="filterAutoVencidos()">
+            <div class="kpi-lbl">⚡ Auto-vencidos</div>
+            <div class="kpi-val" id="ra-autov">—</div>
+            <div class="kpi-sub">detectados solos</div>
+          </div>
+        </div>
+
+        <!-- Alertas críticas -->
+        <div class="section-divider">
+          <span class="section-divider-label">🚨 alertas urgentes — requieren atención hoy</span>
+          <div class="section-divider-line"></div>
+        </div>
+        <div id="alertFeed">
+          <div class="empty">
+            <div class="ei">📡</div>
+            <p>Cargá datos para ver alertas</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ PANEL: VENCIMIENTOS ══ -->
+      <div class="panel" id="panel-vencimientos">
+        <div class="page-title">Control de Vencimientos</div>
+        <div class="page-sub">Agrupado por producto · EAN · Fecha de vencimiento — historial por sucursal · <span
+            style="color:var(--green);font-weight:600">⚡ Auto-vencimiento diario activado</span></div>
+
+
+
+        <div class="filters-bar">
+          <div class="filters-row">
+            <div class="fg wide">
+              <div class="flabel">Buscar producto / EAN</div><input class="fi" id="vf-buscar" type="text"
+                placeholder="descripción, EAN, lote…" oninput="applyVencFilters()">
+            </div>
+            <div class="fg">
+              <div class="flabel">Proveedor</div><select class="fs" id="vf-prov" onchange="applyVencFilters()">
+                <option value="">Todos</option>
+              </select>
+            </div>
+            <div class="fg">
+              <div class="flabel">Sucursal</div><select class="fs" id="vf-suc" onchange="applyVencFilters()">
+                <option value="">Todas</option>
+              </select>
+            </div>
+            <div class="fg">
+              <div class="flabel">Urgencia</div><select class="fs" id="vf-urg" onchange="applyVencFilters()">
+                <option value="">Todas</option>
+                <option value="VENCIDO">Vencido</option>
+                <option value="CRITICO">Crítico</option>
+                <option value="URGENTE">Urgente</option>
+                <option value="PROXIMO">Próximo</option>
+                <option value="ATENCION">Atención</option>
+                <option value="NORMAL">Normal</option>
+              </select>
+            </div>
+            <div class="fg">
+              <div class="flabel">Estado gestión</div><select class="fs" id="vf-estado" onchange="applyVencFilters()">
+                <option value="">Todos</option>
+                <option value="ACTIVO">Sin acción</option>
+                <option value="ACCION TOMADA">Acción tomada</option>
+                <option value="RETIRADO">Retirado</option>
+              </select>
+            </div>
+            <div class="fg">
+              <div class="flabel">Período</div><select class="fs" id="vf-periodo" onchange="applyVencFilters()">
+                <option value="">Todo</option>
+                <option value="1">Hoy</option>
+                <option value="3">3 días</option>
+                <option value="7">7 días</option>
+                <option value="15">15 días</option>
+              </select>
+            </div>
+            <button class="btn btn-secondary btn-sm" style="align-self:flex-end" onclick="clearVencFilters()">✕
+              Limpiar</button>
+            <button class="btn-lote-toggle" id="btnLoteMode" onclick="toggleLoteMode()">🗂 Modo Lote</button>
+          </div>
+        </div>
+
+        <!-- BARRA DE MODO LOTE -->
+        <div class="lote-mode-bar" id="loteModeBar">
+          <span class="lote-count" id="loteCount">0 sucursales seleccionadas</span>
+          <button class="btn btn-secondary btn-sm" onclick="limpiarSeleccionLote()">✕ Limpiar</button>
+          <button class="btn btn-success btn-sm" id="btnEjecutarLote" onclick="abrirModalLote()" disabled>⚡ Revisar y
+            ejecutar lote</button>
+        </div>
+
+        <!-- COLA DE OPERACIONES EN LOTE -->
+        <div class="lote-queue-wrap" id="loteQueueWrap">
+          <div class="lote-queue-head">
+            <h4>📋 Operaciones en cola</h4>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)" id="loteQueueCount">0
+              operaciones</span>
+            <button class="btn btn-secondary btn-sm" onclick="vaciarColaLote()">🗑 Vaciar</button>
+            <button class="btn btn-success btn-sm" onclick="ejecutarLote()">⚡ Ejecutar todo</button>
+          </div>
+          <div class="table-scroll">
+            <table class="lote-table">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>EAN</th>
+                  <th>Vencimiento</th>
+                  <th>Sucursal</th>
+                  <th class="c-right">Stock</th>
+                  <th>Operación</th>
+                  <th>Cant.</th>
+                  <th>Destino</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="loteQueueBody">
+                <tr>
+                  <td colspan="9">
+                    <div class="empty" style="padding:20px">
+                      <p>Seleccioná filas y configurá operaciones</p>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div
+          style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">
+          <div id="venc-count">—</div>
+          <div id="venc-detail">—</div>
+        </div>
+
+        <div class="table-wrap" id="vencTableWrap">
+          <div class="empty">
+            <div class="ei">📡</div>
+            <p>Cargá datos desde Configuración</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ PANEL: ACCIONES ══ -->
+      <div class="panel" id="panel-acciones">
+        <div class="page-title">Registros de Acciones</div>
+        <div class="page-sub">Todas las devoluciones, acciones 2x1, 50% off y productos vencidos</div>
+
+        <div class="filters-bar">
+          <div class="filters-row">
+            <div class="fg">
+              <div class="flabel">Sucursal</div><select class="fs" id="af-suc" onchange="applyAccFilters()">
+                <option value="">Todas</option>
+              </select>
+            </div>
+            <div class="fg">
+              <div class="flabel">Proveedor</div><select class="fs" id="af-prov" onchange="applyAccFilters()">
+                <option value="">Todos</option>
+              </select>
+            </div>
+            <div class="fg">
+              <div class="flabel">Motivo</div><select class="fs" id="af-motivo" onchange="applyAccFilters()">
+                <option value="">Todos</option>
+              </select>
+            </div>
+            <div class="fg">
+              <div class="flabel">Estado</div><select class="fs" id="af-estado" onchange="applyAccFilters()">
+                <option value="">Todos</option>
+                <option value="PENDIENTE">Pendiente</option>
+                <option value="EN GESTION">En Gestión</option>
+                <option value="N/C RECIBIDA">N/C Recibida</option>
+                <option value="RECHAZADA">Rechazada</option>
+              </select>
+            </div>
+          </div>
+          <div class="filters-row" style="margin-top:10px">
+            <div class="fg">
+              <div class="flabel">Rango fecha registro</div>
+              <div class="date-presets" id="acc-presets">
+                <button class="dp active" onclick="setAccPreset('today',this)">Hoy</button>
+                <button class="dp" onclick="setAccPreset('yesterday',this)">Ayer</button>
+                <button class="dp" onclick="setAccPreset('3d',this)">3d</button>
+                <button class="dp" onclick="setAccPreset('7d',this)">7d</button>
+                <button class="dp" onclick="setAccPreset('14d',this)">14d</button>
+                <button class="dp" onclick="setAccPreset('30d',this)">30d</button>
+                <button class="dp" onclick="setAccPreset('all',this)">Todo</button>
+              </div>
+            </div>
+            <div class="fg" id="acc-date-from" style="display:none">
+              <div class="flabel">Desde</div><input type="date" class="fi" id="af-date-from"
+                onchange="applyAccFilters()">
+            </div>
+            <div class="fg" id="acc-date-to" style="display:none">
+              <div class="flabel">Hasta</div><input type="date" class="fi" id="af-date-to" onchange="applyAccFilters()">
+            </div>
+            <button class="btn btn-secondary btn-sm" style="align-self:flex-end" onclick="clearAccFilters()">✕
+              Limpiar</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <div class="table-head-bar">
+            <h3>📋 Registros</h3>
+            <input type="text" class="search-inp" id="acc-search" placeholder="🔍 Producto, EAN, lote…"
+              oninput="applyAccFilters()">
+            <button class="btn btn-secondary btn-sm" onclick="exportAccXlsx()">⬇ Excel con Cód-Bar</button>
+          </div>
+          <div id="accTableBody">
+            <div class="empty">
+              <div class="ei">📡</div>
+              <p>Cargá datos para ver registros</p>
+            </div>
+          </div>
+          <div class="pagination" id="accPagination" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- ══ PANEL: MÉTRICAS ══ -->
+      <div class="panel" id="panel-metricas">
+        <div class="page-title">Métricas — Compras &amp; Proveedores</div>
+        <div class="page-sub">Indicadores de seguimiento de proveedores y acciones en todas las sucursales</div>
+
+        <div class="kpi-grid cols-6" style="margin-bottom:20px">
+          <div class="kpi-card kb">
+            <div class="kpi-lbl">Total acciones</div>
+            <div class="kpi-val" id="mk-total">—</div>
+          </div>
+          <div class="kpi-card kg">
+            <div class="kpi-lbl">N/C Recibidas</div>
+            <div class="kpi-val" id="mk-nc">—</div>
+          </div>
+          <div class="kpi-card kam">
+            <div class="kpi-lbl">Pend. / Gestión</div>
+            <div class="kpi-val" id="mk-pend">—</div>
+          </div>
+          <div class="kpi-card kr">
+            <div class="kpi-lbl">Rechazadas</div>
+            <div class="kpi-val" id="mk-rech">—</div>
+          </div>
+          <div class="kpi-card kpur">
+            <div class="kpi-lbl">Proveedores</div>
+            <div class="kpi-val" id="mk-prov">—</div>
+          </div>
+          <div class="kpi-card kt">
+            <div class="kpi-lbl">Sucursales</div>
+            <div class="kpi-val" id="mk-suc">—</div>
+          </div>
+        </div>
+
+        <div class="charts-grid">
+          <div class="chart-card">
+            <h4>📦 Acciones por Motivo</h4>
+            <div class="bar-chart" id="ch-motivo">
+              <div class="empty" style="padding:20px">
+                <p>Sin datos</p>
+              </div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h4>🏪 Por Sucursal</h4>
+            <div class="bar-chart" id="ch-sucursal">
+              <div class="empty" style="padding:20px">
+                <p>Sin datos</p>
+              </div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h4>🏷️ Por Sector</h4>
+            <div class="bar-chart" id="ch-sector">
+              <div class="empty" style="padding:20px">
+                <p>Sin datos</p>
+              </div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h4>🎯 N/C por Proveedor (Top 10)</h4>
+            <div class="bar-chart" id="ch-prov-nc">
+              <div class="empty" style="padding:20px">
+                <p>Sin datos</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <div class="table-head-bar">
+            <h3>🏭 Resumen por Proveedor</h3>
+            <input type="text" class="search-inp" id="prov-search" placeholder="🔍 Buscar proveedor…"
+              oninput="renderProvTable()">
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Proveedor</th>
+                  <th class="c-right">Total</th>
+                  <th class="c-right">Pendiente</th>
+                  <th class="c-right">En Gestión</th>
+                  <th class="c-right">N/C Recibida</th>
+                  <th class="c-right">Rechazada</th>
+                  <th>Cobertura N/C</th>
+                </tr>
+              </thead>
+              <tbody id="provTableBody">
+                <tr>
+                  <td colspan="7">
+                    <div class="empty">
+                      <p>Sin datos</p>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ PANEL: GESTIÓN N/C ══ -->
+      <div class="panel" id="panel-nc">
+        <div class="page-title">Gestión de Notas de Crédito</div>
+        <div class="page-sub">Actualizá estados en lote y registrá observaciones de N/C</div>
+
+        <div class="filters-bar">
+          <div class="filters-row">
+            <div class="fg">
+              <div class="flabel">Proveedor</div><select class="fs" id="ncf-prov" onchange="applyNcFilters()">
+                <option value="">Todos</option>
+              </select>
+            </div>
+            <div class="fg">
+              <div class="flabel">Estado</div><select class="fs" id="ncf-estado" onchange="applyNcFilters()">
+                <option value="">Todos</option>
+                <option value="PENDIENTE">Pendiente</option>
+                <option value="EN GESTION">En Gestión</option>
+                <option value="N/C RECIBIDA">N/C Recibida</option>
+                <option value="RECHAZADA">Rechazada</option>
+              </select>
+            </div>
+            <div class="fg">
+              <div class="flabel">Sucursal</div><select class="fs" id="ncf-suc" onchange="applyNcFilters()">
+                <option value="">Todas</option>
+              </select>
+            </div>
+            <div class="fg">
+              <div class="flabel">Motivo</div><select class="fs" id="ncf-motivo" onchange="applyNcFilters()">
+                <option value="">Todos</option>
+              </select>
+            </div>
+            <div class="fg wide">
+              <div class="flabel">Buscar</div><input type="text" class="fi" id="ncf-search"
+                placeholder="Producto, EAN, lote, ID…" oninput="applyNcFilters()">
+            </div>
+          </div>
+        </div>
+
+        <div class="bulk-bar" id="bulkBar">
+          <div class="bulk-count" id="bulkCount">0 seleccionados</div>
+          <div class="bulk-actions">
+            <select id="bulkEstado">
+              <option value="">— Nuevo estado —</option>
+              <option value="PENDIENTE">Pendiente</option>
+              <option value="EN GESTION">En Gestión</option>
+              <option value="N/C RECIBIDA">N/C Recibida</option>
+              <option value="RECHAZADA">Rechazada</option>
+            </select>
+            <input type="text" id="bulkObs" class="obs-inp" placeholder="Observación N/C (opcional)">
+            <button class="btn btn-success btn-sm" onclick="applyBulkAction()">✔ Aplicar</button>
+            <button class="btn btn-secondary btn-sm" onclick="clearSelection()">✕ Deselect</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <div class="table-head-bar">
+            <h3>🧾 Registros para Gestión</h3>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <button class="btn btn-secondary btn-sm" onclick="exportNcXlsx()">⬇ Exportar</button>
+              <label
+                style="font-size:11px;color:var(--text3);cursor:pointer;display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace">
+                <input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> Sel. todo
+              </label>
+            </div>
+          </div>
+          <div id="ncTableBody">
+            <div class="empty">
+              <div class="ei">📡</div>
+              <p>Cargá datos para ver registros</p>
+            </div>
+          </div>
+          <div class="pagination" id="ncPagination" style="display:none"></div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+
+  <div id="modalTransfer" class="modal-transfer-overlay">
+    <div class="modal-transfer-content">
+      <h3>⇄ Transferir Stock</h3>
+      <label>Sucursal Destino:</label>
+      <select id="destSucursal"></select>
+
+      <label>Cantidad a mover:</label>
+      <input type="number" id="transferQty" min="1" value="1">
+      <p id="transferMaxLabel" style="font-size: 0.8rem; margin-top: -10px; margin-bottom: 15px; opacity: 0.6;"></p>
+
+      <div style="display:flex; gap:12px;">
+        <button onclick="ejecutarTransferencia()"
+          style="flex:2; background:var(--accent); color:var(--bg); border:none; padding:12px; border-radius:6px; font-weight:700; cursor:pointer;">CONFIRMAR</button>
+        <button onclick="cerrarModalTransfer()"
+          style="flex:1; background:#444; color:white; border:none; padding:12px; border-radius:6px; cursor:pointer;">X</button>
+      </div>
+    </div>
+  </div>
+  <div id="modalAdjust" class="modal-adj-overlay">
+    <div class="modal-adj-content">
+      <h3 id="adjModalTitle">＋ Ajuste positivo</h3>
+      <div class="modal-adj-subtitle" id="adjModalSubtitle">Sin restricciones de cantidad</div>
+      <label>Cantidad a ajustar</label>
+      <input type="number" id="adjustQty" min="1" value="1" placeholder="Ingresá la cantidad...">
+      <div class="modal-adj-note">Stock actual: <span id="adjCurrentStock">0</span> u.</div>
+      <div class="modal-adj-btns">
+        <button onclick="ejecutarAjuste()" id="adjConfirmBtn" style="background:var(--green);color:#000">
+          CONFIRMAR
+        </button>
+        <button onclick="cerrarModalAdjust()" style="background:#333;color:#fff">
+          CANCELAR
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL CONFIRMAR LOTE -->
+  <div id="modalConfirmLote" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);align-items:center;justify-content:center;z-index:9999;">
+    <div style="background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:28px 32px;width:360px;max-width:90vw;">
+      <h3 style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;margin-bottom:10px;">⚡ Confirmar ejecución de lote</h3>
+      <p id="confirmLoteResumen" style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.5;"></p>
+      <p style="font-size:11px;color:var(--text3);margin-bottom:20px;font-family:'IBM Plex Mono',monospace;">Esta acción modificará el stock en el sistema y no se puede deshacer. Se generará un Excel con los resultados.</p>
+      <div style="display:flex;gap:10px;">
+        <button onclick="confirmarEjecutarLote()" style="flex:2;background:var(--green);color:#000;border:none;padding:11px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;font-family:'Manrope',sans-serif;">✔ Confirmar</button>
+        <button onclick="cerrarModalConfirmLote()" style="flex:1;background:var(--card2);color:var(--text2);border:1px solid var(--border);padding:11px;border-radius:8px;font-size:13px;cursor:pointer;font-family:'Manrope',sans-serif;">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/dashboard.js"></script>
+</body>
+</html>

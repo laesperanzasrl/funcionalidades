@@ -13,12 +13,13 @@ const state = {
     sentCount: parseInt(localStorage.getItem('devCount') || '0'),
     productData: null,
     productos: [],
-    inputMode: 'cam',       // 'cam' | 'ext'
+    inputMode: 'cam',
     extDebounce: null,
     searchTimer: null,
     searchField: 'all',
     isPesable: false,
     pesoKg: null,
+    productList: [],          // ← lista de envío opcional
 };
 
 // ─────────────────────────────────────────────
@@ -93,6 +94,9 @@ const els = {
 };
 
 const MOTIVOS_VENCIMIENTO = ['CONTROL DE VENCIMIENTO'];
+
+// Sectores pesables — substring match (sin tildes, en mayúsculas)
+const SECTORES_PESABLES_KEYS = ['FIAMBRE', 'CARNICER', 'VERDULER', 'FRUTA'];
 
 // ─────────────────────────────────────────────
 // INIT
@@ -185,7 +189,6 @@ async function init() {
         els.extInput.focus();
     });
 
-    // Auto-redirect keystrokes to ext input
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             if (els.searchOverlay.classList.contains('open')) closeSearchModal();
@@ -222,7 +225,7 @@ async function init() {
         if (file) processPhoto(file);
     });
 
-    // ── Tipo de registro: restricción de fecha + descuento + badge ──
+    // ── Tipo de registro ──
     els.fEvent.addEventListener('change', () => {
         const val = els.fEvent.value;
         applyDateRestriction(val);
@@ -230,13 +233,26 @@ async function init() {
         toggleBdBadge(val);
         updateSubmitLabel(val);
         clearFieldError('fEvent');
-        // Si hay fecha cargada, re-validar al cambiar el tipo
         if (els.fExp.value) validateField('fExp');
     });
 
-    // ── Submit & clear ──
+    // ── Submit, clear, add-to-list ──
     els.btnSubmit.addEventListener('click', submitForm);
     els.btnClear.addEventListener('click', clearForm);
+
+    const btnAddList = $('btnAddList');
+    if (btnAddList) btnAddList.addEventListener('click', addToList);
+
+    const btnSendList = $('btnSendList');
+    if (btnSendList) btnSendList.addEventListener('click', sendList);
+
+    const btnClearList = $('btnClearList');
+    if (btnClearList) btnClearList.addEventListener('click', () => {
+        if (state.productList.length === 0) return;
+        state.productList = [];
+        renderProductList();
+        showToast('wrn', 'Lista vaciada.');
+    });
 
     // Live validation
     const requiredFields = ['fEmail', 'fQty', 'fExp', 'fBranch', 'fEvent'];
@@ -251,7 +267,6 @@ async function init() {
         if (!el) return;
         el.addEventListener('change', () => clearFieldError(id));
     });
-    // Re-validar fecha al cambiarla
     els.fExp.addEventListener('change', () => validateField('fExp'));
 }
 
@@ -320,6 +335,20 @@ function parsePesableEAN(ean) {
     return { interno, pesoGr, pesoKg: pesoGr / 1000 };
 }
 
+/**
+ * Detecta si un producto es pesable por su sector/sección o prefijo EAN 23.
+ * Retorna true si el usuario debe poder ingresar kg con decimales.
+ */
+function esSectorPesable(data) {
+    const sectorUp  = (data.SECTOR  || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const seccionUp = (data.SECCION || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const eanStr    = String(data.EAN || data.INTERNO || '');
+    return (
+        SECTORES_PESABLES_KEYS.some(k => sectorUp.includes(k) || seccionUp.includes(k)) ||
+        eanStr.startsWith('23')
+    );
+}
+
 async function triggerLookup(code) {
     showProductCardLoading();
     const pesable    = parsePesableEAN(code);
@@ -364,20 +393,53 @@ function fillProductData(data, pesable = null) {
     clearFieldError('fBarcode');
 
     if (pesable) {
-        els.fQty.value   = pesable.pesoKg.toFixed(3);
+        // ── Pesable con peso en EAN → campo readonly ──
+        els.fQty.value    = pesable.pesoKg.toFixed(3);
         els.fQty.readOnly = true;
         els.fQty.classList.add('qty--pesable');
+        els.fQty.setAttribute('step', '0.001');
+        els.fQty.setAttribute('min', '0.001');
         clearFieldError('fQty');
         if (els.qtyPesableHint) {
             els.qtyPesableHint.textContent = `⚖ Pesable · ${pesable.pesoGr.toLocaleString('es-AR')} g = ${pesable.pesoKg.toFixed(3)} kg`;
             els.qtyPesableHint.style.display = 'flex';
         }
+        const hintLabel = $('fQtyHint');
+        if (hintLabel) hintLabel.textContent = '(kg — automático)';
+        const eQtyEl = $('eQty');
+        if (eQtyEl) eQtyEl.textContent = 'Peso inválido.';
     } else {
+        // ── No pesable por EAN: detectar por sector ──
         els.fQty.readOnly = false;
         els.fQty.classList.remove('qty--pesable');
-        if (els.qtyPesableHint) els.qtyPesableHint.style.display = 'none';
+
+        const sectorPesable = esSectorPesable(data);
+        state.isPesable = sectorPesable;
+
+        if (sectorPesable) {
+            els.fQty.setAttribute('step', '0.001');
+            els.fQty.setAttribute('min', '0.001');
+            if (els.qtyPesableHint) {
+                const sectName = (data.SECTOR || data.SECCION || 'Pesable');
+                els.qtyPesableHint.textContent = `⚖ ${sectName} — ingresá el peso en kg (ej: 1.250)`;
+                els.qtyPesableHint.style.display = 'flex';
+            }
+            const hintLabel = $('fQtyHint');
+            if (hintLabel) hintLabel.textContent = '(kg)';
+            const eQtyEl = $('eQty');
+            if (eQtyEl) eQtyEl.textContent = 'Ingresá el peso en kg (mayor a 0).';
+        } else {
+            els.fQty.setAttribute('step', '1');
+            els.fQty.setAttribute('min', '1');
+            if (els.qtyPesableHint) els.qtyPesableHint.style.display = 'none';
+            const hintLabel = $('fQtyHint');
+            if (hintLabel) hintLabel.textContent = '(enteros)';
+            const eQtyEl = $('eQty');
+            if (eQtyEl) eQtyEl.textContent = 'Número ≥ 1';
+        }
     }
 
+    // ── Tarjeta de producto ──
     els.pcDescripcion.textContent = data.DESCRIPCION || '-';
     els.pcProveedor.textContent   = data.PROVEEDOR   || '-';
     els.pcGramaje.textContent     = data.GRAMAJE      || '-';
@@ -402,10 +464,16 @@ function fillProductData(data, pesable = null) {
     if (pesable) {
         showProductCardFound();
         els.pcState.textContent = `Pesable · ${pesable.pesoKg.toFixed(3)} kg`;
+        showToast('ok', `Pesable encontrado · ${pesable.pesoKg.toFixed(3)} kg`);
     } else {
         showProductCardFound();
+        if (state.isPesable) {
+            els.pcState.textContent = `Producto pesable — ${sector || seccion}`;
+            showToast('ok', 'Producto pesable — ingresá el peso en kg');
+        } else {
+            showToast('ok', 'Producto encontrado');
+        }
     }
-    showToast('ok', pesable ? `Pesable encontrado · ${pesable.pesoKg.toFixed(3)} kg` : 'Producto encontrado');
 }
 
 function showProductCardLoading() {
@@ -515,11 +583,14 @@ function renderSearchResults(query) {
         const intRaw  = String(p.INTERNO ?? '');
         const eanBadge = eanRaw ? `<span class="sr-ean">EAN ${highlight(eanRaw, q)}</span>` : '';
         const intBadge = intRaw && intRaw !== eanRaw ? `<span class="sr-ean sr-ean--int">INT ${highlight(intRaw, q)}</span>` : '';
-        const sect     = p.SECTOR  ? `<span class="sr-tag">${esc(p.SECTOR)}</span>`                                             : '';
-        const secc     = p.SECCION ? `<span class="sr-tag">${esc(p.SECCION)}</span>`                                            : '';
-        const gramaje  = p.GRAMAJE ? `<span class="sr-tag sr-tag--gramaje">${esc(p.GRAMAJE)}</span>`                            : '';
+        const sect     = p.SECTOR  ? `<span class="sr-tag">${esc(p.SECTOR)}</span>`  : '';
+        const secc     = p.SECCION ? `<span class="sr-tag">${esc(p.SECCION)}</span>` : '';
+        const gramaje  = p.GRAMAJE ? `<span class="sr-tag sr-tag--gramaje">${esc(p.GRAMAJE)}</span>` : '';
         const pvp      = p['PVP SUPER'] != null
             ? `<span class="sr-tag sr-tag--pvp">$${Number(p['PVP SUPER']).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>` : '';
+        // Indicador pesable
+        const isPes = esSectorPesable(p);
+        const pesBadge = isPes ? `<span class="sr-tag sr-tag--pesable">⚖ kg</span>` : '';
         return `
         <li class="sr-item" role="option" tabindex="0" data-idx="${i}">
             <div class="sr-main">
@@ -527,7 +598,7 @@ function renderSearchResults(query) {
                 <div class="sr-meta"><span class="sr-prov">${prov}</span>${eanBadge}${intBadge}</div>
             </div>
             <div class="sr-right">
-                <div class="sr-tags">${gramaje}${sect}${secc}${pvp}</div>
+                <div class="sr-tags">${gramaje}${sect}${secc}${pesBadge}${pvp}</div>
                 <svg class="sr-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                      stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
             </div>
@@ -690,10 +761,6 @@ const errorMap = {
     fExp: 'eExp', fBranch: 'eBranch', fEvent: 'eEvent', fDiscount: 'eDiscount',
 };
 
-/**
- * Retorna string "YYYY-MM-DD" de mañana (hora local del navegador, Argentina).
- * Usado para el atributo min del campo de fecha en Control de Vencimiento.
- */
 function getTomorrowStr() {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -722,18 +789,14 @@ function validateField(fieldId) {
     if (ok && rule.max !== undefined && Number(val) > rule.max) ok = false;
     if (ok && rule.integer && val && !Number.isInteger(Number(val))) ok = false;
 
-    // ── Validación especial: fecha de vencimiento ──
-    // Si el tipo de registro es "CONTROL DE VENCIMIENTO", la fecha mínima es mañana.
     if (fieldId === 'fExp' && ok && val && MOTIVOS_VENCIMIENTO.includes(els.fEvent.value)) {
         const minStr = getTomorrowStr();
         if (val < minStr) {
             ok = false;
-            // Actualizar mensaje de error dinámicamente
             const errEl = $('eExp');
             if (errEl) errEl.textContent = 'Para Control de Vencimiento la fecha debe ser a partir de mañana.';
         }
     } else {
-        // Restaurar mensaje por defecto
         const errEl = $('eExp');
         if (errEl && errEl.textContent.includes('mañana')) errEl.textContent = 'Seleccioná la fecha.';
     }
@@ -785,18 +848,10 @@ function validateAll() {
 }
 
 // ─────────────────────────────────────────────
-// ENVÍO DEL FORMULARIO
+// CONSTRUIR PAYLOAD
 // ─────────────────────────────────────────────
-async function submitForm() {
-    if (state.submitting) return;
-    if (!validateAll()) {
-        showToast('err', 'Corregí los campos marcados antes de enviar.');
-        const firstErr = document.querySelector('.ferr.show');
-        if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        return;
-    }
-
-    const payload = {
+function buildPayload() {
+    return {
         action: 'submitForm',
         usuario:  els.fEmail.value.trim(),
         sucursal: els.fBranch.value,
@@ -827,7 +882,191 @@ async function submitForm() {
         photoMime:      state.photoMime   || null,
         photoName:      state.photoName   || null,
     };
+}
 
+// ─────────────────────────────────────────────
+// LISTA DE ENVÍO OPCIONAL
+// ─────────────────────────────────────────────
+
+/**
+ * Agrega el producto actual a la lista de envío sin enviarlo.
+ * Mantiene email, sucursal y tipo de registro para el siguiente producto.
+ */
+function addToList() {
+    if (state.submitting) return;
+
+    if (!validateAll()) {
+        showToast('err', 'Corregí los campos marcados antes de agregar.');
+        const firstErr = document.querySelector('.ferr.show');
+        if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+    }
+
+    const payload = buildPayload();
+
+    // Guardar contexto de display
+    const listItem = {
+        ...payload,
+        _listId:      Date.now() + Math.random(),
+        _desc:        els.fDesc.value.trim() || els.fBarcode.value.trim() || '—',
+        _ean:         els.fBarcode.value.trim(),
+        _qty:         els.fQty.value.trim(),
+        _unit:        state.isPesable ? 'kg' : 'u.',
+        _venc:        els.fExp.value,
+        _sucursal:    els.fBranch.value,
+        _event:       payload.event,
+    };
+
+    state.productList.push(listItem);
+    renderProductList();
+
+    // Guardar campos comunes para acelerar la carga del siguiente
+    const savedEmail  = els.fEmail.value;
+    const savedBranch = els.fBranch.value;
+    const savedEvent  = els.fEvent.value;
+
+    clearFormFields();                // limpia campos del producto
+
+    // Restaurar los comunes
+    els.fEmail.value  = savedEmail;
+    els.fBranch.value = savedBranch;
+    els.fEvent.value  = savedEvent;
+    toggleBdBadge(savedEvent);
+    toggleDiscountInput(savedEvent);
+    updateSubmitLabel(savedEvent);
+    applyDateRestriction(savedEvent);
+
+    showToast('ok', `✓ Producto agregado — lista: ${state.productList.length} ítem${state.productList.length !== 1 ? 's' : ''}`);
+
+    // Scroll a la lista para que sea visible
+    const listSection = $('productListSection');
+    if (listSection) setTimeout(() => listSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+}
+
+function removeFromList(listId) {
+    state.productList = state.productList.filter(i => i._listId !== listId);
+    renderProductList();
+    if (state.productList.length === 0) showToast('wrn', 'Lista vacía.');
+}
+window.removeFromList = removeFromList; // acceso desde onclick inline
+
+function renderProductList() {
+    const section   = $('productListSection');
+    const container = $('productListContainer');
+    const sendText  = $('btnSendListText');
+    const listCount = $('listCountBadge');
+
+    if (!section) return;
+
+    if (state.productList.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = 'block';
+
+    const n = state.productList.length;
+    if (sendText) sendText.textContent = `Enviar lista (${n} producto${n !== 1 ? 's' : ''})`;
+    if (listCount) listCount.textContent = n;
+
+    if (container) {
+        container.innerHTML = state.productList.map((item) => {
+            const vencFmt = item._venc
+                ? item._venc.split('-').reverse().join('/')
+                : '—';
+            return `
+            <div class="list-item">
+                <div class="list-item-info">
+                    <div class="list-item-desc">${esc(item._desc)}</div>
+                    <div class="list-item-meta">
+                        ${item._ean ? `<span class="li-ean">EAN ${esc(item._ean)}</span>` : ''}
+                        <span>${esc(item._qty)} ${esc(item._unit)}</span>
+                        <span>Vence: ${vencFmt}</span>
+                        <span>${esc(item._sucursal)}</span>
+                        <span class="li-event">${esc(item._event)}</span>
+                    </div>
+                </div>
+                <button class="list-item-remove"
+                        onclick="removeFromList(${item._listId})"
+                        type="button"
+                        aria-label="Quitar de la lista">✕</button>
+            </div>`;
+        }).join('');
+    }
+}
+
+/**
+ * Envía todos los ítems de la lista en secuencia.
+ */
+async function sendList() {
+    if (state.submitting || state.productList.length === 0) return;
+
+    const total = state.productList.length;
+    setLoading(true);
+
+    // Actualizar el botón de la lista para mostrar progreso
+    const sendText = $('btnSendListText');
+
+    let ok = 0, err = 0;
+    const errDetails = [];
+
+    for (let i = 0; i < state.productList.length; i++) {
+        if (sendText) sendText.textContent = `Enviando ${i + 1}/${total}…`;
+
+        const item = { ...state.productList[i] };
+        // Limpiar props de display antes de enviar
+        ['_listId','_desc','_ean','_qty','_unit','_venc','_sucursal','_event'].forEach(k => delete item[k]);
+
+        try {
+            if (APPS_SCRIPT_URL === 'PEGA_AQUI_TU_URL_DE_APPS_SCRIPT') {
+                await delay(400);
+                ok++;
+            } else {
+                const res = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(item),
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                if (data.success) ok++;
+                else { err++; errDetails.push(data.message || 'Error desconocido'); }
+            }
+        } catch (e) {
+            err++;
+            errDetails.push(e.message);
+            console.error('sendList item error:', e);
+        }
+    }
+
+    setLoading(false);
+
+    if (err === 0) {
+        state.sentCount += ok;
+        localStorage.setItem('devCount', state.sentCount);
+        updateCounter();
+        state.productList = [];
+        renderProductList();
+        showToast('ok', `✓ ${ok} registro${ok !== 1 ? 's' : ''} enviados correctamente`, 5000);
+    } else {
+        const n = state.productList.length;
+        if (sendText) sendText.textContent = `Enviar lista (${n} producto${n !== 1 ? 's' : ''})`;
+        showToast('err', `${ok} enviados · ${err} con error. Revisá la conexión.`, 7000);
+    }
+}
+
+// ─────────────────────────────────────────────
+// ENVÍO INDIVIDUAL
+// ─────────────────────────────────────────────
+async function submitForm() {
+    if (state.submitting) return;
+    if (!validateAll()) {
+        showToast('err', 'Corregí los campos marcados antes de enviar.');
+        const firstErr = document.querySelector('.ferr.show');
+        if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+    }
+
+    const payload = buildPayload();
     setLoading(true);
 
     if (APPS_SCRIPT_URL === 'PEGA_AQUI_TU_URL_DE_APPS_SCRIPT') {
@@ -848,7 +1087,6 @@ async function submitForm() {
         if (data.success) {
             handleSuccess(data);
         } else {
-            // Errores de validación de stock — mostrar con duración mayor
             setLoading(false);
             const duration = (data.errorType === 'NO_STOCK_RECORD' || data.errorType === 'STOCK_INSUFICIENTE')
                 ? 7000 : 4000;
@@ -861,12 +1099,6 @@ async function submitForm() {
     }
 }
 
-/**
- * Maneja el éxito del envío con mensajes diferenciados:
- *  - action 'updated': stock sumado a registro existente
- *  - action 'created', bd 'vencimientos': nuevo control de vencimiento
- *  - action 'created', bd 'devoluciones': nueva acción/devolución
- */
 function handleSuccess(result = {}) {
     setLoading(false);
     state.sentCount++;
@@ -886,6 +1118,41 @@ function handleSuccess(result = {}) {
     clearForm();
 }
 
+// Limpia solo los campos del producto (usado en addToList)
+function clearFormFields() {
+    ['fQty', 'fExp', 'fNote', 'fLot', 'fComment'].forEach(id => {
+        const el = $(id);
+        if (el) { el.value = ''; el.classList.remove('err'); }
+    });
+    els.fBarcode.value = '';
+    els.fDesc.value    = '';
+
+    // Reset pesable
+    state.isPesable = false;
+    state.pesoKg    = null;
+    els.fQty.readOnly = false;
+    els.fQty.classList.remove('qty--pesable');
+    els.fQty.setAttribute('step', '1');
+    els.fQty.setAttribute('min', '1');
+    if (els.qtyPesableHint) els.qtyPesableHint.style.display = 'none';
+    const hintLabel = $('fQtyHint');
+    if (hintLabel) hintLabel.textContent = '(enteros)';
+    const eQtyEl = $('eQty');
+    if (eQtyEl) eQtyEl.textContent = 'Número ≥ 1';
+
+    document.querySelectorAll('.ferr').forEach((el) => el.classList.remove('show'));
+    els.scannedOk.classList.remove('show');
+
+    if (els.extInput) {
+        els.extInput.value = '';
+        els.extInput.classList.remove('ext-input--reading', 'ext-input--found');
+        els.btnExtClear.style.display = 'none';
+        setExtStatus('ready', 'Listo — esperando lectura');
+    }
+    removePhoto();
+    hideProductCard();
+}
+
 function clearForm() {
     document.querySelectorAll('input:not(#fPhoto):not(#extInput), select, textarea').forEach((el) => {
         if (el.type !== 'hidden') el.value = '';
@@ -895,20 +1162,27 @@ function clearForm() {
     els.fDesc.value    = '';
     els.discountWrap.style.display = 'none';
     els.fDiscount.value = '';
-    // Reset fecha — quitar restricciones
+
+    // Reset fecha
     els.fExp.removeAttribute('min');
     els.fExp.removeAttribute('max');
+
     // Reset pesable
     state.isPesable = false;
     state.pesoKg    = null;
     els.fQty.readOnly = false;
     els.fQty.classList.remove('qty--pesable');
+    els.fQty.setAttribute('step', '1');
+    els.fQty.setAttribute('min', '1');
     if (els.qtyPesableHint) els.qtyPesableHint.style.display = 'none';
+    const hintLabel = $('fQtyHint');
+    if (hintLabel) hintLabel.textContent = '(enteros)';
+    const eQtyEl = $('eQty');
+    if (eQtyEl) eQtyEl.textContent = 'Número ≥ 1';
 
     document.querySelectorAll('.ferr').forEach((el) => el.classList.remove('show'));
     els.scannedOk.classList.remove('show');
 
-    // Reset badge y label
     const badge = $('bdBadge');
     if (badge) badge.style.display = 'none';
     const btnText = $('btnText');
@@ -937,22 +1211,11 @@ function toggleDiscountInput(motivo) {
 // ─────────────────────────────────────────────
 // RESTRICCIÓN DE FECHA
 // ─────────────────────────────────────────────
-
-/**
- * Para "CONTROL DE VENCIMIENTO": la fecha mínima es mañana (no se puede
- * cargar stock de un producto que ya venció o vence hoy).
- *
- * FIX TIMEZONE ARGENTINA:
- * Usamos hora local del navegador para calcular "mañana".
- * El string "YYYY-MM-DD" que devuelve el input <type="date"> ya está
- * en hora local, así que la comparación con el string de mañana es directa.
- */
 function applyDateRestriction(motivo) {
     if (MOTIVOS_VENCIMIENTO.includes(motivo)) {
         const tomorrow = getTomorrowStr();
         els.fExp.setAttribute('min', tomorrow);
         els.fExp.removeAttribute('max');
-        // Si ya hay una fecha cargada que no cumple el mínimo, limpiarla
         if (els.fExp.value && els.fExp.value < tomorrow) {
             els.fExp.value = '';
             showToast('wrn', 'La fecha de vencimiento debe ser a partir de mañana.');
@@ -967,8 +1230,13 @@ function applyDateRestriction(motivo) {
 // UI HELPERS
 // ─────────────────────────────────────────────
 function setLoading(on) {
-    state.submitting     = on;
+    state.submitting       = on;
     els.btnSubmit.disabled = on;
+
+    const btnAddList  = $('btnAddList');
+    const btnSendList = $('btnSendList');
+    if (btnAddList)  btnAddList.disabled  = on;
+    if (btnSendList) btnSendList.disabled = on;
 
     if (on) {
         if (typeof window.showSendingOverlay === 'function') window.showSendingOverlay();

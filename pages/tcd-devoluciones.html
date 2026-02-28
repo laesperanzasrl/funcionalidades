@@ -14,8 +14,8 @@
     <link rel="icon" type="image/x-icon" href="../favicon.ico">
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
 
-    <!-- ══ ESTILOS: overlay de envío ══ -->
     <style>
+        /* ── Overlay de envío ── */
         #sendingOverlay {
             display: none;
             position: fixed;
@@ -29,32 +29,174 @@
             flex-direction: column;
             gap: 16px;
         }
-
-        #sendingOverlay.active {
-            display: flex;
-        }
-
+        #sendingOverlay.active { display: flex; }
         .sending-spinner {
-            width: 48px;
-            height: 48px;
+            width: 48px; height: 48px;
             border: 4px solid rgba(255, 255, 255, 0.15);
             border-top-color: #fff;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
+        @keyframes spin { to { transform: rotate(360deg); } }
         .sending-label {
             color: #fff;
             font-family: 'Plus Jakarta Sans', sans-serif;
             font-size: 15px;
             font-weight: 600;
             letter-spacing: 0.02em;
+        }
+
+        /* ── Badge pesable en resultados de búsqueda ── */
+        .sr-tag--pesable {
+            color: #67e8f9;
+            background: rgba(103, 232, 249, 0.08);
+            border-color: rgba(103, 232, 249, 0.2);
+            font-family: 'IBM Plex Mono', monospace;
+            font-weight: 600;
+        }
+
+        /* ── Botón Agregar a lista ── */
+        .btn-add-list {
+            width: 100%;
+            background: rgba(34, 197, 94, 0.07);
+            border: 1.5px solid rgba(34, 197, 94, 0.28);
+            border-radius: 12px;
+            padding: 13px 16px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            color: #22c55e;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: background 0.15s, border-color 0.15s, transform 0.1s;
+            touch-action: manipulation;
+        }
+        .btn-add-list:hover {
+            background: rgba(34, 197, 94, 0.13);
+            border-color: rgba(34, 197, 94, 0.5);
+        }
+        .btn-add-list:active { transform: scale(0.98); }
+        .btn-add-list:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* ── Sección de lista de envío ── */
+        .list-section { margin-top: 24px; }
+
+        .list-empty-hint {
+            text-align: center;
+            padding: 22px 16px;
+            color: #55524f;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+        }
+
+        /* ── Ítem de la lista ── */
+        .list-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #2c2c2c;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .list-item:last-child { border-bottom: none; }
+
+        .list-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .list-item-desc {
+            font-size: 13px;
+            font-weight: 700;
+            color: #eeece9;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .list-item-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 4px;
+            align-items: center;
+        }
+
+        .list-item-meta span {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10.5px;
+            color: #8f8b85;
+            white-space: nowrap;
+        }
+
+        .li-ean {
+            background: rgba(249, 115, 22, 0.1);
+            color: #f97316 !important;
+            border-radius: 4px;
+            padding: 1px 5px;
+        }
+
+        .li-event {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            padding: 1px 5px;
+            color: #8f8b85 !important;
+        }
+
+        .list-item-remove {
+            width: 30px;
+            height: 30px;
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.22);
+            border-radius: 8px;
+            color: #ef4444;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: background 0.15s, color 0.15s;
+        }
+        .list-item-remove:hover { background: #ef4444; color: #fff; }
+
+        /* ── Botones de la lista ── */
+        .btn-submit--list {
+            background: #16a34a !important;
+            box-shadow: 0 6px 22px rgba(22, 163, 74, 0.35) !important;
+        }
+        .btn-submit--list:hover {
+            background: #15803d !important;
+            box-shadow: 0 8px 28px rgba(22, 163, 74, 0.48) !important;
+        }
+        .btn-submit--list:disabled {
+            background: #2b2b2b !important;
+            box-shadow: none !important;
+            color: #55524f !important;
+        }
+
+        /* ── Separador entre acciones ── */
+        .submit-divider {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #3a3a3a;
+            font-size: 10px;
+            font-family: 'IBM Plex Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        .submit-divider::before,
+        .submit-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #2c2c2c;
         }
     </style>
 </head>
@@ -199,8 +341,7 @@
                     <button class="mode-tab mode-tab--active" id="modeTabCam">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
                             stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-                            <path
-                                d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
+                            <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
                         </svg>
                         Cámara / Búsqueda
                     </button>
@@ -222,8 +363,7 @@
                         <button class="action-btn action-btn--scan" id="btnOpenScanner" type="button">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
                                 stroke-linecap="round" stroke-linejoin="round">
-                                <path
-                                    d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
+                                <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
                                 <line x1="7" y1="8" x2="7" y2="16" />
                                 <line x1="10" y1="8" x2="10" y2="16" />
                                 <line x1="13" y1="8" x2="13" y2="16" />
@@ -322,7 +462,7 @@
                     <label for="fQty" id="fQtyLabel">Cantidad <span class="req">*</span>
                         <span class="label-hint" id="fQtyHint">(enteros)</span>
                     </label>
-                    <input type="number" id="fQty" placeholder="0" min="1" step="1" inputmode="numeric" />
+                    <input type="number" id="fQty" placeholder="0" min="1" step="1" inputmode="decimal" />
                     <div class="qty-pesable-hint" id="qtyPesableHint" style="display:none"></div>
                     <div class="ferr" id="eQty">Número ≥ 1</div>
                 </div>
@@ -358,15 +498,9 @@
                 <label for="fEvent">Tipo de registro <span class="req">*</span></label>
                 <select id="fEvent">
                     <option value="">Elegir...</option>
-
-                    <!-- ══ CONTROL DE VENCIMIENTO — DESHABILITADO ══ -->
                     <optgroup label="── Control de vencimiento ──" style="color: aqua;">
-                        <option value="CONTROL DE VENCIMIENTO">
-                            Control de vencimiento
-                        </option>
+                        <option value="CONTROL DE VENCIMIENTO">Control de vencimiento</option>
                     </optgroup>
-
-                    <!-- ══ ACCIONES / DEVOLUCIONES ══ -->
                     <optgroup label="── Acciones sobre producto ──" style="color:chartreuse;">
                         <option value="ACCION 2X1">Acción 2x1</option>
                         <option value="VENCIDO ACCION 2x1">Vencido de acción 2x1</option>
@@ -418,8 +552,7 @@
                             <button class="photo-btn-cam" id="btnCamera" type="button">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                     stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-                                    <path
-                                        d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                                     <circle cx="12" cy="13" r="4" />
                                 </svg>
                                 Cámara
@@ -471,10 +604,55 @@
 
         <!-- ─── SUBMIT ─── -->
         <div class="submit-wrap">
+
+            <!-- Envío individual (comportamiento original) -->
             <button class="btn-submit" id="btnSubmit" type="button">
                 <span id="btnText">Enviar formulario</span>
             </button>
+
+            <!-- Separador opcional -->
+            <div class="submit-divider">o agregá a una lista</div>
+
+            <!-- Botón para sumar a lista sin enviar aún -->
+            <button class="btn-add-list" id="btnAddList" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Agregar a lista de envío
+            </button>
+
             <button class="btn-clear" id="btnClear" type="button">Borrar formulario</button>
+        </div>
+
+        <!-- ══════════ LISTA DE ENVÍO OPCIONAL ══════════
+             Se muestra automáticamente al agregar el primer producto.
+             Permite enviar varios registros de una sola vez.
+        ══════════ -->
+        <div id="productListSection" class="list-section" style="display:none">
+            <div class="sec" style="margin-top:0">
+                <span class="sec-num" style="background:rgba(34,197,94,0.12);color:#22c55e;border-color:rgba(34,197,94,0.3)">📋</span>
+                <span class="sec-label">Lista de envío</span>
+                <span class="sec-line"></span>
+                <span id="listCountBadge"
+                    style="font-family:'IBM Plex Mono',monospace;font-size:11px;background:rgba(34,197,94,0.1);color:#22c55e;border:1px solid rgba(34,197,94,0.25);border-radius:100px;padding:3px 10px;white-space:nowrap">
+                    0
+                </span>
+            </div>
+
+            <div class="card">
+                <div id="productListContainer">
+                    <!-- ítems renderizados por JS -->
+                </div>
+            </div>
+
+            <div class="submit-wrap" style="margin-top: 12px;">
+                <button class="btn-submit btn-submit--list" id="btnSendList" type="button">
+                    <span id="btnSendListText">Enviar lista (0 productos)</span>
+                </button>
+                <button class="btn-clear" id="btnClearList" type="button">Vaciar lista</button>
+            </div>
         </div>
 
     </main>
@@ -487,18 +665,12 @@
 
     <script src="../js/tcd-devoluciones.js" defer></script>
 
-    <!-- ══════════ OVERLAY DE ENVÍO — lógica ══════════
-         Expone window.showSendingOverlay() y window.hideSendingOverlay()
-         para que tcd-devoluciones.js los llame antes/después del fetch.
-         Si el JS externo ya llama a esos helpers, este bloque no interfiere.
-    ══════════ -->
     <script>
         (function () {
             var overlay = document.getElementById('sendingOverlay');
 
             window.showSendingOverlay = function () {
                 overlay.classList.add('active');
-                // Bloquea todo el documento menos el overlay
                 document.body.style.pointerEvents = 'none';
                 overlay.style.pointerEvents = 'auto';
             };
@@ -508,8 +680,6 @@
                 document.body.style.pointerEvents = '';
             };
 
-            // Seguridad: si el JS externo nunca llama a hideSendingOverlay
-            // (p.ej. por un error no capturado), lo ocultamos tras 60 s.
             window.showSendingOverlay = (function (orig) {
                 return function () {
                     orig();
