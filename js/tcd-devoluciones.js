@@ -19,7 +19,7 @@ const state = {
     searchField: 'all',
     isPesable: false,
     pesoKg: null,
-    productList: [],          // ← lista de envío opcional
+    productList: [],
 };
 
 // ─────────────────────────────────────────────
@@ -83,8 +83,8 @@ const els = {
     fNote: $('fNote'),
     fLot: $('fLot'),
     fComment: $('fComment'),
-    btnSubmit: $('btnSubmit'),
-    btnText: $('btnText'),
+    btnAddList: $('btnAddList'),
+    btnAddText: $('btnAddText'),
     btnClear: $('btnClear'),
     toast: $('toast'),
     toastMsg: $('toastMsg'),
@@ -94,8 +94,6 @@ const els = {
 };
 
 const MOTIVOS_VENCIMIENTO = ['CONTROL DE VENCIMIENTO'];
-
-// Sectores pesables — substring match (sin tildes, en mayúsculas)
 const SECTORES_PESABLES_KEYS = ['FIAMBRE', 'CARNICER', 'VERDULER', 'FRUTA'];
 
 // ─────────────────────────────────────────────
@@ -109,6 +107,10 @@ async function init() {
     }
 
     updateCounter();
+
+    if (!dentroDelHorario()) {
+        showToast('wrn', mensajeHorario(), 9000);
+    }
 
     // ── Mode switcher ──
     function setInputMode(mode) {
@@ -231,18 +233,16 @@ async function init() {
         applyDateRestriction(val);
         toggleDiscountInput(val);
         toggleBdBadge(val);
-        updateSubmitLabel(val);
+        updateAddButtonLabel(val);
         clearFieldError('fEvent');
         if (els.fExp.value) validateField('fExp');
     });
 
-    // ── Submit, clear, add-to-list ──
-    els.btnSubmit.addEventListener('click', submitForm);
+    // ── Botón principal: agregar a lista ──
+    els.btnAddList.addEventListener('click', addToList);
     els.btnClear.addEventListener('click', clearForm);
 
-    const btnAddList = $('btnAddList');
-    if (btnAddList) btnAddList.addEventListener('click', addToList);
-
+    // ── Botones de la lista ──
     const btnSendList = $('btnSendList');
     if (btnSendList) btnSendList.addEventListener('click', sendList);
 
@@ -255,14 +255,12 @@ async function init() {
     });
 
     // Live validation
-    // DESPUÉS
     const requiredFields = ['fEmail', 'fQty', 'fExp', 'fBranch', 'fEvent'];
     requiredFields.forEach((id) => {
         const el = $(id);
         if (!el) return;
         el.addEventListener('blur', () => validateField(id));
         el.addEventListener('input', () => {
-            // Normalizar coma → punto para usuarios AR/ES en campo cantidad
             if (id === 'fQty' && el.value.includes(',')) {
                 const pos = el.selectionStart;
                 el.value = el.value.replace(',', '.');
@@ -277,6 +275,9 @@ async function init() {
         el.addEventListener('change', () => clearFieldError(id));
     });
     els.fExp.addEventListener('change', () => validateField('fExp'));
+
+    // Renderizar lista (estado vacío inicial)
+    renderProductList();
 }
 
 document.addEventListener('DOMContentLoaded', init);
@@ -296,11 +297,13 @@ function toggleBdBadge(motivo) {
     badge.style.display = 'flex';
 }
 
-function updateSubmitLabel(motivo) {
-    const btnText = $('btnText');
-    if (!btnText) return;
+// Actualiza el label del botón principal según el tipo de registro
+function updateAddButtonLabel(motivo) {
+    if (!els.btnAddText) return;
     const esVen = MOTIVOS_VENCIMIENTO.includes(motivo);
-    btnText.textContent = esVen ? 'Registrar control de vencimiento' : 'Enviar acción / devolución';
+    els.btnAddText.textContent = esVen
+        ? 'Agregar control de vencimiento'
+        : 'Agregar al envío';
 }
 
 // ─────────────────────────────────────────────
@@ -344,10 +347,6 @@ function parsePesableEAN(ean) {
     return { interno, pesoGr, pesoKg: pesoGr / 1000 };
 }
 
-/**
- * Detecta si un producto es pesable por su sector/sección o prefijo EAN 23.
- * Retorna true si el usuario debe poder ingresar kg con decimales.
- */
 function esSectorPesable(data) {
     const sectorUp = (data.SECTOR || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const seccionUp = (data.SECCION || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -402,7 +401,6 @@ function fillProductData(data, pesable = null) {
     clearFieldError('fBarcode');
 
     if (pesable) {
-        // ── Pesable con peso en EAN → campo readonly ──
         els.fQty.value = pesable.pesoKg.toFixed(3);
         els.fQty.readOnly = true;
         els.fQty.classList.add('qty--pesable');
@@ -418,7 +416,6 @@ function fillProductData(data, pesable = null) {
         const eQtyEl = $('eQty');
         if (eQtyEl) eQtyEl.textContent = 'Peso inválido.';
     } else {
-        // ── No pesable por EAN: detectar por sector ──
         els.fQty.readOnly = false;
         els.fQty.classList.remove('qty--pesable');
 
@@ -448,7 +445,6 @@ function fillProductData(data, pesable = null) {
         }
     }
 
-    // ── Tarjeta de producto ──
     els.pcDescripcion.textContent = data.DESCRIPCION || '-';
     els.pcProveedor.textContent = data.PROVEEDOR || '-';
     els.pcGramaje.textContent = data.GRAMAJE || '-';
@@ -597,7 +593,6 @@ function renderSearchResults(query) {
         const gramaje = p.GRAMAJE ? `<span class="sr-tag sr-tag--gramaje">${esc(p.GRAMAJE)}</span>` : '';
         const pvp = p['PVP SUPER'] != null
             ? `<span class="sr-tag sr-tag--pvp">$${Number(p['PVP SUPER']).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>` : '';
-        // Indicador pesable
         const isPes = esSectorPesable(p);
         const pesBadge = isPes ? `<span class="sr-tag sr-tag--pesable">⚖ kg</span>` : '';
         return `
@@ -799,7 +794,7 @@ function validateField(fieldId) {
         const isName = val.trim().length >= 3;
         if (!isEmail && !isName) ok = false;
     }
-    const numVal = Number(val.replace(',', '.'));   // ← normaliza coma AR
+    const numVal = Number(val.replace(',', '.'));
     if (ok && rule.min !== undefined && (isNaN(numVal) || numVal < rule.min)) ok = false;
     if (ok && rule.max !== undefined && numVal > rule.max) ok = false;
     if (ok && rule.integer && val && !Number.isInteger(numVal)) ok = false;
@@ -839,7 +834,6 @@ function clearFieldError(fieldId) {
 function validateAll() {
     let allOk = true;
 
-    // Ajustar regla de cantidad según tipo de producto
     validationRules.fQty = state.isPesable
         ? { required: true, min: 0.001 }
         : { required: true, min: 1, integer: true };
@@ -900,15 +894,20 @@ function buildPayload() {
 }
 
 // ─────────────────────────────────────────────
-// LISTA DE ENVÍO OPCIONAL
+// AGREGAR A LISTA
 // ─────────────────────────────────────────────
 
 /**
- * Agrega el producto actual a la lista de envío sin enviarlo.
- * Mantiene email, sucursal y tipo de registro para el siguiente producto.
+ * Valida el formulario y agrega el ítem a la lista de envío.
+ * Conserva email, sucursal y tipo de registro para agilizar la carga del próximo.
  */
 function addToList() {
     if (state.submitting) return;
+
+    if (!dentroDelHorario()) {
+        showToast('err', mensajeHorario(), 7000);
+        return;
+    }
 
     if (!validateAll()) {
         showToast('err', 'Corregí los campos marcados antes de agregar.');
@@ -919,7 +918,6 @@ function addToList() {
 
     const payload = buildPayload();
 
-    // Guardar contexto de display
     const listItem = {
         ...payload,
         _listId: Date.now() + Math.random(),
@@ -935,25 +933,27 @@ function addToList() {
     state.productList.push(listItem);
     renderProductList();
 
-    // Guardar campos comunes para acelerar la carga del siguiente
+    // Conservar campos comunes para acelerar el próximo producto
     const savedEmail = els.fEmail.value;
     const savedBranch = els.fBranch.value;
     const savedEvent = els.fEvent.value;
+    const savedDiscount = els.fDiscount.value;
 
-    clearFormFields();                // limpia campos del producto
+    clearFormFields();
 
-    // Restaurar los comunes
     els.fEmail.value = savedEmail;
     els.fBranch.value = savedBranch;
     els.fEvent.value = savedEvent;
+    els.fDiscount.value = savedDiscount;
     toggleBdBadge(savedEvent);
     toggleDiscountInput(savedEvent);
-    updateSubmitLabel(savedEvent);
+    updateAddButtonLabel(savedEvent);
     applyDateRestriction(savedEvent);
 
-    showToast('ok', `✓ Producto agregado — lista: ${state.productList.length} ítem${state.productList.length !== 1 ? 's' : ''}`);
+    const n = state.productList.length;
+    showToast('ok', `✓ Agregado — lista: ${n} ítem${n !== 1 ? 's' : ''}`);
 
-    // Scroll a la lista para que sea visible
+    // Scroll suave hacia la lista
     const listSection = $('productListSection');
     if (listSection) setTimeout(() => listSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
 }
@@ -963,73 +963,86 @@ function removeFromList(listId) {
     renderProductList();
     if (state.productList.length === 0) showToast('wrn', 'Lista vacía.');
 }
-window.removeFromList = removeFromList; // acceso desde onclick inline
+window.removeFromList = removeFromList;
 
 function renderProductList() {
-    const section = $('productListSection');
     const container = $('productListContainer');
+    const sendBtn = $('btnSendList');
     const sendText = $('btnSendListText');
     const listCount = $('listCountBadge');
+    const emptyState = $('listEmptyState');
 
-    if (!section) return;
+    const n = state.productList.length;
 
-    if (state.productList.length === 0) {
-        section.style.display = 'none';
+    if (listCount) listCount.textContent = n;
+
+    if (sendBtn) sendBtn.disabled = n === 0;
+
+    if (sendText) {
+        sendText.textContent = n === 0
+            ? 'Enviar (0 productos)'
+            : `Enviar ${n} producto${n !== 1 ? 's' : ''}`;
+    }
+
+    if (!container) return;
+
+    if (n === 0) {
+        container.innerHTML = `
+            <div class="list-empty-state" id="listEmptyState">
+                <div class="list-empty-icon">📭</div>
+                <div class="list-empty-label">
+                    Completá el formulario y tocá<br>
+                    <strong style="color:#8f8b85">"Agregar al envío"</strong> para sumar productos.
+                </div>
+            </div>`;
         return;
     }
 
-    section.style.display = 'block';
-
-    const n = state.productList.length;
-    if (sendText) sendText.textContent = `Enviar lista (${n} producto${n !== 1 ? 's' : ''})`;
-    if (listCount) listCount.textContent = n;
-
-    if (container) {
-        container.innerHTML = state.productList.map((item) => {
-            const vencFmt = item._venc
-                ? item._venc.split('-').reverse().join('/')
-                : '—';
-            return `
-            <div class="list-item">
-                <div class="list-item-info">
-                    <div class="list-item-desc">${esc(item._desc)}</div>
-                    <div class="list-item-meta">
-                        ${item._ean ? `<span class="li-ean">EAN ${esc(item._ean)}</span>` : ''}
-                        <span>${esc(item._qty)} ${esc(item._unit)}</span>
-                        <span>Vence: ${vencFmt}</span>
-                        <span>${esc(item._sucursal)}</span>
-                        <span class="li-event">${esc(item._event)}</span>
-                    </div>
+    container.innerHTML = state.productList.map((item) => {
+        const vencFmt = item._venc
+            ? item._venc.split('-').reverse().join('/')
+            : '—';
+        return `
+        <div class="list-item">
+            <div class="list-item-info">
+                <div class="list-item-desc">${esc(item._desc)}</div>
+                <div class="list-item-meta">
+                    ${item._ean ? `<span class="li-ean">EAN ${esc(item._ean)}</span>` : ''}
+                    <span>${esc(item._qty)} ${esc(item._unit)}</span>
+                    <span>Vence: ${vencFmt}</span>
+                    <span>${esc(item._sucursal)}</span>
+                    <span class="li-event">${esc(item._event)}</span>
                 </div>
-                <button class="list-item-remove"
-                        onclick="removeFromList(${item._listId})"
-                        type="button"
-                        aria-label="Quitar de la lista">✕</button>
-            </div>`;
-        }).join('');
-    }
+            </div>
+            <button class="list-item-remove"
+                    onclick="removeFromList(${item._listId})"
+                    type="button"
+                    aria-label="Quitar de la lista">✕</button>
+        </div>`;
+    }).join('');
 }
 
-/**
- * Envía todos los ítems de la lista en secuencia.
- */
+// ─────────────────────────────────────────────
+// ENVÍO DE LA LISTA
+// ─────────────────────────────────────────────
 async function sendList() {
     if (state.submitting || state.productList.length === 0) return;
+
+    if (!dentroDelHorario()) {
+        showToast('err', mensajeHorario(), 7000);
+        return;
+    }
 
     const total = state.productList.length;
     setLoading(true);
 
-    // Actualizar el botón de la lista para mostrar progreso
     const sendText = $('btnSendListText');
-
     let ok = 0, err = 0;
-    const errDetails = [];
 
     for (let i = 0; i < state.productList.length; i++) {
-        if (sendText) sendText.textContent = `Enviando ${i + 1}/${total}…`;
+        if (sendText) sendText.textContent = `Enviando ${i + 1} de ${total}…`;
 
         const item = { ...state.productList[i] };
-        // Limpiar props de display antes de enviar
         ['_listId', '_desc', '_ean', '_qty', '_unit', '_venc', '_sucursal', '_event'].forEach(k => delete item[k]);
 
         try {
@@ -1044,11 +1057,10 @@ async function sendList() {
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
                 if (data.success) ok++;
-                else { err++; errDetails.push(data.message || 'Error desconocido'); }
+                else err++;
             }
         } catch (e) {
             err++;
-            errDetails.push(e.message);
             console.error('sendList item error:', e);
         }
     }
@@ -1063,77 +1075,14 @@ async function sendList() {
         renderProductList();
         showToast('ok', `✓ ${ok} registro${ok !== 1 ? 's' : ''} enviados correctamente`, 5000);
     } else {
-        const n = state.productList.length;
-        if (sendText) sendText.textContent = `Enviar lista (${n} producto${n !== 1 ? 's' : ''})`;
+        renderProductList(); // refresca el contador del botón
         showToast('err', `${ok} enviados · ${err} con error. Revisá la conexión.`, 7000);
     }
 }
 
 // ─────────────────────────────────────────────
-// ENVÍO INDIVIDUAL
+// LIMPIAR CAMPOS (sin tocar email/sucursal/tipo)
 // ─────────────────────────────────────────────
-async function submitForm() {
-    if (state.submitting) return;
-    if (!validateAll()) {
-        showToast('err', 'Corregí los campos marcados antes de enviar.');
-        const firstErr = document.querySelector('.ferr.show');
-        if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        return;
-    }
-
-    const payload = buildPayload();
-    setLoading(true);
-
-    if (APPS_SCRIPT_URL === 'PEGA_AQUI_TU_URL_DE_APPS_SCRIPT') {
-        console.log('📋 [DEMO MODE] Datos que se enviarían:', payload);
-        await delay(1500);
-        handleSuccess({ action: 'created', bd: 'devoluciones' });
-        return;
-    }
-
-    try {
-        const response = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify(payload),
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-
-        if (data.success) {
-            handleSuccess(data);
-        } else {
-            setLoading(false);
-            const duration = (data.errorType === 'NO_STOCK_RECORD' || data.errorType === 'STOCK_INSUFICIENTE')
-                ? 7000 : 4000;
-            showToast('err', data.message || 'Error desconocido del servidor.', duration);
-        }
-    } catch (err) {
-        console.error('Error al enviar:', err);
-        setLoading(false);
-        showToast('err', 'No se pudo guardar. Verificá la conexión.');
-    }
-}
-
-function handleSuccess(result = {}) {
-    setLoading(false);
-    state.sentCount++;
-    localStorage.setItem('devCount', state.sentCount);
-    updateCounter();
-
-    let msg;
-    if (result.action === 'updated') {
-        msg = `✓ Stock actualizado · antes: ${result.cantidadAnterior} → ahora: ${result.cantidadNueva} u.`;
-    } else if (result.bd === 'vencimientos') {
-        msg = '✓ Control de vencimiento registrado correctamente';
-    } else {
-        msg = '✓ Acción/Devolución registrada correctamente';
-    }
-
-    showToast('ok', msg, 4500);
-    clearForm();
-}
-
-// Limpia solo los campos del producto (usado en addToList)
 function clearFormFields() {
     ['fQty', 'fExp', 'fNote', 'fLot', 'fComment'].forEach(id => {
         const el = $(id);
@@ -1142,7 +1091,6 @@ function clearFormFields() {
     els.fBarcode.value = '';
     els.fDesc.value = '';
 
-    // Reset pesable
     state.isPesable = false;
     state.pesoKg = null;
     els.fQty.readOnly = false;
@@ -1177,12 +1125,9 @@ function clearForm() {
     els.fDesc.value = '';
     els.discountWrap.style.display = 'none';
     els.fDiscount.value = '';
-
-    // Reset fecha
     els.fExp.removeAttribute('min');
     els.fExp.removeAttribute('max');
 
-    // Reset pesable
     state.isPesable = false;
     state.pesoKg = null;
     els.fQty.readOnly = false;
@@ -1200,8 +1145,8 @@ function clearForm() {
 
     const badge = $('bdBadge');
     if (badge) badge.style.display = 'none';
-    const btnText = $('btnText');
-    if (btnText) btnText.textContent = 'Enviar formulario';
+
+    if (els.btnAddText) els.btnAddText.textContent = 'Agregar al envío';
 
     if (els.extInput) {
         els.extInput.value = '';
@@ -1246,31 +1191,30 @@ function applyDateRestriction(motivo) {
 // ─────────────────────────────────────────────
 function setLoading(on) {
     state.submitting = on;
-    els.btnSubmit.disabled = on;
 
     const btnAddList = $('btnAddList');
     const btnSendList = $('btnSendList');
+    const btnClearList = $('btnClearList');
+
     if (btnAddList) btnAddList.disabled = on;
-    if (btnSendList) btnSendList.disabled = on;
+    if (btnClearList) btnClearList.disabled = on;
+
+    if (btnSendList) {
+        btnSendList.disabled = on || state.productList.length === 0;
+    }
 
     if (on) {
         if (typeof window.showSendingOverlay === 'function') window.showSendingOverlay();
     } else {
         if (typeof window.hideSendingOverlay === 'function') window.hideSendingOverlay();
-    }
-
-    if (on) {
-        els.btnText.textContent = 'Enviando...';
-        const sp = document.createElement('div');
-        sp.className = 'spinner'; sp.id = '_spinner';
-        els.btnSubmit.insertBefore(sp, els.btnText);
-    } else {
-        const currentMotivo = els.fEvent.value;
-        els.btnText.textContent = MOTIVOS_VENCIMIENTO.includes(currentMotivo)
-            ? 'Registrar control de vencimiento'
-            : 'Enviar acción / devolución';
-        const sp = $('_spinner');
-        if (sp) sp.remove();
+        // Restaurar texto del botón enviar
+        const sendText = $('btnSendListText');
+        if (sendText) {
+            const n = state.productList.length;
+            sendText.textContent = n === 0
+                ? 'Enviar (0 productos)'
+                : `Enviar ${n} producto${n !== 1 ? 's' : ''}`;
+        }
     }
 }
 
@@ -1323,4 +1267,33 @@ function esc(str) {
     return String(str)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;')
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+
+// ─────────────────────────────────────────────
+// RESTRICCIÓN HORARIA
+// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// RESTRICCIÓN HORARIA
+// ─────────────────────────────────────────────
+const HORARIO = {
+    diasHabiles: [1, 2, 3, 4, 5], // 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
+    inicio: { h: 9, m: 0 },
+    fin: { h: 12, m: 0 },
+};
+
+function dentroDelHorario() {
+    const now = new Date();
+    const dia = now.getDay();
+    const hoy = now.getHours() * 60 + now.getMinutes();
+    const ini = HORARIO.inicio.h * 60 + HORARIO.inicio.m;
+    const fin = HORARIO.fin.h * 60 + HORARIO.fin.m;
+    return HORARIO.diasHabiles.includes(dia) && hoy >= ini && hoy < fin;
+}
+
+function mensajeHorario() {
+    const pad = n => String(n).padStart(2, '0');
+    return `El formulario está disponible solo de lunes a viernes, `
+        + `de ${pad(HORARIO.inicio.h)}:${pad(HORARIO.inicio.m)} `
+        + `a ${pad(HORARIO.fin.h)}:${pad(HORARIO.fin.m)} hs.`;
 }

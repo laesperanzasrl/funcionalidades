@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#0d0d0d" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <title>FORMULARIO DE ACCIONES Y VENCIDOS</title>
+    <title>FORMULARIO DE ACCIONES Y VENCIMIENTOS</title>
     <link
         href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
         rel="stylesheet" />
@@ -55,44 +55,62 @@
             font-weight: 600;
         }
 
-        /* ── Botón Agregar a lista ── */
-        .btn-add-list {
+        /* ════════ BOTÓN PRIMARIO — AGREGAR ════════
+           Reemplaza al antiguo "Enviar formulario".
+           Naranja sólido, mismo peso visual que el submit original. */
+        .btn-add-primary {
             width: 100%;
-            background: rgba(34, 197, 94, 0.07);
-            border: 1.5px solid rgba(34, 197, 94, 0.28);
+            background: #f97316;
+            border: none;
             border-radius: 12px;
-            padding: 13px 16px;
+            padding: 15px 16px;
             font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 14px;
-            font-weight: 700;
-            color: #22c55e;
+            font-size: 16px;
+            font-weight: 800;
+            color: #fff;
+            letter-spacing: -0.02em;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            transition: background 0.15s, border-color 0.15s, transform 0.1s;
+            gap: 10px;
+            transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+            box-shadow: 0 6px 22px rgba(249, 115, 22, 0.30);
             touch-action: manipulation;
         }
-        .btn-add-list:hover {
-            background: rgba(34, 197, 94, 0.13);
-            border-color: rgba(34, 197, 94, 0.5);
+        .btn-add-primary:hover {
+            background: #e86b0e;
+            box-shadow: 0 8px 28px rgba(249, 115, 22, 0.45);
         }
-        .btn-add-list:active { transform: scale(0.98); }
-        .btn-add-list:disabled {
-            opacity: 0.4;
+        .btn-add-primary:active { transform: scale(0.98); }
+        .btn-add-primary:disabled {
+            background: #2b2b2b;
+            box-shadow: none;
+            color: #55524f;
             cursor: not-allowed;
         }
 
-        /* ── Sección de lista de envío ── */
+        /* ════════ SECCIÓN DE LISTA ════════ */
         .list-section { margin-top: 24px; }
 
-        .list-empty-hint {
+        /* Estado vacío */
+        .list-empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 28px 20px;
             text-align: center;
-            padding: 22px 16px;
-            color: #55524f;
+        }
+        .list-empty-icon {
+            font-size: 28px;
+            opacity: 0.35;
+        }
+        .list-empty-label {
             font-family: 'IBM Plex Mono', monospace;
             font-size: 11px;
+            color: #55524f;
+            line-height: 1.6;
         }
 
         /* ── Ítem de la lista ── */
@@ -102,6 +120,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            animation: fadeUp 0.2s ease both;
         }
         .list-item:last-child { border-bottom: none; }
 
@@ -165,38 +184,37 @@
         }
         .list-item-remove:hover { background: #ef4444; color: #fff; }
 
-        /* ── Botones de la lista ── */
-        .btn-submit--list {
-            background: #16a34a !important;
-            box-shadow: 0 6px 22px rgba(22, 163, 74, 0.35) !important;
-        }
-        .btn-submit--list:hover {
-            background: #15803d !important;
-            box-shadow: 0 8px 28px rgba(22, 163, 74, 0.48) !important;
-        }
-        .btn-submit--list:disabled {
-            background: #2b2b2b !important;
-            box-shadow: none !important;
-            color: #55524f !important;
-        }
-
-        /* ── Separador entre acciones ── */
-        .submit-divider {
+        /* ── Botón enviar lista ── */
+        .btn-send-list {
+            width: 100%;
+            background: #16a34a;
+            border: none;
+            border-radius: 12px;
+            padding: 15px 16px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 16px;
+            font-weight: 800;
+            color: #fff;
+            letter-spacing: -0.02em;
+            cursor: pointer;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 10px;
-            color: #3a3a3a;
-            font-size: 10px;
-            font-family: 'IBM Plex Mono', monospace;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
+            transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+            box-shadow: 0 6px 22px rgba(22, 163, 74, 0.30);
+            touch-action: manipulation;
         }
-        .submit-divider::before,
-        .submit-divider::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: #2c2c2c;
+        .btn-send-list:hover {
+            background: #15803d;
+            box-shadow: 0 8px 28px rgba(22, 163, 74, 0.45);
+        }
+        .btn-send-list:active { transform: scale(0.98); }
+        .btn-send-list:disabled {
+            background: #2b2b2b;
+            box-shadow: none;
+            color: #55524f;
+            cursor: not-allowed;
         }
     </style>
 </head>
@@ -602,35 +620,27 @@
             </div>
         </div>
 
-        <!-- ─── SUBMIT ─── -->
+        <!-- ─── ACCIÓN PRINCIPAL ───
+             Un solo botón: agrega el producto a la lista.
+             Siempre se envía desde la lista, haya 1 o muchos productos.
+        ─── -->
         <div class="submit-wrap">
-
-            <!-- Envío individual (comportamiento original) -->
-            <button class="btn-submit" id="btnSubmit" type="button">
-                <span id="btnText">Enviar formulario</span>
-            </button>
-
-            <!-- Separador opcional -->
-            <div class="submit-divider">o agregá a una lista</div>
-
-            <!-- Botón para sumar a lista sin enviar aún -->
-            <button class="btn-add-list" id="btnAddList" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+            <button class="btn-add-primary" id="btnAddList" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"
+                    stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
                     <line x1="12" y1="5" x2="12" y2="19"/>
                     <line x1="5" y1="12" x2="19" y2="12"/>
                 </svg>
-                Agregar a lista de envío
+                <span id="btnAddText">Agregar al envío</span>
             </button>
-
             <button class="btn-clear" id="btnClear" type="button">Borrar formulario</button>
         </div>
 
-        <!-- ══════════ LISTA DE ENVÍO OPCIONAL ══════════
-             Se muestra automáticamente al agregar el primer producto.
-             Permite enviar varios registros de una sola vez.
+        <!-- ══════════ LISTA DE ENVÍO ══════════
+             Visible siempre. Cuando está vacía muestra el estado vacío
+             y el botón "Enviar" aparece deshabilitado.
         ══════════ -->
-        <div id="productListSection" class="list-section" style="display:none">
+        <div id="productListSection" class="list-section">
             <div class="sec" style="margin-top:0">
                 <span class="sec-num" style="background:rgba(34,197,94,0.12);color:#22c55e;border-color:rgba(34,197,94,0.3)">📋</span>
                 <span class="sec-label">Lista de envío</span>
@@ -643,13 +653,25 @@
 
             <div class="card">
                 <div id="productListContainer">
-                    <!-- ítems renderizados por JS -->
+                    <!-- Estado vacío inicial -->
+                    <div class="list-empty-state" id="listEmptyState">
+                        <div class="list-empty-icon">📭</div>
+                        <div class="list-empty-label">
+                            Completá el formulario y tocá<br>
+                            <strong style="color:#8f8b85">"Agregar al envío"</strong> para sumar productos.
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <div class="submit-wrap" style="margin-top: 12px;">
-                <button class="btn-submit btn-submit--list" id="btnSendList" type="button">
-                    <span id="btnSendListText">Enviar lista (0 productos)</span>
+                <button class="btn-send-list" id="btnSendList" type="button" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                        <line x1="22" y1="2" x2="11" y2="13"/>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                    <span id="btnSendListText">Enviar (0 productos)</span>
                 </button>
                 <button class="btn-clear" id="btnClearList" type="button">Vaciar lista</button>
             </div>
