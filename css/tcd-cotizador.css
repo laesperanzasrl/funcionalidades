@@ -1539,6 +1539,28 @@ tbody tr:hover {
   max-height: 88vh;
 }
 
+/* ── Filtros activos (tags removibles) ── */
+.active-filter-tags { padding: 0 0 8px; }
+.aft-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.aft-hint { font-size:11px; color:var(--muted); font-family:var(--mono); }
+.aft-tag {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:4px 8px; border-radius:20px;
+  background:rgba(99,102,241,0.14); border:1.5px solid rgba(129,140,248,0.4);
+  color:#a5b4fc; font-size:11px; cursor:pointer;
+  font-family:var(--sans); transition:background 0.15s;
+}
+.aft-tag:hover { background:rgba(248,113,113,0.12); border-color:rgba(248,113,113,0.4); color:var(--danger); }
+.aft-label { font-weight:600; opacity:0.75; }
+.aft-x { font-size:10px; opacity:0.7; }
+.aft-clear-all {
+  font-size:11px; padding:4px 10px; border-radius:20px;
+  background:none; border:1px solid var(--border2);
+  color:var(--muted); cursor:pointer; font-family:var(--sans);
+  transition:color 0.15s, border-color 0.15s;
+}
+.aft-clear-all:hover { color:var(--danger); border-color:rgba(248,113,113,0.4); }
+
 .search-modal-body {
   display: flex;
   flex-direction: column;
