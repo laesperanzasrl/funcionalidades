@@ -19,7 +19,6 @@ const state = {
     searchField: 'all',
     isPesable: false,
     pesoKg: null,
-    productList: [],
 };
 
 // ─────────────────────────────────────────────
@@ -83,8 +82,8 @@ const els = {
     fNote: $('fNote'),
     fLot: $('fLot'),
     fComment: $('fComment'),
-    btnAddList: $('btnAddList'),
-    btnAddText: $('btnAddText'),
+    btnSubmit: $('btnSubmit'),
+    btnSubmitText: $('btnSubmitText'),
     btnClear: $('btnClear'),
     toast: $('toast'),
     toastMsg: $('toastMsg'),
@@ -233,26 +232,14 @@ async function init() {
         applyDateRestriction(val);
         toggleDiscountInput(val);
         toggleBdBadge(val);
-        updateAddButtonLabel(val);
+        updateSubmitButtonLabel(val);
         clearFieldError('fEvent');
         if (els.fExp.value) validateField('fExp');
     });
 
-    // ── Botón principal: agregar a lista ──
-    els.btnAddList.addEventListener('click', addToList);
+    // ── Botón principal: enviar ──
+    els.btnSubmit.addEventListener('click', submitSingle);
     els.btnClear.addEventListener('click', clearForm);
-
-    // ── Botones de la lista ──
-    const btnSendList = $('btnSendList');
-    if (btnSendList) btnSendList.addEventListener('click', sendList);
-
-    const btnClearList = $('btnClearList');
-    if (btnClearList) btnClearList.addEventListener('click', () => {
-        if (state.productList.length === 0) return;
-        state.productList = [];
-        renderProductList();
-        showToast('wrn', 'Lista vaciada.');
-    });
 
     // Live validation
     const requiredFields = ['fEmail', 'fQty', 'fExp', 'fBranch', 'fEvent'];
@@ -275,9 +262,6 @@ async function init() {
         el.addEventListener('change', () => clearFieldError(id));
     });
     els.fExp.addEventListener('change', () => validateField('fExp'));
-
-    // Renderizar lista (estado vacío inicial)
-    renderProductList();
 }
 
 document.addEventListener('DOMContentLoaded', init);
@@ -297,13 +281,12 @@ function toggleBdBadge(motivo) {
     badge.style.display = 'flex';
 }
 
-// Actualiza el label del botón principal según el tipo de registro
-function updateAddButtonLabel(motivo) {
-    if (!els.btnAddText) return;
+function updateSubmitButtonLabel(motivo) {
+    if (!els.btnSubmitText) return;
     const esVen = MOTIVOS_VENCIMIENTO.includes(motivo);
-    els.btnAddText.textContent = esVen
-        ? 'Agregar control de vencimiento'
-        : 'Agregar al envío';
+    els.btnSubmitText.textContent = esVen
+        ? 'Enviar control de vencimiento'
+        : 'Enviar registro';
 }
 
 // ─────────────────────────────────────────────
@@ -894,14 +877,9 @@ function buildPayload() {
 }
 
 // ─────────────────────────────────────────────
-// AGREGAR A LISTA
+// ENVÍO DIRECTO — un producto por vez
 // ─────────────────────────────────────────────
-
-/**
- * Valida el formulario y agrega el ítem a la lista de envío.
- * Conserva email, sucursal y tipo de registro para agilizar la carga del próximo.
- */
-function addToList() {
+async function submitSingle() {
     if (state.submitting) return;
 
     if (!dentroDelHorario()) {
@@ -910,36 +888,50 @@ function addToList() {
     }
 
     if (!validateAll()) {
-        showToast('err', 'Corregí los campos marcados antes de agregar.');
+        showToast('err', 'Corregí los campos marcados antes de enviar.');
         const firstErr = document.querySelector('.ferr.show');
         if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
     }
 
     const payload = buildPayload();
+    setLoading(true);
 
-    const listItem = {
-        ...payload,
-        _listId: Date.now() + Math.random(),
-        _desc: els.fDesc.value.trim() || els.fBarcode.value.trim() || '—',
-        _ean: els.fBarcode.value.trim(),
-        _qty: els.fQty.value.trim(),
-        _unit: state.isPesable ? 'kg' : 'u.',
-        _venc: els.fExp.value,
-        _sucursal: els.fBranch.value,
-        _event: payload.event,
-    };
+    try {
+        if (APPS_SCRIPT_URL === 'PEGA_AQUI_TU_URL_DE_APPS_SCRIPT') {
+            await delay(800);
+            onSubmitSuccess();
+        } else {
+            const res = await fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                body: JSON.stringify(payload),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            if (data.success) onSubmitSuccess();
+            else throw new Error(data.message || 'Error desconocido');
+        }
+    } catch (err) {
+        console.error('submitSingle error:', err);
+        showToast('err', 'Error al enviar. Revisá la conexión e intentá de nuevo.', 6000);
+    } finally {
+        setLoading(false);
+    }
+}
 
-    state.productList.push(listItem);
-    renderProductList();
+function onSubmitSuccess() {
+    state.sentCount++;
+    localStorage.setItem('devCount', state.sentCount);
+    updateCounter();
+    showToast('ok', '✓ Registro enviado correctamente', 5000);
 
-    // Conservar campos comunes para acelerar el próximo producto
+    // Conservar email, sucursal y tipo de registro para el próximo envío
     const savedEmail = els.fEmail.value;
     const savedBranch = els.fBranch.value;
     const savedEvent = els.fEvent.value;
     const savedDiscount = els.fDiscount.value;
 
-    clearFormFields();
+    clearForm();
 
     els.fEmail.value = savedEmail;
     els.fBranch.value = savedBranch;
@@ -947,175 +939,16 @@ function addToList() {
     els.fDiscount.value = savedDiscount;
     toggleBdBadge(savedEvent);
     toggleDiscountInput(savedEvent);
-    updateAddButtonLabel(savedEvent);
+    updateSubmitButtonLabel(savedEvent);
     applyDateRestriction(savedEvent);
 
-    const n = state.productList.length;
-    showToast('ok', `✓ Agregado — lista: ${n} ítem${n !== 1 ? 's' : ''}`);
-
-    // Scroll suave hacia la lista
-    const listSection = $('productListSection');
-    if (listSection) setTimeout(() => listSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
-}
-
-function removeFromList(listId) {
-    state.productList = state.productList.filter(i => i._listId !== listId);
-    renderProductList();
-    if (state.productList.length === 0) showToast('wrn', 'Lista vacía.');
-}
-window.removeFromList = removeFromList;
-
-function renderProductList() {
-    const container = $('productListContainer');
-    const sendBtn = $('btnSendList');
-    const sendText = $('btnSendListText');
-    const listCount = $('listCountBadge');
-    const emptyState = $('listEmptyState');
-
-    const n = state.productList.length;
-
-    if (listCount) listCount.textContent = n;
-
-    if (sendBtn) sendBtn.disabled = n === 0;
-
-    if (sendText) {
-        sendText.textContent = n === 0
-            ? 'Enviar (0 productos)'
-            : `Enviar ${n} producto${n !== 1 ? 's' : ''}`;
-    }
-
-    if (!container) return;
-
-    if (n === 0) {
-        container.innerHTML = `
-            <div class="list-empty-state" id="listEmptyState">
-                <div class="list-empty-icon">📭</div>
-                <div class="list-empty-label">
-                    Completá el formulario y tocá<br>
-                    <strong style="color:#8f8b85">"Agregar al envío"</strong> para sumar productos.
-                </div>
-            </div>`;
-        return;
-    }
-
-    container.innerHTML = state.productList.map((item) => {
-        const vencFmt = item._venc
-            ? item._venc.split('-').reverse().join('/')
-            : '—';
-        return `
-        <div class="list-item">
-            <div class="list-item-info">
-                <div class="list-item-desc">${esc(item._desc)}</div>
-                <div class="list-item-meta">
-                    ${item._ean ? `<span class="li-ean">EAN ${esc(item._ean)}</span>` : ''}
-                    <span>${esc(item._qty)} ${esc(item._unit)}</span>
-                    <span>Vence: ${vencFmt}</span>
-                    <span>${esc(item._sucursal)}</span>
-                    <span class="li-event">${esc(item._event)}</span>
-                </div>
-            </div>
-            <button class="list-item-remove"
-                    onclick="removeFromList(${item._listId})"
-                    type="button"
-                    aria-label="Quitar de la lista">✕</button>
-        </div>`;
-    }).join('');
+    // Scroll al tope del formulario
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ─────────────────────────────────────────────
-// ENVÍO DE LA LISTA
+// LIMPIAR FORMULARIO
 // ─────────────────────────────────────────────
-async function sendList() {
-    if (state.submitting || state.productList.length === 0) return;
-
-    if (!dentroDelHorario()) {
-        showToast('err', mensajeHorario(), 7000);
-        return;
-    }
-
-    const total = state.productList.length;
-    setLoading(true);
-
-    const sendText = $('btnSendListText');
-    let ok = 0, err = 0;
-
-    for (let i = 0; i < state.productList.length; i++) {
-        if (sendText) sendText.textContent = `Enviando ${i + 1} de ${total}…`;
-
-        const item = { ...state.productList[i] };
-        ['_listId', '_desc', '_ean', '_qty', '_unit', '_venc', '_sucursal', '_event'].forEach(k => delete item[k]);
-
-        try {
-            if (APPS_SCRIPT_URL === 'PEGA_AQUI_TU_URL_DE_APPS_SCRIPT') {
-                await delay(400);
-                ok++;
-            } else {
-                const res = await fetch(APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    body: JSON.stringify(item),
-                });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
-                if (data.success) ok++;
-                else err++;
-            }
-        } catch (e) {
-            err++;
-            console.error('sendList item error:', e);
-        }
-    }
-
-    setLoading(false);
-
-    if (err === 0) {
-        state.sentCount += ok;
-        localStorage.setItem('devCount', state.sentCount);
-        updateCounter();
-        state.productList = [];
-        renderProductList();
-        showToast('ok', `✓ ${ok} registro${ok !== 1 ? 's' : ''} enviados correctamente`, 5000);
-    } else {
-        renderProductList(); // refresca el contador del botón
-        showToast('err', `${ok} enviados · ${err} con error. Revisá la conexión.`, 7000);
-    }
-}
-
-// ─────────────────────────────────────────────
-// LIMPIAR CAMPOS (sin tocar email/sucursal/tipo)
-// ─────────────────────────────────────────────
-function clearFormFields() {
-    ['fQty', 'fExp', 'fNote', 'fLot', 'fComment'].forEach(id => {
-        const el = $(id);
-        if (el) { el.value = ''; el.classList.remove('err'); }
-    });
-    els.fBarcode.value = '';
-    els.fDesc.value = '';
-
-    state.isPesable = false;
-    state.pesoKg = null;
-    els.fQty.readOnly = false;
-    els.fQty.classList.remove('qty--pesable');
-    els.fQty.setAttribute('step', '1');
-    els.fQty.setAttribute('min', '1');
-    if (els.qtyPesableHint) els.qtyPesableHint.style.display = 'none';
-    const hintLabel = $('fQtyHint');
-    if (hintLabel) hintLabel.textContent = '(enteros)';
-    const eQtyEl = $('eQty');
-    if (eQtyEl) eQtyEl.textContent = 'Número ≥ 1';
-
-    document.querySelectorAll('.ferr').forEach((el) => el.classList.remove('show'));
-    els.scannedOk.classList.remove('show');
-
-    if (els.extInput) {
-        els.extInput.value = '';
-        els.extInput.classList.remove('ext-input--reading', 'ext-input--found');
-        els.btnExtClear.style.display = 'none';
-        setExtStatus('ready', 'Listo — esperando lectura');
-    }
-    removePhoto();
-    hideProductCard();
-}
-
 function clearForm() {
     document.querySelectorAll('input:not(#fPhoto):not(#extInput), select, textarea').forEach((el) => {
         if (el.type !== 'hidden') el.value = '';
@@ -1146,7 +979,7 @@ function clearForm() {
     const badge = $('bdBadge');
     if (badge) badge.style.display = 'none';
 
-    if (els.btnAddText) els.btnAddText.textContent = 'Agregar al envío';
+    if (els.btnSubmitText) els.btnSubmitText.textContent = 'Enviar registro';
 
     if (els.extInput) {
         els.extInput.value = '';
@@ -1191,30 +1024,11 @@ function applyDateRestriction(motivo) {
 // ─────────────────────────────────────────────
 function setLoading(on) {
     state.submitting = on;
-
-    const btnAddList = $('btnAddList');
-    const btnSendList = $('btnSendList');
-    const btnClearList = $('btnClearList');
-
-    if (btnAddList) btnAddList.disabled = on;
-    if (btnClearList) btnClearList.disabled = on;
-
-    if (btnSendList) {
-        btnSendList.disabled = on || state.productList.length === 0;
-    }
-
+    if (els.btnSubmit) els.btnSubmit.disabled = on;
     if (on) {
         if (typeof window.showSendingOverlay === 'function') window.showSendingOverlay();
     } else {
         if (typeof window.hideSendingOverlay === 'function') window.hideSendingOverlay();
-        // Restaurar texto del botón enviar
-        const sendText = $('btnSendListText');
-        if (sendText) {
-            const n = state.productList.length;
-            sendText.textContent = n === 0
-                ? 'Enviar (0 productos)'
-                : `Enviar ${n} producto${n !== 1 ? 's' : ''}`;
-        }
     }
 }
 
@@ -1269,16 +1083,12 @@ function esc(str) {
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-
-// ─────────────────────────────────────────────
-// RESTRICCIÓN HORARIA
-// ─────────────────────────────────────────────
 // ─────────────────────────────────────────────
 // RESTRICCIÓN HORARIA
 // ─────────────────────────────────────────────
 const HORARIO = {
     diasHabiles: [1, 2, 3, 4, 5], // 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
-    inicio: { h: 9, m: 0 },
+    inicio: { h: 8, m: 0 },
     fin: { h: 12, m: 0 },
 };
 
