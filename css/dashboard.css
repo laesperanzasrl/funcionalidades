@@ -774,21 +774,23 @@
     }
 
     thead th {
-      padding: 9px 14px;
-      text-align: left;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 9px;
-      font-weight: 600;
-      color: var(--text3);
-      text-transform: uppercase;
-      letter-spacing: .07em;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      white-space: nowrap;
-      position: sticky;
-      top: 0;
-      z-index: 2
-    }
+  padding: 9px 14px;
+  text-align: left;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  font-weight: bold;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  line-height: 1.3;   /* ← agregar esto */
+}
 
     tbody td {
       padding: 10px 14px;
@@ -2368,6 +2370,85 @@
       transition: all .15s;
       white-space: nowrap;
     }
+
+    /* ══════════════════════════════════════════════════
+   QUANTITY RISK SYSTEM
+══════════════════════════════════════════════════ */
+.qty-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.qty-num {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.qty-num.qr-CRITICO  { color: #ff4444; font-size: 17px; }
+.qty-num.qr-URGENTE  { color: #ff7c2a; font-size: 16px; }
+.qty-num.qr-PROXIMO  { color: #fbbf24; font-size: 15px; }
+.qty-num.qr-ATENCION { color: #38bdf8; font-size: 14px; }
+.qty-num.qr-NORMAL   { color: #4ade80; font-size: 13px; }
+
+.qty-risk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  letter-spacing: .03em;
+}
+
+.qty-risk-badge.qr-CRITICO  {
+  background: var(--venc-v-bg);
+  color: var(--venc-v-fg);
+  border: 1px solid var(--venc-v-br);
+  animation: pulseV 1.2s infinite;
+}
+.qty-risk-badge.qr-URGENTE  {
+  background: var(--venc-c-bg);
+  color: var(--venc-c-fg);
+  border: 1px solid var(--venc-c-br);
+}
+.qty-risk-badge.qr-PROXIMO  {
+  background: var(--venc-u-bg);
+  color: var(--venc-u-fg);
+  border: 1px solid var(--venc-u-br);
+}
+.qty-risk-badge.qr-ATENCION {
+  background: var(--venc-a-bg);
+  color: var(--venc-a-fg);
+  border: 1px solid var(--venc-a-br);
+}
+/* NORMAL no muestra badge extra */
+
+/* Celda de cantidad en suc-card */
+.sf-qty-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 1px;
+}
+
+.sf-qty-num {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.sf-qty-num.qr-CRITICO  { color: #ff4444; }
+.sf-qty-num.qr-URGENTE  { color: #ff7c2a; }
+.sf-qty-num.qr-PROXIMO  { color: #fbbf24; }
+.sf-qty-num.qr-ATENCION { color: #38bdf8; }
+.sf-qty-num.qr-NORMAL   { color: #4ade80; }
 
     .btn-transfer-sm {
       background: #0d1e3d;

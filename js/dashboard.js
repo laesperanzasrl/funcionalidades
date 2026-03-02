@@ -592,10 +592,34 @@ function renderVencTable() {
       <button class="btn btn-secondary btn-sm" onclick="exportVencXlsx()" title="Exportar tabla filtrada a Excel">⬇ Exportar Excel</button>
     </div>
     <div class="table-scroll"><table><thead><tr>
-      <th style="width:160px">Urgencia máx.</th>
-      <th>EAN</th><th>Descripción</th>
-      <th class="c-right">Total u.</th><th>Proveedor</th>
-      <th>Sucursales</th><th>Fechas vencimiento</th>
+      <th style="width:180px">
+        <div>⏰ Urgencia</div>
+        <div style="font-size:8px;font-weight:400;color:var(--text3);margin-top:2px;letter-spacing:.04em;text-transform:none">días al vencimiento más crítico</div>
+      </th>
+      <th>
+        <div>EAN</div>
+        <div style="font-size:8px;font-weight:400;color:var(--text3);margin-top:2px;letter-spacing:.04em;text-transform:none">código de barras</div>
+      </th>
+      <th>
+        <div>📦 Descripción</div>
+        <div style="font-size:8px;font-weight:400;color:var(--text3);margin-top:2px;letter-spacing:.04em;text-transform:none">nombre del producto</div>
+      </th>
+      <th class="c-right">
+        <div>📊 Total u.</div>
+        <div style="font-size:8px;font-weight:400;color:var(--text3);margin-top:2px;letter-spacing:.04em;text-transform:none">stock en todas las sucursales</div>
+      </th>
+      <th>
+        <div>🏭 Proveedor</div>
+        <div style="font-size:8px;font-weight:400;color:var(--text3);margin-top:2px;letter-spacing:.04em;text-transform:none">empresa / marca</div>
+      </th>
+      <th>
+        <div>🏪 Sucursales</div>
+        <div style="font-size:8px;font-weight:400;color:var(--text3);margin-top:2px;letter-spacing:.04em;text-transform:none">donde está el stock</div>
+      </th>
+      <th>
+        <div>📅 Fechas de vencimiento</div>
+        <div style="font-size:8px;font-weight:400;color:var(--text3);margin-top:2px;letter-spacing:.04em;text-transform:none">todos los lotes detectados</div>
+      </th>
     </tr></thead><tbody>`;
 
   filteredVenProd.forEach(prod => {
@@ -621,7 +645,7 @@ function renderVencTable() {
       </td>
       <td class="c-mono" style="font-size:11px;color:var(--text2)">${esc(prod.ean)}</td>
       <td class="c-main"><span class="expand-icon">▶</span>${esc(prod.desc)}</td>
-      <td class="c-right c-mono">${prodTotal}</td>
+      <td class="c-right" style="vertical-align:middle">${qtyRiskHtml(prodTotal, prod.worstDias)}</td>
       <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;color:var(--text2)" title="${esc(prod.prov)}">${esc(prod.prov || '—')}</td>
       <td><div class="suc-badges">${sucBadges}</div></td>
       <td>${vencMini}</td>
@@ -1259,6 +1283,78 @@ function staleBadgeHtml(dias, mini=false) {
   const s = staleStyle(dias);
   const txt = s.icon + ' ' + (dias===null ? 'sin fecha' : `hace ${dias}d`);
   return `<span class="stale" style="color:${s.fg};background:${s.bg};border-color:${s.br};font-size:${mini?'9px':'10px'}">${txt}</span>`;
+}
+
+// ══════════════════════════════════════════════════════
+//  COMBINED RISK (días × cantidad)
+// ══════════════════════════════════════════════════════
+/**
+ * Calcula el riesgo combinado considerando tanto los días al vencimiento
+ * como la cantidad de unidades. Un producto con muchas unidades y
+ * bastantes días puede ser igual de riesgoso que pocos días con pocas unidades.
+ *
+ * Factor multiplicador según días restantes:
+ *   vencido   → ×10   (cualquier cantidad es crítica)
+ *   1–6 días  → ×4    (crítico)
+ *   7–14 días → ×2    (urgente)
+ *   15–21 días→ ×1    (normal-urgente)
+ *   22–45 días→ ×0.4  (necesita bastante cantidad para alertar)
+ *   46–90 días→ ×0.15 (necesita cantidad muy alta para alertar)
+ *   > 90 días → ×0.03
+ */
+function getCombinedRisk(dias, qty) {
+  if (!qty || qty <= 0) return 'NORMAL';
+  if (dias === null)    return 'NORMAL';
+
+  let factor;
+  if      (dias <= 0)  factor = 10;
+  else if (dias <= 6)  factor = 4;
+  else if (dias <= 14) factor = 2;
+  else if (dias <= 21) factor = 1;
+  else if (dias <= 45) factor = 0.4;
+  else if (dias <= 90) factor = 0.15;
+  else                 factor = 0.03;
+
+  const score = qty * factor;
+
+  if (score >= 1500) return 'CRITICO';
+  if (score >= 400)  return 'URGENTE';
+  if (score >= 80)   return 'PROXIMO';
+  if (score >= 20)   return 'ATENCION';
+  return 'NORMAL';
+}
+
+/**
+ * Renderiza la celda de cantidad con color + badge de riesgo combinado.
+ * Solo muestra badge cuando el riesgo combinado es >= PROXIMO.
+ * @param {number} qty       - cantidad de unidades
+ * @param {number|null} dias - días al vencimiento
+ * @param {string} size      - 'normal' | 'small' para distintos contextos
+ */
+function qtyRiskHtml(qty, dias, size = 'normal') {
+  const risk = getCombinedRisk(dias, qty);
+  const showBadge = risk !== 'NORMAL';
+
+  const RISK_LABELS = {
+    CRITICO:  '🔴 RIESGO ALTO',
+    URGENTE:  '🟠 RIESGO',
+    PROXIMO:  '🟡 ATENDER',
+    ATENCION: '🔵 MONITOREAR',
+  };
+
+  if (size === 'small') {
+    // Para suc-card
+    return `<div class="sf-qty-wrap">
+      <span class="sf-qty-num qr-${risk}" id="${arguments[3] ? 'qty-' + arguments[3] : ''}">${qty}</span>
+      ${showBadge ? `<span class="qty-risk-badge qr-${risk}">${RISK_LABELS[risk]}</span>` : ''}
+    </div>`;
+  }
+
+  // Para tabla principal
+  return `<div class="qty-cell">
+    <span class="qty-num qr-${risk}">${qty}</span>
+    ${showBadge ? `<span class="qty-risk-badge qr-${risk}">${RISK_LABELS[risk]}</span>` : `<span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3)">u.</span>`}
+  </div>`;
 }
 
 // ══════════════════════════════════════════════════════

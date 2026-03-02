@@ -1088,8 +1088,8 @@ function esc(str) {
 // ─────────────────────────────────────────────
 const HORARIO = {
     diasHabiles: [1, 2, 3, 4, 5], // 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
-    inicio: { h: 8, m: 0 },
-    fin: { h: 12, m: 0 },
+    inicio: { h: 9, m: 0 },
+    fin: { h: 11, m: 30 },
 };
 
 function dentroDelHorario() {
