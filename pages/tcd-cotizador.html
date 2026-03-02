@@ -1,15 +1,12 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#0a0a0f" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <title>TCD SUPER</title>
-  <link
-    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
-    rel="stylesheet" />
+  <title>TCD COTIZADOR</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../css/tcd-cotizador.css" />
   <link rel="icon" type="image/x-icon" href="../favicon.ico">
   <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
@@ -21,7 +18,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bwip-js/dist/bwip-js-min.js"></script>
 </head>
-
 <body>
 
   <!-- ══════════ TOPBAR ══════════ -->
@@ -29,7 +25,7 @@
     <div class="topbar-brand">
       <div class="topbar-icon">🧾</div>
       <div>
-        <div class="topbar-title">TCD</div>
+        <div class="topbar-title">TCD COTIZADOR</div>
         <div class="topbar-sub">Terminal colectora de datos</div>
       </div>
     </div>
@@ -39,7 +35,7 @@
     </div>
   </header>
 
-  <!-- ══════════ SCANNER MODAL (bottom-sheet) ══════════ -->
+  <!-- ══════════ SCANNER MODAL ══════════ -->
   <div class="s-overlay" id="scanOverlay" role="dialog" aria-modal="true">
     <div class="s-modal">
       <div class="s-head">
@@ -67,11 +63,9 @@
     </div>
   </div>
 
-  <!-- ══════════ SEARCH MODAL (diálogo centrado) ══════════ -->
-  <div class="s-overlay s-overlay--dialog" id="searchOverlay" role="dialog" aria-modal="true"
-    aria-label="Buscar producto">
+  <!-- ══════════ SEARCH MODAL ══════════ -->
+  <div class="s-overlay s-overlay--dialog" id="searchOverlay" role="dialog" aria-modal="true" aria-label="Buscar producto">
     <div class="s-modal search-modal">
-
       <div class="s-head">
         <div class="s-head-left">
           <div class="s-dot s-dot--search"></div>
@@ -79,22 +73,14 @@
         </div>
         <button class="s-close" id="btnCloseSearch" aria-label="Cerrar">✕</button>
       </div>
-
-      <!-- Cuerpo scrolleable -->
       <div class="search-modal-body">
-
         <div class="search-input-wrap">
-          <svg class="search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          <svg class="search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
-          <input type="text" id="searchInput" class="search-input" placeholder="Descripción, proveedor, EAN…"
-            autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search" />
-          <button class="search-clear-btn" id="btnClearSearch" aria-label="Limpiar búsqueda"
-            style="display:none">✕</button>
+          <input type="text" id="searchInput" class="search-input" placeholder="Descripción, proveedor, EAN…" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search" />
+          <button class="search-clear-btn" id="btnClearSearch" aria-label="Limpiar" style="display:none">✕</button>
         </div>
-
         <div class="search-filters">
           <button class="sf-chip sf-chip--active" data-field="all">Todo</button>
           <button class="sf-chip" data-field="DESCRIPCION">Descripción</button>
@@ -103,7 +89,6 @@
           <button class="sf-chip" data-field="SECTOR">Sector</button>
           <button class="sf-chip" data-field="SECCION">Sección</button>
         </div>
-
         <div class="search-results-wrap">
           <div class="search-state" id="searchStateEmpty">
             <div class="search-state-icon">🔍</div>
@@ -115,14 +100,10 @@
           </div>
           <ul class="search-results" id="searchResults" style="display:none" role="listbox"></ul>
         </div>
-
         <div class="search-footer">
           <span class="search-count" id="searchCount"></span>
         </div>
-
       </div>
-
-      <!-- ── Barra fija de confirmación del carrito ── -->
       <div class="search-commit-bar" id="searchCommitBar">
         <div class="scb-info">
           <span class="scb-icon">🛒</span>
@@ -130,14 +111,11 @@
         </div>
         <button class="scb-btn" id="btnCommitSearch" disabled>
           Agregar a la lista
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
-            stroke-linejoin="round" width="15" height="15">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
         </button>
       </div>
-
     </div>
   </div>
 
@@ -146,106 +124,112 @@
 
     <div class="sec">
       <span class="sec-num">01</span>
-      <span class="sec-label">REMITO/PEDIDO</span>
+      <span class="sec-label">CLIENTE</span>
       <span class="sec-line"></span>
     </div>
 
     <div class="card">
 
+      <!-- ── Selector de cliente ── -->
       <div class="field">
-        <label for="fSucursal">Sucursal emisora: <span style="color:var(--danger)">*</span></label>
-        <select id="fSucursal">
-          <option value="">Elegir sucursal...</option>
-          <option value="Hiper">Hiper</option>
-          <option value="Centro">Centro</option>
-          <option value="Ribera">Ribera</option>
-          <option value="Ribera">Mayorista</option>
-        </select>
-        <div class="ferr" id="eSucursal">Seleccioná una sucursal.</div>
+        <label for="clienteInput">Cliente: <span style="color:var(--danger)">*</span></label>
+
+        <!-- Estado de carga -->
+        <div class="cliente-loading" id="clienteLoading">
+          <div class="pc-spinner"></div>
+          <span>Cargando clientes...</span>
+        </div>
+
+        <!-- Input de búsqueda (visible una vez cargado) -->
+        <div class="cliente-search-wrap" id="clienteSearchWrap" style="display:none">
+          <div class="cliente-status" id="clienteStatus" style="display:none"></div>
+          <div class="cliente-input-row">
+            <div class="cliente-input-inner">
+              <svg class="cliente-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+              <input type="text" id="clienteInput" class="cliente-input" placeholder="Buscá por nombre, razón social o código…" autocomplete="off" autocorrect="off" spellcheck="false" />
+              <button class="cliente-clear-btn" id="btnClearCliente" aria-label="Limpiar cliente" style="display:none">✕</button>
+            </div>
+          </div>
+          <ul class="cliente-results" id="clienteResults" style="display:none" role="listbox"></ul>
+        </div>
+
+        <!-- Cliente seleccionado -->
+        <div class="cliente-card" id="clienteCard" style="display:none">
+          <div class="cc-main">
+            <div class="cc-fantasia" id="ccFantasia">—</div>
+            <div class="cc-razons" id="ccRazons">—</div>
+            <div class="cc-meta">
+              <span class="cc-chip" id="ccCodigo">—</span>
+              <span class="cc-chip cc-chip--zona" id="ccZona">—</span>
+              <span class="cc-chip cc-chip--iva" id="ccIva">—</span>
+              <span class="cc-chip cc-chip--loc" id="ccLocalidad">—</span>
+            </div>
+          </div>
+          <button class="cc-change-btn" id="btnChangeCliente">Cambiar</button>
+        </div>
+
+        <div class="ferr" id="eCliente">Seleccioná un cliente.</div>
       </div>
 
-      <div class="field">
-        <label for="fConcepto">Concepto general del remito/pedido:</label>
-        <input type="text" id="fConcepto" placeholder="Ingresá el concepto" />
-        <div class="ferr" id="eConcepto">Ingresá un concepto general.</div>
-      </div>
-
+      <!-- ── Agregar producto ── -->
       <div class="field">
         <label>Agregar Producto:</label>
-
-        <!-- Mode switcher -->
         <div class="mode-switcher" id="modeSwitcher">
           <button class="mode-tab mode-tab--active" id="modeTabCam" data-mode="cam">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
-              stroke-linejoin="round" width="15" height="15">
-              <path
-                d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+              <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4"/>
             </svg>
             Cámara / Búsqueda
           </button>
           <button class="mode-tab" id="modeTabExt" data-mode="ext">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
-              stroke-linejoin="round" width="15" height="15">
-              <rect x="2" y="7" width="20" height="10" rx="2" />
-              <line x1="6" y1="11" x2="6" y2="13" />
-              <line x1="10" y1="11" x2="10" y2="13" />
-              <line x1="14" y1="11" x2="14" y2="13" />
-              <line x1="18" y1="10" x2="18" y2="14" />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15">
+              <rect x="2" y="7" width="20" height="10" rx="2"/>
+              <line x1="6" y1="11" x2="6" y2="13"/><line x1="10" y1="11" x2="10" y2="13"/>
+              <line x1="14" y1="11" x2="14" y2="13"/><line x1="18" y1="10" x2="18" y2="14"/>
             </svg>
             Lector Externo
           </button>
         </div>
 
-        <!-- Panel: cámara + búsqueda manual -->
         <div class="action-btns" id="panelCam">
           <button class="action-btn action-btn--scan" id="btnOpenScanner">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
-              stroke-linejoin="round">
-              <path
-                d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
-              <line x1="7" y1="8" x2="7" y2="16" />
-              <line x1="10" y1="8" x2="10" y2="16" />
-              <line x1="13" y1="8" x2="13" y2="16" />
-              <line x1="16.5" y1="8" x2="16.5" y2="16" />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4"/>
+              <line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/>
+              <line x1="13" y1="8" x2="13" y2="16"/><line x1="16.5" y1="8" x2="16.5" y2="16"/>
             </svg>
             <span>Escanear código</span>
           </button>
           <button class="action-btn action-btn--search" id="btnOpenSearch">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
-              stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
             <span>Buscar manualmente</span>
           </button>
         </div>
 
-        <!-- Panel: lector externo -->
         <div class="ext-panel" id="panelExt" style="display:none">
           <div class="ext-status" id="extStatus">
             <div class="ext-status-dot" id="extStatusDot"></div>
             <span id="extStatusText">Listo — esperando lectura</span>
           </div>
           <div class="ext-input-wrap">
-            <svg class="ext-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="7" width="20" height="10" rx="2" />
-              <line x1="6" y1="11" x2="6" y2="13" />
-              <line x1="10" y1="11" x2="10" y2="13" />
-              <line x1="14" y1="11" x2="14" y2="13" />
-              <line x1="18" y1="10" x2="18" y2="14" />
+            <svg class="ext-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="7" width="20" height="10" rx="2"/>
+              <line x1="6" y1="11" x2="6" y2="13"/><line x1="10" y1="11" x2="10" y2="13"/>
+              <line x1="14" y1="11" x2="14" y2="13"/><line x1="18" y1="10" x2="18" y2="14"/>
             </svg>
-            <input type="text" id="extInput" class="ext-input" placeholder="Apuntá el lector acá..." autocomplete="off"
-              autocorrect="off" spellcheck="false" inputmode="none" />
+            <input type="text" id="extInput" class="ext-input" placeholder="Apuntá el lector acá..." autocomplete="off" autocorrect="off" spellcheck="false" inputmode="none" />
             <button class="ext-clear-btn" id="btnExtClear" aria-label="Limpiar" style="display:none">✕</button>
           </div>
-          <p class="ext-hint">El lector escribe el código y presiona Enter automáticamente.<br>También podés ingresar el
-            código manualmente y presionar <kbd>Enter</kbd>.</p>
+          <p class="ext-hint">El lector escribe el código y presiona Enter automáticamente.<br>También podés ingresar el código manualmente y presionar <kbd>Enter</kbd>.</p>
         </div>
-
       </div>
 
-      <!-- Tarjeta producto (scanner) -->
+      <!-- Tarjeta producto -->
       <div class="product-card" id="productCard">
         <div class="pc-header">
           <div class="pc-dot"></div>
@@ -274,12 +258,12 @@
               <div class="pc-field-value" id="pcUxb">—</div>
             </div>
             <div class="pc-field">
-              <div class="pc-field-label">Precio normal</div>
-              <div class="pc-field-value" id="pcPvp">—</div>
+              <div class="pc-field-label">Precio Super</div>
+              <div class="pc-field-value pc-field-value--super" id="pcPvp">—</div>
             </div>
             <div class="pc-field">
-              <div class="pc-field-label">Precio mayorista</div>
-              <div class="pc-field-value" id="pcPvpMay">—</div>
+              <div class="pc-field-label">Precio Mayorista</div>
+              <div class="pc-field-value pc-field-value--may" id="pcPvpMay">—</div>
             </div>
           </div>
         </div>
@@ -289,7 +273,7 @@
         </div>
       </div>
 
-      <!-- Cantidad (scanner) -->
+      <!-- Cantidad -->
       <div class="qty-row" id="qtyRow" style="display:none">
         <div class="field">
           <label for="fQty">Cantidad:</label>
@@ -297,15 +281,12 @@
           <div class="ferr" id="eQty">Cantidad ≥ 1</div>
         </div>
         <button class="btn-add" id="btnAdd">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
-            stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
           Agregar
         </button>
       </div>
-
     </div>
 
     <div class="sec">
@@ -317,8 +298,7 @@
     <div class="table-wrap" id="tableWrap">
       <div class="table-empty" id="tableEmpty">
         <div class="table-empty-icon">📋</div>
-        <div class="table-empty-text">Todavía no agregaste productos.<br />Escaneá o buscá un producto para empezar.
-        </div>
+        <div class="table-empty-text">Todavía no agregaste productos.<br/>Escaneá o buscá un producto para empezar.</div>
       </div>
       <table id="orderTable" style="display:none">
         <thead>
@@ -328,6 +308,10 @@
             <th>Gramaje</th>
             <th>UxB</th>
             <th style="text-align:center">Cant.</th>
+            <th class="th-price">P. Super</th>
+            <th class="th-price th-sub">Sub. Super</th>
+            <th class="th-price th-may">P. May.</th>
+            <th class="th-price th-sub th-may">Sub. May.</th>
             <th></th>
           </tr>
         </thead>
@@ -335,24 +319,46 @@
       </table>
     </div>
 
+    <!-- ══ TOTALES ══ -->
+    <div class="totales-panel" id="totalesPanel" style="display:none">
+      <div class="totales-row">
+        <div class="totales-item totales-item--super">
+          <div class="totales-label">
+            <span class="totales-dot totales-dot--super"></span>
+            Total precio Super
+          </div>
+          <div class="totales-value" id="totalSuper">$0,00</div>
+        </div>
+        <div class="totales-divider"></div>
+        <div class="totales-item totales-item--may">
+          <div class="totales-label">
+            <span class="totales-dot totales-dot--may"></span>
+            Total precio Mayorista
+          </div>
+          <div class="totales-value" id="totalMay">$0,00</div>
+        </div>
+      </div>
+      <div class="totales-ahorro" id="totalesAhorro" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        Ahorro comprando al por mayor: <strong id="ahorroMonto">$0,00</strong>
+        (<span id="ahorroPct">0%</span>)
+      </div>
+    </div>
+
   </main>
 
   <!-- ══════════ FOOTER ══════════ -->
   <div class="footer-actions">
     <button class="btn-export" id="btnExport" disabled>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
-        stroke-linejoin="round">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-        <polyline points="7 10 12 15 17 10" />
-        <line x1="12" y1="15" x2="12" y2="3" />
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
       Exportar Excel
     </button>
     <button class="btn-export" id="btnExportPDF" disabled style="color:whitesmoke;background-color:red;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
-        stroke-linejoin="round">
-        <path d="M12 3v12m0 0l-4-4m4 4l4-4" />
-        <path d="M6 19h12" />
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M6 19h12"/>
       </svg>
       Exportar PDF
     </button>
@@ -366,5 +372,4 @@
 
   <script src="../js/tcd-cotizador.js"></script>
 </body>
-
 </html>
