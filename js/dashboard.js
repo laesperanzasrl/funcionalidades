@@ -2,6 +2,7 @@
 //  STATE
 // ══════════════════════════════════════════════════════
 
+let accDateMode  = 'registro';
 let loteMode = false;
 let loteSeleccionados = new Map();
 let loteQueue = [];
@@ -29,18 +30,18 @@ let accPage = 1, ncPage = 1;
 const PAGE_SIZE = 50;
 
 // ── ESTADO FILTROS VENCIMIENTOS ──────────────────────
-let vencPreset    = 'all';
-let vencDateMode  = 'registro';
-let vencDateFrom  = null;
-let vencDateTo    = null;
+let vencPreset = 'all';
+let vencDateMode = 'registro';
+let vencDateFrom = null;
+let vencDateTo = null;
 // ─────────────────────────────────────────────────────
 
 let _autoTimer = null, _cdTimer = null, _nextRefresh = null;
 const AUTO_MS = 30 * 60 * 1000;
 
-const URG_ORDER  = { VENCIDO: 0, CRITICO: 1, URGENTE: 2, PROXIMO: 3, ATENCION: 4, NORMAL: 5 };
+const URG_ORDER = { VENCIDO: 0, CRITICO: 1, URGENTE: 2, PROXIMO: 3, ATENCION: 4, NORMAL: 5 };
 const URG_LABELS = { VENCIDO: 'VENCIDO', CRITICO: 'CRÍTICO', URGENTE: 'URGENTE', PROXIMO: 'PRÓXIMO', ATENCION: 'ATENCIÓN', NORMAL: 'NORMAL' };
-const BAR_CLRS   = { VENCIDO: 'var(--venc-v-fg)', CRITICO: 'var(--venc-c-fg)', URGENTE: 'var(--venc-u-fg)', PROXIMO: 'var(--venc-p-fg)', ATENCION: 'var(--venc-a-fg)', NORMAL: 'var(--venc-n-fg)' };
+const BAR_CLRS = { VENCIDO: 'var(--venc-v-fg)', CRITICO: 'var(--venc-c-fg)', URGENTE: 'var(--venc-u-fg)', PROXIMO: 'var(--venc-p-fg)', ATENCION: 'var(--venc-a-fg)', NORMAL: 'var(--venc-n-fg)' };
 
 const SUCURSALES_LIST = ['HIPER', 'CENTRO', 'RIBERA', 'MAYORISTA', 'PROVEEDOR', 'OTRO'];
 let currentTransferData = null;
@@ -52,12 +53,12 @@ let currentAdjustData = null;
 const SECTORES_PESABLES = ['FIAMBRE', 'CARNICER', 'VERDULER', 'FRUTA', 'PESCAD', 'ROTISERI'];
 
 function esPesable(item) {
-    if (!item) return false;
-    const ean = String(item.ean || item.EAN || '').trim();
-    if (ean.startsWith('23')) return true;
-    const sector  = (item.sector  || item.SECTOR  || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const seccion = (item.seccion || item.SECCION || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    return SECTORES_PESABLES.some(k => sector.includes(k) || seccion.includes(k));
+  if (!item) return false;
+  const ean = String(item.ean || item.EAN || '').trim();
+  if (ean.startsWith('23')) return true;
+  const sector = (item.sector || item.SECTOR || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const seccion = (item.seccion || item.SECCION || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return SECTORES_PESABLES.some(k => sector.includes(k) || seccion.includes(k));
 }
 
 // ══════════════════════════════════════════════════════
@@ -381,20 +382,20 @@ function updateNavBadges() {
 // ══════════════════════════════════════════════════════
 function setVencDateMode(mode) {
   vencDateMode = mode;
-  const btnReg  = document.getElementById('vf-mode-reg');
+  const btnReg = document.getElementById('vf-mode-reg');
   const btnVenc = document.getElementById('vf-mode-venc');
-  const label   = document.getElementById('vf-period-label');
+  const label = document.getElementById('vf-period-label');
   if (mode === 'registro') {
-    btnReg.style.background  = 'var(--blue)';
-    btnReg.style.color       = '#fff';
+    btnReg.style.background = 'var(--blue)';
+    btnReg.style.color = '#fff';
     btnVenc.style.background = 'var(--surface)';
-    btnVenc.style.color      = 'var(--text3)';
+    btnVenc.style.color = 'var(--text3)';
     if (label) label.textContent = 'Período — fecha de registro';
   } else {
     btnVenc.style.background = 'var(--blue)';
-    btnVenc.style.color      = '#fff';
-    btnReg.style.background  = 'var(--surface)';
-    btnReg.style.color       = 'var(--text3)';
+    btnVenc.style.color = '#fff';
+    btnReg.style.background = 'var(--surface)';
+    btnReg.style.color = 'var(--text3)';
     if (label) label.textContent = 'Período — fecha de vencimiento';
   }
   applyVencFilters();
@@ -405,25 +406,25 @@ function setVencPreset(preset, btn) {
   document.querySelectorAll('#venc-presets .dp').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   const fromWrap = document.getElementById('vf-date-from-wrap');
-  const toWrap   = document.getElementById('vf-date-to-wrap');
+  const toWrap = document.getElementById('vf-date-to-wrap');
   fromWrap.style.display = preset === 'custom' ? '' : 'none';
-  toWrap.style.display   = preset === 'custom' ? '' : 'none';
+  toWrap.style.display = preset === 'custom' ? '' : 'none';
   const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
   if (preset === 'all') {
     vencDateFrom = null; vencDateTo = null;
   } else if (preset === 'today') {
     vencDateFrom = new Date(hoy);
-    vencDateTo   = new Date(hoy); vencDateTo.setHours(23, 59, 59, 999);
+    vencDateTo = new Date(hoy); vencDateTo.setHours(23, 59, 59, 999);
   } else if (preset === 'yesterday') {
     const y = new Date(hoy); y.setDate(y.getDate() - 1);
     vencDateFrom = y;
-    vencDateTo   = new Date(y); vencDateTo.setHours(23, 59, 59, 999);
+    vencDateTo = new Date(y); vencDateTo.setHours(23, 59, 59, 999);
   } else if (preset === 'custom') {
     vencDateFrom = null; vencDateTo = null;
   } else {
     const days = { '3d': 3, '7d': 7, '14d': 14, '30d': 30 }[preset] ?? 0;
     vencDateFrom = new Date(hoy); vencDateFrom.setDate(vencDateFrom.getDate() - days);
-    vencDateTo   = new Date(); vencDateTo.setHours(23, 59, 59, 999);
+    vencDateTo = new Date(); vencDateTo.setHours(23, 59, 59, 999);
   }
   applyVencFilters();
 }
@@ -438,21 +439,21 @@ function filterByUrg(urg) {
 
 function applyVencFilters() {
   const buscar = (document.getElementById('vf-buscar').value || '').toLowerCase().trim();
-  const prov   = document.getElementById('vf-prov').value;
-  const suc    = document.getElementById('vf-suc').value;
-  const urg    = document.getElementById('vf-urg').value;
+  const prov = document.getElementById('vf-prov').value;
+  const suc = document.getElementById('vf-suc').value;
+  const urg = document.getElementById('vf-urg').value;
   const estado = document.getElementById('vf-estado').value;
   let from = vencDateFrom, to = vencDateTo;
   if (vencPreset === 'custom') {
     const f = document.getElementById('vf-date-from').value;
     const t = document.getElementById('vf-date-to').value;
     from = f ? new Date(f) : null;
-    to   = t ? new Date(t + 'T23:59:59') : null;
+    to = t ? new Date(t + 'T23:59:59') : null;
   }
   filteredVen = venGrupos.filter(g => {
     if (buscar) {
       const hay = [g.ean, g.desc, g.prov,
-        ...g.sucursales.flatMap(se => se.controles.map(r => r.lote || ''))
+      ...g.sucursales.flatMap(se => se.controles.map(r => r.lote || ''))
       ].join(' ').toLowerCase();
       if (!hay.includes(buscar)) return false;
     }
@@ -460,9 +461,9 @@ function applyVencFilters() {
     if (suc && !g.sucursales.some(se => se.suc === suc)) return false;
     if (urg && g.urg !== urg) return false;
     if (estado) {
-      if (estado === 'ACTIVO'        && g.grupoEstado !== 'ACTIVO')        return false;
+      if (estado === 'ACTIVO' && g.grupoEstado !== 'ACTIVO') return false;
       if (estado === 'ACCION TOMADA' && g.grupoEstado !== 'ACCION_TOMADA') return false;
-      if (estado === 'RETIRADO'      && g.grupoEstado !== 'RETIRADO')      return false;
+      if (estado === 'RETIRADO' && g.grupoEstado !== 'RETIRADO') return false;
     }
     if (from || to) {
       let pasa = false;
@@ -472,7 +473,7 @@ function applyVencFilters() {
             if (!r.fechaReg) return false;
             const d = r.fechaReg;
             if (from && d < from) return false;
-            if (to   && d > to)   return false;
+            if (to && d > to) return false;
             return true;
           })
         );
@@ -480,7 +481,7 @@ function applyVencFilters() {
         const fv = parseFechaVenc(g.fechaVenc);
         if (!fv) return false;
         if (from && fv < from) return false;
-        if (to   && fv > to)   return false;
+        if (to && fv > to) return false;
         pasa = true;
       }
       if (!pasa) return false;
@@ -500,9 +501,9 @@ function parseFechaVenc(str) {
   const s = String(str).trim();
   let m;
   m = s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})/);
-  if (m) { const d = new Date(+m[3], +m[2]-1, +m[1]); d.setHours(0,0,0,0); return d; }
+  if (m) { const d = new Date(+m[3], +m[2] - 1, +m[1]); d.setHours(0, 0, 0, 0); return d; }
   m = s.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})/);
-  if (m) { const d = new Date(+m[1], +m[2]-1, +m[3]); d.setHours(0,0,0,0); return d; }
+  if (m) { const d = new Date(+m[1], +m[2] - 1, +m[3]); d.setHours(0, 0, 0, 0); return d; }
   return null;
 }
 
@@ -524,27 +525,27 @@ function regroupByEan(groups) {
   });
   return [...map.values()].map(p => {
     p.vencGrupos.sort((a, b) => URG_ORDER[a.urg] - URG_ORDER[b.urg] || (a.dias ?? 9999) - (b.dias ?? 9999));
-    p.worstUrg  = p.vencGrupos[0]?.urg ?? 'NORMAL';
+    p.worstUrg = p.vencGrupos[0]?.urg ?? 'NORMAL';
     p.worstDias = p.vencGrupos[0]?.dias ?? null;
-    p.allSucs   = [...new Set(p.vencGrupos.flatMap(g => g.sucursales.map(s => s.suc)))];
-    p.totalU    = p.vencGrupos.reduce((s, g) => s + (g.totalU || 0), 0);
+    p.allSucs = [...new Set(p.vencGrupos.flatMap(g => g.sucursales.map(s => s.suc)))];
+    p.totalU = p.vencGrupos.reduce((s, g) => s + (g.totalU || 0), 0);
     return p;
   }).sort((a, b) => URG_ORDER[a.worstUrg] - URG_ORDER[b.worstUrg] || (a.worstDias ?? 9999) - (b.worstDias ?? 9999));
 }
 
 function getSucClass(suc) {
   const s = (suc || '').toUpperCase();
-  if (s.includes('HIPER'))     return 'suc-hiper';
-  if (s.includes('CENTRO'))    return 'suc-centro';
-  if (s.includes('RIBERA'))    return 'suc-ribera';
+  if (s.includes('HIPER')) return 'suc-hiper';
+  if (s.includes('CENTRO')) return 'suc-centro';
+  if (s.includes('RIBERA')) return 'suc-ribera';
   if (s.includes('MAYORISTA')) return 'suc-mayorista';
   return 'suc-default';
 }
 function getSucColorVar(suc) {
   const s = (suc || '').toUpperCase();
-  if (s.includes('HIPER'))     return '#ffd166';
-  if (s.includes('CENTRO'))    return '#60a5fa';
-  if (s.includes('RIBERA'))    return '#f87171';
+  if (s.includes('HIPER')) return '#ffd166';
+  if (s.includes('CENTRO')) return '#60a5fa';
+  if (s.includes('RIBERA')) return '#f87171';
   if (s.includes('MAYORISTA')) return '#c084fc';
   return '#475569';
 }
@@ -558,13 +559,16 @@ function toggleProd(row, ean) {
     if (!opening) {
       r.classList.remove('visible', 'open', 'suc-open');
       if (r.dataset.grupoKey) openGrupos.delete(r.dataset.grupoKey);
-      if (r.dataset.sucKey)   openSucs.delete(r.dataset.sucKey);
+      if (r.dataset.sucKey) openSucs.delete(r.dataset.sucKey);
     } else {
       if (r.classList.contains('venc-grupo-row')) r.classList.add('visible');
     }
   });
 }
 
+// ══════════════════════════════════════════════════════
+//  VENCIMIENTOS — RENDER TABLE
+// ══════════════════════════════════════════════════════
 // ══════════════════════════════════════════════════════
 //  VENCIMIENTOS — RENDER TABLE
 // ══════════════════════════════════════════════════════
@@ -586,12 +590,18 @@ function renderVencTable() {
   }
 
   const NCOLS = 7;
-  let html = `
+  const headBar = `
     <div class="table-head-bar">
       <h3>⏰ Vencimientos <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);font-weight:400;margin-left:8px">${filteredVenProd.length} productos · ${filteredVen.length} grupos</span></h3>
       <button class="btn btn-secondary btn-sm" onclick="exportVencXlsx()" title="Exportar tabla filtrada a Excel">⬇ Exportar Excel</button>
-    </div>
-    <div class="table-scroll"><table><thead><tr>
+    </div>`;
+
+  // ═══════════════════════════════════════
+  //  DESKTOP TABLE (igual que antes)
+  // ═══════════════════════════════════════
+  let tableHtml = `
+    <div class="venc-desktop">
+    <div class="table-scroll"><table class="venc-main-table"><thead><tr>
       <th style="width:180px">
         <div>⏰ Urgencia</div>
         <div style="font-size:8px;font-weight:400;color:var(--text3);margin-top:2px;letter-spacing:.04em;text-transform:none">días al vencimiento más crítico</div>
@@ -632,7 +642,7 @@ function renderVencTable() {
     const prodTotal = prod.vencGrupos.reduce((sum, g) =>
       sum + g.sucursales.reduce((s2, se) => s2 + (parseFloat(String(se.latest.cantidad || 0).replace(',', '.')) || 0), 0), 0);
 
-    html += `
+    tableHtml += `
     <tr class="prod-row${isProdOpen ? ' open' : ''}" onclick="toggleProd(this,'${esc(prod.ean)}')">
       <td>
         <div class="dias-cell">
@@ -659,7 +669,7 @@ function renderVencTable() {
       const gSucBadges = sucVis.map(se => `<span class="suc-b ${getSucClass(se.suc)}">${esc(se.suc || '—')}</span>`).join('');
       const grupoTotal = sucVis.reduce((s, se) => s + (parseFloat(String(se.latest.cantidad || 0).replace(',', '.')) || 0), 0);
 
-      html += `
+      tableHtml += `
       <tr class="venc-grupo-row${isProdOpen ? ' visible' : ''}${isGrupoOpen ? ' open' : ''}"
           data-prod-ean="${esc(prod.ean)}" data-grupo-key="${esc(g.key)}"
           onclick="toggleGrupo(this,'${esc(g.key)}')">
@@ -725,7 +735,7 @@ function renderVencTable() {
              </button>`
           : '';
 
-        html += `
+        tableHtml += `
         <tr class="suc-row${showRow ? ' visible' : ''}${isSucOpen ? ' suc-open' : ''}"
             data-suc-key="${esc(sucKey)}" data-prod-ean="${esc(prod.ean)}" data-grupo-key="${esc(g.key)}">
           <td colspan="${NCOLS}" style="padding:0">
@@ -780,7 +790,7 @@ function renderVencTable() {
             }
           }
           const ctrlChip = ctrlAcc ? `<span class="dev-chip" onclick="openDevModal(event,'${esc(ctrlAcc)}')">${esc(ctrlAcc)} ↗</span>` : '';
-          html += `
+          tableHtml += `
           <tr class="ctrl-row${showCtrl?' visible':''}"
               data-suc-key="${esc(sucKey)}" data-prod-ean="${esc(prod.ean)}" data-grupo-key="${esc(g.key)}">
             <td colspan="${NCOLS}" style="padding:0">
@@ -814,8 +824,263 @@ function renderVencTable() {
     });
   });
 
-  html += '</tbody></table></div>';
-  wrap.innerHTML = html;
+  tableHtml += '</tbody></table></div></div>'; // close .venc-desktop
+
+  // ═══════════════════════════════════════
+  //  MOBILE CARDS
+  // ═══════════════════════════════════════
+  let mobileHtml = '<div class="venc-mobile-cards">';
+
+  filteredVenProd.forEach(prod => {
+    const prodId = 'vmp-' + prod.ean.replace(/\D/g, '');
+    const isOpen = openProds.has(prod.ean);
+    const barPct = prod.worstDias === null ? 0 : Math.max(0, Math.min(100, Math.round(prod.worstDias / 90 * 100)));
+    const prodTotal = prod.vencGrupos.reduce((sum, g) =>
+      sum + g.sucursales.reduce((s2, se) => s2 + (parseFloat(String(se.latest.cantidad || 0).replace(',', '.')) || 0), 0), 0);
+
+    mobileHtml += `
+    <div class="vmc-prod vmc-urg-${prod.worstUrg}" id="${prodId}">
+
+      <!-- ── Cabecera del producto (siempre visible) ── -->
+      <div class="vmc-prod-hdr" onclick="toggleVMProd('${esc(prod.ean)}','${prodId}')">
+        <div class="vmc-dias-block">
+          <span class="vmc-dias-num ${prod.worstUrg}">${prod.worstDias !== null ? prod.worstDias : '?'}</span>
+          <span class="vmc-dias-label">días</span>
+        </div>
+        <div class="vmc-prod-info">
+          <div class="vmc-prod-desc">${esc(prod.desc)}</div>
+          <div class="vmc-prod-meta">
+            <span class="urg ${prod.worstUrg}" style="font-size:9px">${URG_LABELS[prod.worstUrg]}</span>
+            ${prod.prov ? `<span class="vmc-prov">${esc(prod.prov)}</span>` : ''}
+          </div>
+          <div class="vmc-prod-sucs">
+            ${prod.allSucs.map(s => `<span class="suc-b ${getSucClass(s)}">${esc(s)}</span>`).join('')}
+            <span class="vmc-stock-chip">${prodTotal} u. total</span>
+          </div>
+          <!-- Mini fechas resumen -->
+          <div class="vmc-fechas-mini">
+            ${prod.vencGrupos.map(g => `
+              <span class="vmc-fecha-chip ${g.urg}">
+                ${fmtDateOnly(g.fechaVenc)}
+                <span class="vmc-fecha-dias">${g.dias !== null ? (g.dias <= 0 ? 'VENC' : g.dias+'d') : '?'}</span>
+              </span>`).join('')}
+          </div>
+        </div>
+        <div class="vmc-expand-btn${isOpen ? ' open' : ''}">
+          <span class="vmc-expand-icon">›</span>
+        </div>
+      </div>
+
+      <!-- ── Grupos de vencimiento (expandibles) ── -->
+      <div class="vmc-grupos${isOpen ? ' open' : ''}">
+        ${prod.vencGrupos.map((g, gi) => {
+          const grupoId = prodId + '-g' + gi;
+          const isGrupoOpen = openGrupos.has(g.key);
+          const sucFilter = document.getElementById('vf-suc') ? document.getElementById('vf-suc').value : '';
+          const sucVis = sucFilter ? g.sucursales.filter(se => se.suc === sucFilter) : g.sucursales;
+          const grupoTotal = sucVis.reduce((s, se) => s + (parseFloat(String(se.latest.cantidad || 0).replace(',', '.')) || 0), 0);
+
+          return `
+          <div class="vmc-grupo" id="${grupoId}">
+
+            <!-- Cabecera de fecha/grupo -->
+            <div class="vmc-grupo-hdr" onclick="toggleVMGrupo('${esc(g.key)}','${grupoId}')">
+              <div class="vmc-grupo-urg-bar vmc-urg-bar-${g.urg}"></div>
+              <div class="vmc-grupo-info">
+                <div class="vmc-grupo-fecha">
+                  <span style="font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace;letter-spacing:.04em">VENCE</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;color:var(--text)">${fmtDateOnly(g.fechaVenc)}</span>
+                </div>
+                <div class="vmc-grupo-badges">
+                  <span class="urg ${g.urg}" style="font-size:9px">${g.dias !== null ? (g.dias <= 0 ? 'VENCIDO' : g.dias + ' días') : '?'} · ${URG_LABELS[g.urg]}</span>
+                  <span class="vmc-stock-chip">${grupoTotal} u.</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3)">${sucVis.length} suc.</span>
+                  ${g.hasAccion ? `<span class="linked-indicator">🔗 acción</span>` : ''}
+                </div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+                  ${sucVis.map(se => `<span class="suc-b ${getSucClass(se.suc)}">${esc(se.suc)}</span>`).join('')}
+                </div>
+              </div>
+              <span class="vmc-group-arrow${isGrupoOpen ? ' open' : ''}">›</span>
+            </div>
+
+            <!-- Sucursales del grupo -->
+            <div class="vmc-sucs${isGrupoOpen ? ' open' : ''}">
+              ${sucVis.map((se, si) => {
+                const f = se.latest;
+                const est = (f.estadoGest || 'ACTIVO').replace(/\s+/g, '-');
+                const cantActualSuc = parseFloat(String(f.cantidad || 0).replace(',', '.')) || 0;
+                const sucKey = g.key + '||' + se.suc;
+                const sucColor = getSucColorVar(se.suc);
+                const nControles = se.controles.length;
+                const hasHistory = nControles > 1;
+                const isSucOpen = openSucs.has(sucKey);
+                const sucId = grupoId + '-s' + si;
+
+                // Acciones vinculadas
+                const _eanF = String(f.ean || '').trim();
+                const _fvF  = fmtDateOnly(f.fechaVenc);
+                const _sucF = (f.sucursal || '').toUpperCase().trim();
+                const linkedDevs = devData.filter(d =>
+                  String(d.ean || '').trim() === _eanF &&
+                  fmtDateOnly(d.fechaVenc) === _fvF &&
+                  (d.sucursal || '').toUpperCase().trim() === _sucF
+                );
+
+                const btnRegistrar = (!loteMode && g.urg === 'VENCIDO' && est === 'ACTIVO' && cantActualSuc > 0)
+                  ? `<button onclick="registrarVencimientoManual(event,'${esc(f.id)}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion||'')}','${esc(f.ean||'')}','${esc(f.fechaVenc||'')}')"
+                       class="vmc-btn vmc-btn-venc">🚨 Registrar Vencido</button>` : '';
+
+                const loteCheck = loteMode ? `
+                  <input type="checkbox" ${loteSeleccionados.has(sucKey) ? 'checked' : ''}
+                    onclick="event.stopPropagation();toggleLoteRow('${esc(sucKey)}','${esc(f.id)}','${esc(f.descripcion||'')}','${esc(f.ean||'')}','${esc(f.fechaVenc||'')}','${esc(f.sucursal||'')}',${cantActualSuc},this)"
+                    style="width:18px;height:18px;cursor:pointer;accent-color:#60a5fa;flex-shrink:0">` : '';
+
+                return `
+                <div class="vmc-suc-card" id="${sucId}" style="border-left-color:${sucColor}">
+
+                  <!-- Cabecera sucursal -->
+                  <div class="vmc-suc-hdr" onclick="toggleVMSuc('${esc(sucKey)}','${sucId}',event)">
+                    ${loteCheck}
+                    <span class="vmc-suc-name" style="color:${sucColor}">${esc(f.sucursal || '—')}</span>
+                    <span class="vmc-suc-qty-badge ${est === 'ACTIVO' ? 'qty-active' : 'qty-done'}">${cantActualSuc} u.</span>
+                    <span class="eg ${est}" style="font-size:9px;margin-left:auto">${est.replace(/-/g,' ')}</span>
+                    ${staleBadgeHtml(se.diasDesde, true)}
+                    ${hasHistory ? `<span class="vmc-hist-btn${isSucOpen ? ' open' : ''}">📋 ${nControles}</span>` : ''}
+                  </div>
+
+                  <!-- Detalle sucursal (expandible) -->
+                  <div class="vmc-suc-detail">
+                    <div class="vmc-detail-grid">
+                      <div class="vmc-dfield"><div class="vmc-dlbl">Usuario</div><div class="vmc-dval">${f.usuario || '—'}</div></div>
+                      <div class="vmc-dfield"><div class="vmc-dlbl">Fecha control</div><div class="vmc-dval mono">${fmtDate(f.fechaReg || '')}</div></div>
+                      <div class="vmc-dfield"><div class="vmc-dlbl">EAN</div><div class="vmc-dval mono">${esc(f.ean || '—')}</div></div>
+                      <div class="vmc-dfield"><div class="vmc-dlbl">Lote</div><div class="vmc-dval mono">${f.lote || '—'}</div></div>
+                      ${f.aclaracion ? `<div class="vmc-dfield vmc-dfield-wide"><div class="vmc-dlbl">Aclaración</div><div class="vmc-dval">${esc(f.aclaracion)}</div></div>` : ''}
+                    </div>
+
+                    <!-- Botones de acción -->
+                    ${!loteMode ? `
+                    <div class="vmc-action-btns">
+                      <button onclick="abrirModalTransferencia(event,'${f.id}','${esc(f.sucursal)}',${cantActualSuc})" class="vmc-btn vmc-btn-transfer">⇄ Transferir</button>
+                      <button onclick="ajustarStock(event,'${f.id}',1)"  class="vmc-btn vmc-btn-pos">＋ Ajuste</button>
+                      <button onclick="ajustarStock(event,'${f.id}',-1)" class="vmc-btn vmc-btn-neg">－ Ajuste</button>
+                      ${btnRegistrar}
+                    </div>` : ''}
+
+                    <!-- Acciones vinculadas -->
+                    ${linkedDevs.length > 0 ? `
+                    <div class="vmc-linked-devs">
+                      <div class="vmc-dlbl" style="margin-bottom:4px">Acciones vinculadas</div>
+                      <div style="display:flex;flex-wrap:wrap;gap:5px">
+                        ${linkedDevs.map(d => {
+                          const autoLabel = d.usuario === 'SISTEMA AUTO' ? ' ⚡' : '';
+                          return `<span class="dev-chip" onclick="openDevModal(event,'${esc(d.id)}')">${esc(d.id)}${autoLabel} ↗</span>`;
+                        }).join('')}
+                      </div>
+                    </div>` : ''}
+
+                    <!-- Historial de controles -->
+                    ${hasHistory ? `
+                    <div class="vmc-history${isSucOpen ? ' open' : ''}">
+                      <div class="vmc-history-title">📋 Historial de controles</div>
+                      ${se.controles.map((ctrl, idx) => {
+                        const isLatest = idx === 0;
+                        return `
+                        <div class="vmc-ctrl-row${isLatest ? ' latest' : ''}">
+                          <div class="vmc-ctrl-num">C${nControles - idx}${isLatest ? ' ✓' : ''}</div>
+                          <div class="vmc-ctrl-fields">
+                            <span class="vmc-ctrl-val mono">${fmtDate(ctrl.fechaReg || '')}</span>
+                            <span class="vmc-ctrl-val">${ctrl.usuario || '—'}</span>
+                            <span class="vmc-ctrl-val mono">${ctrl.cantidad ? ctrl.cantidad + ' u.' : '—'}</span>
+                            ${ctrl.lote ? `<span class="vmc-ctrl-val mono">${esc(ctrl.lote)}</span>` : ''}
+                          </div>
+                        </div>`;
+                      }).join('')}
+                    </div>` : ''}
+                  </div>
+
+                </div>`; // end vmc-suc-card
+              }).join('')}
+            </div>
+
+          </div>`; // end vmc-grupo
+        }).join('')}
+      </div>
+
+    </div>`; // end vmc-prod
+  });
+
+  mobileHtml += '</div>'; // end .venc-mobile-cards
+
+  wrap.innerHTML = headBar + tableHtml + mobileHtml;
+}
+
+
+// ══════════════════════════════════════════════════════
+//  TOGGLE HELPERS — MOBILE VENCIMIENTOS
+//  Agregar al final de dashboard.js
+// ══════════════════════════════════════════════════════
+
+function toggleVMProd(ean, prodId) {
+  const opening = !openProds.has(ean);
+  if (opening) openProds.add(ean); else openProds.delete(ean);
+
+  const card = document.getElementById(prodId);
+  if (!card) return;
+  const grupos = card.querySelector('.vmc-grupos');
+  const btn    = card.querySelector('.vmc-expand-btn');
+  if (grupos) grupos.classList.toggle('open', opening);
+  if (btn)    btn.classList.toggle('open', opening);
+
+  // Colapsar sub-niveles al cerrar
+  if (!opening) {
+    card.querySelectorAll('.vmc-grupo').forEach(g => {
+      g.querySelector('.vmc-sucs')?.classList.remove('open');
+      g.querySelector('.vmc-group-arrow')?.classList.remove('open');
+    });
+    card.querySelectorAll('.vmc-suc-card').forEach(s => {
+      s.querySelector('.vmc-suc-detail')?.classList.remove('open');
+      s.querySelector('.vmc-history')?.classList.remove('open');
+      s.querySelector('.vmc-hist-btn')?.classList.remove('open');
+    });
+    // Limpiar Sets de estado
+    openGrupos.forEach(k => { if (filteredVenProd.find(p => p.ean === ean)?.vencGrupos.some(g => g.key === k)) openGrupos.delete(k); });
+  }
+}
+
+function toggleVMGrupo(key, grupoId) {
+  const opening = !openGrupos.has(key);
+  if (opening) openGrupos.add(key); else openGrupos.delete(key);
+
+  const g = document.getElementById(grupoId);
+  if (!g) return;
+  g.querySelector('.vmc-sucs')?.classList.toggle('open', opening);
+  g.querySelector('.vmc-group-arrow')?.classList.toggle('open', opening);
+}
+
+function toggleVMSuc(sucKey, sucId, evt) {
+  // Evitar que chips/botones propagen
+  if (evt.target.classList.contains('dev-chip') ||
+      evt.target.classList.contains('vmc-btn') ||
+      evt.target.tagName === 'BUTTON' ||
+      evt.target.tagName === 'INPUT') return;
+
+  const opening = !openSucs.has(sucKey);
+  if (opening) openSucs.add(sucKey); else openSucs.delete(sucKey);
+
+  const card = document.getElementById(sucId);
+  if (!card) return;
+  card.querySelector('.vmc-suc-detail')?.classList.toggle('open', opening);
+  card.querySelector('.vmc-hist-btn')?.classList.toggle('open', opening);
+
+  // El historial se muestra dentro del detalle cuando está abierto
+  if (!opening) {
+    card.querySelector('.vmc-history')?.classList.remove('open');
+  } else {
+    // Abrir historial automáticamente si hay historial
+    card.querySelector('.vmc-history')?.classList.add('open');
+  }
 }
 
 function toggleGrupo(row, key) {
@@ -863,8 +1128,10 @@ async function exportVencXlsx() {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'NEXUS v3.0'; wb.created = new Date();
   const ws = wb.addWorksheet('Vencimientos');
-  ws.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0,
-    margins: { left: .3, right: .3, top: .4, bottom: .4, header: .2, footer: .2 } };
+  ws.pageSetup = {
+    paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+    margins: { left: .3, right: .3, top: .4, bottom: .4, header: .2, footer: .2 }
+  };
   ws.columns = [
     { key: 'ean', width: 16 }, { key: 'descripcion', width: 36 }, { key: 'proveedor', width: 22 },
     { key: 'urgencia', width: 12 }, { key: 'dias', width: 8 }, { key: 'fechaVenc', width: 14 },
@@ -872,7 +1139,7 @@ async function exportVencXlsx() {
     { key: 'lote', width: 14 }, { key: 'usuario', width: 18 }, { key: 'fechaReg', width: 18 },
     { key: 'nControles', width: 10 }, { key: 'aclaracion', width: 26 },
   ];
-  const hRow = ws.addRow(['EAN','Descripción','Proveedor','Urgencia','Días','F. Vencimiento','Sucursal','Unidades','Estado','Lote','Usuario','F. Registro','N° Ctrl','Aclaración']);
+  const hRow = ws.addRow(['EAN', 'Descripción', 'Proveedor', 'Urgencia', 'Días', 'F. Vencimiento', 'Sucursal', 'Unidades', 'Estado', 'Lote', 'Usuario', 'F. Registro', 'N° Ctrl', 'Aclaración']);
   hRow.height = 22;
   hRow.eachCell(c => {
     c.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
@@ -892,7 +1159,7 @@ async function exportVencXlsx() {
   rows.forEach((r, i) => {
     const isEven = i % 2 === 1;
     const dRow = ws.addRow([r.ean, r.descripcion, r.proveedor, r.urgencia, r.dias, r.fechaVenc,
-      r.sucursal, r.cantidad, r.estadoGest, r.lote, r.usuario, r.fechaReg, r.nControles, r.aclaracion]);
+    r.sucursal, r.cantidad, r.estadoGest, r.lote, r.usuario, r.fechaReg, r.nControles, r.aclaracion]);
     dRow.height = 18;
     dRow.eachCell({ includeEmpty: true }, (c, col) => {
       c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isEven ? 'FFF5F7FF' : 'FFFFFFFF' } };
@@ -921,7 +1188,7 @@ async function exportVencXlsx() {
   wsMeta.addRow(['Filtro aplicado — fecha por', vencDateMode === 'registro' ? 'Fecha de Registro' : 'Fecha de Vencimiento']);
   wsMeta.addRow(['Preset período', vencPreset]);
   wsMeta.addRow(['Modo fecha desde', vencDateFrom ? vencDateFrom.toLocaleDateString('es-AR') : 'Sin límite']);
-  wsMeta.addRow(['Modo fecha hasta', vencDateTo   ? vencDateTo.toLocaleDateString('es-AR')   : 'Sin límite']);
+  wsMeta.addRow(['Modo fecha hasta', vencDateTo ? vencDateTo.toLocaleDateString('es-AR') : 'Sin límite']);
   wsMeta.addRow(['Filtro urgencia', document.getElementById('vf-urg').value || 'Todas']);
   wsMeta.addRow(['Filtro proveedor', document.getElementById('vf-prov').value || 'Todos']);
   wsMeta.addRow(['Filtro sucursal', document.getElementById('vf-suc').value || 'Todas']);
@@ -984,81 +1251,342 @@ function setAccPreset(preset, btn) {
   accPreset = preset;
   document.querySelectorAll('#acc-presets .dp').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
+
+  const fromWrap = document.getElementById('acc-date-from');
+  const toWrap   = document.getElementById('acc-date-to');
+  fromWrap.style.display = preset === 'custom' ? '' : 'none';
+  toWrap.style.display   = preset === 'custom' ? '' : 'none';
+
   const now = new Date(); now.setHours(0, 0, 0, 0);
-  document.getElementById('acc-date-from').style.display = 'none';
-  document.getElementById('acc-date-to').style.display = 'none';
-  if (preset === 'custom') { accDateFrom = null; accDateTo = null; document.getElementById('acc-date-from').style.display = ''; document.getElementById('acc-date-to').style.display = ''; }
-  else if (preset === 'all') { accDateFrom = null; accDateTo = null; }
-  else {
-    const days = { today: 0, yesterday: 1, '3d': 3, '7d': 7, '14d': 14, '30d': 30 }[preset] ?? 0;
-    accDateTo = new Date(); accDateTo.setHours(23, 59, 59, 999);
-    if (preset === 'yesterday') { const y = new Date(now); y.setDate(y.getDate() - 1); accDateFrom = y; accDateTo = new Date(y); accDateTo.setHours(23, 59, 59, 999); }
-    else { accDateFrom = new Date(now); accDateFrom.setDate(accDateFrom.getDate() - days); }
+
+  if (preset === 'custom' || preset === 'all') {
+    accDateFrom = null; accDateTo = null;
+  } else if (preset === 'yesterday') {
+    const y = new Date(now); y.setDate(y.getDate() - 1);
+    accDateFrom = y;
+    accDateTo   = new Date(y); accDateTo.setHours(23, 59, 59, 999);
+  } else if (preset === 'today') {
+    accDateFrom = new Date(now);
+    accDateTo   = new Date(); accDateTo.setHours(23, 59, 59, 999);
+  } else {
+    const days = { '3d': 3, '7d': 7, '14d': 14, '30d': 30 }[preset] ?? 0;
+    accDateFrom = new Date(now); accDateFrom.setDate(accDateFrom.getDate() - days);
+    accDateTo   = new Date();    accDateTo.setHours(23, 59, 59, 999);
   }
   applyAccFilters();
 }
 
 function applyAccFilters() {
-  const suc    = document.getElementById('af-suc').value;
-  const prov   = document.getElementById('af-prov').value;
-  const mot    = document.getElementById('af-motivo').value;
-  const est    = document.getElementById('af-estado').value;
-  const search = (document.getElementById('acc-search').value || '').toLowerCase();
+  const suc    = document.getElementById('af-suc')?.value    || '';
+  const prov   = document.getElementById('af-prov')?.value   || '';
+  const mot    = document.getElementById('af-motivo')?.value || '';
+  const est    = document.getElementById('af-estado')?.value || '';
+  const urg    = document.getElementById('af-urg')?.value    || '';
+
+  // Búsqueda unificada: input superior (nuevo) + input del head-bar (existente)
+  const searchTop = (document.getElementById('acc-search-top')?.value || '').toLowerCase().trim();
+  const searchOld = (document.getElementById('acc-search')?.value     || '').toLowerCase().trim();
+  const search    = searchTop || searchOld;
+
+  // Fechas
   let from = accDateFrom, to = accDateTo;
   if (accPreset === 'custom') {
-    const f = document.getElementById('af-date-from').value;
-    const t = document.getElementById('af-date-to').value;
+    const f = document.getElementById('af-date-from')?.value;
+    const t = document.getElementById('af-date-to')?.value;
     from = f ? new Date(f) : null;
     to   = t ? new Date(t + 'T23:59:59') : null;
   }
+
   filteredAcc = devData.filter(r => {
-    if (suc  && r.sucursal !== suc)   return false;
+    // Filtros de select
+    if (suc  && r.sucursal  !== suc)  return false;
     if (prov && r.proveedor !== prov) return false;
-    if (mot  && r.motivo !== mot)     return false;
-    if (est  && r.estado !== est)     return false;
-    if (from && r.fecha && r.fecha < from) return false;
-    if (to   && r.fecha && r.fecha > to)   return false;
-    if (search) { const hay = [r.descripcion, r.ean, r.lote, r.proveedor, r.sucursal, r.motivo].join(' ').toLowerCase(); if (!hay.includes(search)) return false; }
+    if (mot  && r.motivo    !== mot)  return false;
+    if (est  && r.estado    !== est)  return false;
+
+    // Urgencia: calculada desde fechaVenc del registro de acción
+    if (urg) {
+      const dias   = calcDias(r.fechaVenc);
+      const urgRec = getUrg(dias);
+      if (urgRec !== urg) return false;
+    }
+
+    // Filtro de fecha con modo (registro vs vencimiento)
+    if (from || to) {
+      if (accDateMode === 'registro') {
+        if (from && r.fecha && r.fecha < from) return false;
+        if (to   && r.fecha && r.fecha > to)   return false;
+      } else {
+        // modo vencimiento: parsear fechaVenc del registro
+        const fv = parseFechaVenc(r.fechaVenc);
+        if (!fv) return false;
+        if (from && fv < from) return false;
+        if (to   && fv > to)   return false;
+      }
+    }
+
+    // Búsqueda de texto
+    if (search) {
+      const hay = [r.descripcion, r.ean, r.lote, r.proveedor, r.sucursal, r.motivo, r.id]
+        .join(' ').toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+
     return true;
   });
+
   accPage = 1;
   renderAccTable();
 }
 
 function clearAccFilters() {
-  ['af-suc', 'af-prov', 'af-motivo', 'af-estado'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('acc-search').value = '';
-  setAccPreset('all', document.querySelectorAll('#acc-presets .dp')[6]);
+  ['af-suc', 'af-prov', 'af-motivo', 'af-estado', 'af-urg'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  // Limpiar ambos inputs de búsqueda
+  const st = document.getElementById('acc-search-top');
+  const so = document.getElementById('acc-search');
+  if (st) st.value = '';
+  if (so) so.value = '';
+
+  // Resetear modo fecha a "registro"
+  setAccDateMode('registro');
+
+  // Resetear preset a "Todos"
+  const allBtn = document.querySelector('#acc-presets .dp:nth-child(7)'); // botón "Todos"
+  setAccPreset('all', allBtn);
 }
+
+function setAccDateMode(mode) {
+  accDateMode = mode;
+
+  const btnReg  = document.getElementById('af-mode-reg');
+  const btnVenc = document.getElementById('af-mode-venc');
+  const label   = document.getElementById('af-period-label');
+
+  if (mode === 'registro') {
+    if (btnReg)  { btnReg.style.background  = 'var(--blue)'; btnReg.style.color  = '#fff'; }
+    if (btnVenc) { btnVenc.style.background = 'var(--surface)'; btnVenc.style.color = 'var(--text3)'; }
+    if (label) label.textContent = 'Período — fecha de registro';
+  } else {
+    if (btnVenc) { btnVenc.style.background = 'var(--blue)'; btnVenc.style.color  = '#fff'; }
+    if (btnReg)  { btnReg.style.background  = 'var(--surface)'; btnReg.style.color = 'var(--text3)'; }
+    if (label) label.textContent = 'Período — fecha de vencimiento';
+  }
+
+  applyAccFilters();
+}
+
 
 function renderAccTable() {
   const start = (accPage - 1) * PAGE_SIZE;
-  const page  = filteredAcc.slice(start, start + PAGE_SIZE);
+  const page = filteredAcc.slice(start, start + PAGE_SIZE);
   const tbody = document.getElementById('accTableBody');
-  if (!filteredAcc.length) { tbody.innerHTML = '<div class="empty"><div class="ei">🔍</div><p>No hay registros con los filtros aplicados</p></div>'; document.getElementById('accPagination').style.display = 'none'; return; }
-  const venIdAccionSet = new Set(venData.map(r => r.idAccion).filter(Boolean));
-  tbody.innerHTML = `<div class="table-scroll"><table>
-    <thead><tr><th>ID</th><th>Fecha</th><th>Sucursal</th><th>Descripción</th><th>EAN</th>
-    <th class="c-right">Cant.</th><th>Vencimiento</th><th>Proveedor</th><th>Motivo</th>
-    <th>Lote</th><th>Estado</th><th>Vinculado</th></tr></thead>
-    <tbody>${page.map(r => `
-      <tr>
-        <td class="c-id">${r.id}</td>
-        <td class="c-mono" style="font-size:11px">${fmtDateDisp(r.fecha)}</td>
-        <td><span class="b-tag">${r.sucursal||'—'}</span></td>
-        <td class="c-main">${esc(r.descripcion||'—')}</td>
-        <td class="c-mono" style="font-size:11px">${r.ean||'—'}</td>
-        <td class="c-right c-mono">${r.cantidad||'—'}</td>
-        <td>${vencBadge(r.fechaVenc)}</td>
-        <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis">${esc(r.proveedor||'—')}</td>
-        <td>${motivoBadge(r.motivo)}</td>
-        <td class="c-mono" style="font-size:11px">${r.lote||'—'}</td>
-        <td>${estadoBadge(r.estado)}</td>
-        <td>${venIdAccionSet.has(r.id)?`<span class="linked-indicator" style="cursor:pointer;font-size:9px">🔗 venc.</span>`:'<span style="color:var(--text3);font-size:10px;font-family:\'IBM Plex Mono\',monospace">—</span>'}</td>
-      </tr>`).join('')}
-    </tbody></table></div>`;
+
+  if (!filteredAcc.length) {
+    tbody.innerHTML = '<div class="empty"><div class="ei">🔍</div><p>No hay registros con los filtros aplicados</p></div>';
+    document.getElementById('accPagination').style.display = 'none';
+    return;
+  }
+
+  // Mapa devId → venData (para chipear el vencimiento vinculado)
+  const venByDevId = new Map();
+  venData.forEach(v => { if (v.idAccion) venByDevId.set(v.idAccion, v); });
+
+  // ── Desktop: tabla clásica (sin columna ID) ──
+  const tableHtml = `
+    <div class="table-scroll acc-desktop">
+      <table>
+        <thead><tr>
+          <th>Fecha</th>
+          <th>Sucursal</th>
+          <th>Descripción</th>
+          <th>EAN</th>
+          <th class="c-right">Cant.</th>
+          <th>Vencimiento</th>
+          <th>Proveedor</th>
+          <th>Motivo</th>
+          <th>Lote</th>
+          <th>Estado</th>
+          <th>Venc. vinculado</th>
+        </tr></thead>
+        <tbody>
+          ${page.map(r => {
+    const hasVen = venByDevId.has(r.id);
+    return `<tr>
+              <td class="c-mono" style="font-size:11px;white-space:nowrap">${fmtDateDisp(r.fecha)}</td>
+              <td><span class="b-tag">${esc(r.sucursal || '—')}</span></td>
+              <td class="c-main">${esc(r.descripcion || '—')}</td>
+              <td class="c-mono" style="font-size:11px">${r.ean || '—'}</td>
+              <td class="c-right c-mono">${r.cantidad || '—'}</td>
+              <td>${vencBadge(r.fechaVenc)}</td>
+              <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis">${esc(r.proveedor || '—')}</td>
+              <td>${motivoBadge(r.motivo)}</td>
+              <td class="c-mono" style="font-size:11px">${r.lote || '—'}</td>
+              <td>${estadoBadge(r.estado)}</td>
+              <td>${hasVen
+        ? `<span class="ven-chip" onclick="openVenDetailFromAcc('${esc(r.id)}')">📦 Ver venc. ↗</span>`
+        : '<span style="color:var(--text3);font-size:10px;font-family:\'IBM Plex Mono\',monospace">—</span>'
+      }</td>
+            </tr>`;
+  }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+
+  // ── Mobile: cards apiladas ──
+  const cardsHtml = `
+    <div class="acc-mobile-cards">
+      ${page.map(r => {
+    const hasVen = venByDevId.has(r.id);
+    const dias = calcDias(r.fechaVenc);
+    const urg = getUrg(dias);
+    return `
+        <div class="acc-card acc-card-urg-${urg}">
+          <div class="acc-card-top">
+            <div class="acc-card-desc">${esc(r.descripcion || '—')}</div>
+            ${estadoBadge(r.estado)}
+          </div>
+          <div class="acc-card-meta">
+            <span class="suc-b ${getSucClass(r.sucursal)}">${esc(r.sucursal || '—')}</span>
+            <span class="acc-card-fecha">${fmtDateDisp(r.fecha)}</span>
+            ${motivoBadge(r.motivo)}
+          </div>
+          <div class="acc-card-grid">
+            <div class="acc-card-field">
+              <div class="acc-card-lbl">EAN</div>
+              <div class="acc-card-val mono">${r.ean || '—'}</div>
+            </div>
+            <div class="acc-card-field">
+              <div class="acc-card-lbl">Cantidad</div>
+              <div class="acc-card-val mono">${r.cantidad || '—'}</div>
+            </div>
+            <div class="acc-card-field acc-card-field-wide">
+              <div class="acc-card-lbl">Fecha vencimiento</div>
+              <div class="acc-card-val">${vencBadge(r.fechaVenc)}</div>
+            </div>
+            <div class="acc-card-field">
+              <div class="acc-card-lbl">Proveedor</div>
+              <div class="acc-card-val">${esc(r.proveedor || '—')}</div>
+            </div>
+            ${r.lote ? `<div class="acc-card-field">
+              <div class="acc-card-lbl">Lote</div>
+              <div class="acc-card-val mono">${esc(r.lote)}</div>
+            </div>` : ''}
+          </div>
+          ${hasVen ? `
+          <div class="acc-card-footer">
+            <span class="ven-chip ven-chip-full" onclick="openVenDetailFromAcc('${esc(r.id)}')">
+              📦 Ver vencimiento vinculado ↗
+            </span>
+          </div>` : ''}
+        </div>`;
+  }).join('')}
+    </div>`;
+
+  tbody.innerHTML = tableHtml + cardsHtml;
   renderPagination('accPagination', filteredAcc.length, accPage, p => { accPage = p; renderAccTable(); });
 }
+
+// ══════════════════════════════════════════════════════
+//  VEN DETAIL MODAL (desde panel acciones)
+//  ── Agregar estas funciones al final de dashboard.js ──
+// ══════════════════════════════════════════════════════
+
+/** Abre el modal de detalle de vencimiento vinculado a una devolucion */
+function openVenDetailFromAcc(devId) {
+  // 1) Buscar por idAccion exacto
+  let ven = venData.find(v => v.idAccion === devId);
+
+  // 2) Fallback: buscar por EAN + fechaVenc + sucursal del devRecord
+  if (!ven) {
+    const devRec = devData.find(d => d.id === devId);
+    if (devRec) {
+      const eanD = String(devRec.ean || '').trim();
+      const fvD = fmtDateOnly(devRec.fechaVenc);
+      const sucD = (devRec.sucursal || '').toUpperCase().trim();
+      ven = venData.find(v =>
+        String(v.ean || '').trim() === eanD &&
+        fmtDateOnly(v.fechaVenc) === fvD &&
+        (v.sucursal || '').toUpperCase().trim() === sucD
+      );
+    }
+  }
+
+  if (!ven) { showToast(false, 'No se encontró el vencimiento vinculado'); return; }
+  openVenModal(ven);
+}
+
+/** Renderiza el modal con los datos de un registro de vencimiento */
+function openVenModal(ven) {
+  document.getElementById('vm-id').textContent = 'VENCIMIENTO · ' + (ven.id || '—');
+  document.getElementById('vm-desc').textContent = ven.descripcion || '—';
+
+  const dias = ven._dias;
+  const urg = ven._urg || 'NORMAL';
+
+  // Helper de campo
+  const vff = (lbl, val, mono = false) => {
+    const empty = !val || String(val).trim() === '';
+    return `<div class="dev-field">
+      <div class="dev-fl">${lbl}</div>
+      <div class="dev-fv${mono ? ' mono' : ''}${empty ? ' empty' : ''}">${empty ? '—' : esc(String(val))}</div>
+    </div>`;
+  };
+
+  const diasTxt = dias === null ? '' :
+    dias > 0 ? `${dias} día${dias !== 1 ? 's' : ''} restante${dias !== 1 ? 's' : ''}` :
+      dias === 0 ? 'Vence HOY' :
+        `Vencido hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? 's' : ''}`;
+
+  document.getElementById('vm-body').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <span class="urg ${urg}">${URG_LABELS[urg]}</span>
+      ${diasTxt ? `<span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text2)">${diasTxt}</span>` : ''}
+      <span class="eg ${(ven.estadoGest || 'ACTIVO').replace(/\s+/g, '-')}" style="margin-left:auto">${ven.estadoGest || 'ACTIVO'}</span>
+    </div>
+    <div class="dev-grid">
+      ${vff('Sucursal', ven.sucursal)}
+      ${vff('Usuario', ven.usuario)}
+      ${vff('Fecha registro', fmtDate(ven.fechaReg || ''))}
+      ${vff('Fecha vencimiento', fmtDateOnly(ven.fechaVenc), true)}
+      ${vff('EAN', ven.ean, true)}
+      ${vff('Cód. interno', ven.codInterno, true)}
+      ${vff('Gramaje', ven.gramaje)}
+      ${vff('Cantidad', ven.cantidad)}
+      ${vff('Sector', ven.sector)}
+      ${vff('Sección', ven.seccion)}
+      ${vff('Proveedor', ven.proveedor)}
+      ${vff('Lote', ven.lote, true)}
+      ${ven.aclaracion ? vff('Aclaración', ven.aclaracion) : ''}
+    </div>
+    ${ven.idAccion ? `
+    <div style="margin-top:12px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">Acción vinculada</div>
+      <span class="dev-chip" onclick="switchToDevModal('${esc(ven.idAccion)}')">${esc(ven.idAccion)} ↗</span>
+    </div>` : ''}
+  `;
+
+  document.getElementById('venDetailModal').classList.add('open');
+}
+
+function closeVenModal(evt) {
+  if (evt && evt.target !== document.getElementById('venDetailModal')) return;
+  document.getElementById('venDetailModal').classList.remove('open');
+}
+
+/** Cierra el modal de vencimiento y abre el de devolución correspondiente */
+function switchToDevModal(devId) {
+  document.getElementById('venDetailModal').classList.remove('open');
+  // Pequeño delay para que el cierre sea visible antes de abrir el otro modal
+  setTimeout(() => {
+    const fakeEvt = { stopPropagation: () => { } };
+    openDevModal(fakeEvt, devId);
+  }, 150);
+}
+
 
 // ══════════════════════════════════════════════════════
 //  MÉTRICAS PANEL
@@ -1066,15 +1594,15 @@ function renderAccTable() {
 function renderMetricasPanel() {
   const d = devData;
   document.getElementById('mk-total').textContent = d.length;
-  document.getElementById('mk-nc').textContent    = d.filter(r => r.estado === 'N/C RECIBIDA').length;
-  document.getElementById('mk-pend').textContent  = d.filter(r => r.estado === 'PENDIENTE' || r.estado === 'EN GESTION').length;
-  document.getElementById('mk-rech').textContent  = d.filter(r => r.estado === 'RECHAZADA').length;
-  document.getElementById('mk-prov').textContent  = new Set(d.map(r => r.proveedor).filter(Boolean)).size;
-  document.getElementById('mk-suc').textContent   = new Set(d.map(r => r.sucursal).filter(Boolean)).size;
-  renderBarChart('ch-motivo',   countBy(d, 'motivo'),   '#4f8eff');
+  document.getElementById('mk-nc').textContent = d.filter(r => r.estado === 'N/C RECIBIDA').length;
+  document.getElementById('mk-pend').textContent = d.filter(r => r.estado === 'PENDIENTE' || r.estado === 'EN GESTION').length;
+  document.getElementById('mk-rech').textContent = d.filter(r => r.estado === 'RECHAZADA').length;
+  document.getElementById('mk-prov').textContent = new Set(d.map(r => r.proveedor).filter(Boolean)).size;
+  document.getElementById('mk-suc').textContent = new Set(d.map(r => r.sucursal).filter(Boolean)).size;
+  renderBarChart('ch-motivo', countBy(d, 'motivo'), '#4f8eff');
   renderBarChart('ch-sucursal', countBy(d, 'sucursal'), '#22d87a');
-  renderBarChart('ch-sector',   countBy(d, 'sector'),   '#a67cff');
-  renderBarChart('ch-prov-nc',  countBy(d.filter(r => r.estado === 'N/C RECIBIDA'), 'proveedor'), '#f5a623', 10);
+  renderBarChart('ch-sector', countBy(d, 'sector'), '#a67cff');
+  renderBarChart('ch-prov-nc', countBy(d.filter(r => r.estado === 'N/C RECIBIDA'), 'proveedor'), '#f5a623', 10);
 }
 function countBy(arr, key, limit) {
   const map = {};
@@ -1090,7 +1618,7 @@ function renderBarChart(id, entries, color, maxItems = 15) {
   el.innerHTML = entries.slice(0, maxItems).map(([label, val]) => `
     <div class="bar-row">
       <div class="bar-lbl" title="${esc(label)}">${esc(label)}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.max(6,Math.round(val/max*100))}%;background:${color}"><span class="bar-num">${val}</span></div></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.max(6, Math.round(val / max * 100))}%;background:${color}"><span class="bar-num">${val}</span></div></div>
     </div>`).join('');
 }
 function renderProvTable() {
@@ -1100,9 +1628,9 @@ function renderProvTable() {
     const d = devData.filter(r => r.proveedor === prov);
     const pend = d.filter(r => r.estado === 'PENDIENTE').length;
     const gest = d.filter(r => r.estado === 'EN GESTION').length;
-    const nc   = d.filter(r => r.estado === 'N/C RECIBIDA').length;
+    const nc = d.filter(r => r.estado === 'N/C RECIBIDA').length;
     const rech = d.filter(r => r.estado === 'RECHAZADA').length;
-    const cob  = d.length ? Math.round(nc / d.length * 100) : 0;
+    const cob = d.length ? Math.round(nc / d.length * 100) : 0;
     return { prov, total: d.length, pend, gest, nc, rech, cob };
   });
   if (!rows.length) { document.getElementById('provTableBody').innerHTML = '<tr><td colspan="7"><div class="empty"><p>Sin datos</p></div></td></tr>'; return; }
@@ -1110,10 +1638,10 @@ function renderProvTable() {
     <tr>
       <td style="font-weight:600;color:var(--text)">${esc(r.prov)}</td>
       <td class="c-right c-mono">${r.total}</td>
-      <td class="c-right">${r.pend?`<span class="badge b-pend">${r.pend}</span>`:'—'}</td>
-      <td class="c-right">${r.gest?`<span class="badge b-gest">${r.gest}</span>`:'—'}</td>
-      <td class="c-right">${r.nc?`<span class="badge b-nc">${r.nc}</span>`:'—'}</td>
-      <td class="c-right">${r.rech?`<span class="badge b-rech">${r.rech}</span>`:'—'}</td>
+      <td class="c-right">${r.pend ? `<span class="badge b-pend">${r.pend}</span>` : '—'}</td>
+      <td class="c-right">${r.gest ? `<span class="badge b-gest">${r.gest}</span>` : '—'}</td>
+      <td class="c-right">${r.nc ? `<span class="badge b-nc">${r.nc}</span>` : '—'}</td>
+      <td class="c-right">${r.rech ? `<span class="badge b-rech">${r.rech}</span>` : '—'}</td>
       <td style="min-width:120px"><div class="nc-progress"><div class="prog-track"><div class="prog-fill" style="width:${r.cob}%"></div></div><span class="c-mono" style="font-size:10px;min-width:32px">${r.cob}%</span></div></td>
     </tr>`).join('');
 }
@@ -1122,16 +1650,16 @@ function renderProvTable() {
 //  N/C PANEL
 // ══════════════════════════════════════════════════════
 function applyNcFilters() {
-  const prov   = document.getElementById('ncf-prov')?.value || '';
-  const est    = document.getElementById('ncf-estado')?.value || '';
-  const suc    = document.getElementById('ncf-suc')?.value || '';
-  const mot    = document.getElementById('ncf-motivo')?.value || '';
+  const prov = document.getElementById('ncf-prov')?.value || '';
+  const est = document.getElementById('ncf-estado')?.value || '';
+  const suc = document.getElementById('ncf-suc')?.value || '';
+  const mot = document.getElementById('ncf-motivo')?.value || '';
   const search = (document.getElementById('ncf-search')?.value || '').toLowerCase();
   filteredNc = devData.filter(r => {
     if (prov && r.proveedor !== prov) return false;
-    if (est  && r.estado !== est)    return false;
-    if (suc  && r.sucursal !== suc)  return false;
-    if (mot  && r.motivo !== mot)    return false;
+    if (est && r.estado !== est) return false;
+    if (suc && r.sucursal !== suc) return false;
+    if (mot && r.motivo !== mot) return false;
     if (search) { const hay = [r.descripcion, r.ean, r.lote, r.proveedor, r.sucursal, r.id].join(' ').toLowerCase(); if (!hay.includes(search)) return false; }
     return true;
   });
@@ -1140,7 +1668,7 @@ function applyNcFilters() {
 }
 function renderNcTable() {
   const start = (ncPage - 1) * PAGE_SIZE;
-  const page  = filteredNc.slice(start, start + PAGE_SIZE);
+  const page = filteredNc.slice(start, start + PAGE_SIZE);
   const tbody = document.getElementById('ncTableBody');
   if (!filteredNc.length) { tbody.innerHTML = '<div class="empty"><div class="ei">🔍</div><p>Sin resultados</p></div>'; document.getElementById('ncPagination').style.display = 'none'; return; }
   tbody.innerHTML = `<div class="table-scroll"><table>
@@ -1149,19 +1677,19 @@ function renderNcTable() {
     <th>Proveedor</th><th>Motivo</th><th>Lote</th><th>Estado</th><th>Obs. N/C</th></tr></thead>
     <tbody>${page.map(r => `
       <tr>
-        <td><input type="checkbox" ${selectedIds.has(r.id)?'checked':''} onchange="toggleRow('${r.id}',this)"></td>
+        <td><input type="checkbox" ${selectedIds.has(r.id) ? 'checked' : ''} onchange="toggleRow('${r.id}',this)"></td>
         <td class="c-id">${r.id}</td>
         <td class="c-mono" style="font-size:11px">${fmtDateDisp(r.fecha)}</td>
-        <td><span class="b-tag">${r.sucursal||'—'}</span></td>
-        <td class="c-main">${esc(r.descripcion||'—')}</td>
-        <td class="c-mono" style="font-size:11px">${r.ean||'—'}</td>
-        <td class="c-right c-mono">${r.cantidad||'—'}</td>
+        <td><span class="b-tag">${r.sucursal || '—'}</span></td>
+        <td class="c-main">${esc(r.descripcion || '—')}</td>
+        <td class="c-mono" style="font-size:11px">${r.ean || '—'}</td>
+        <td class="c-right c-mono">${r.cantidad || '—'}</td>
         <td>${vencBadge(r.fechaVenc)}</td>
-        <td>${esc(r.proveedor||'—')}</td>
+        <td>${esc(r.proveedor || '—')}</td>
         <td>${motivoBadge(r.motivo)}</td>
-        <td class="c-mono" style="font-size:11px">${r.lote||'—'}</td>
+        <td class="c-mono" style="font-size:11px">${r.lote || '—'}</td>
         <td>${estadoBadge(r.estado)}</td>
-        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;color:var(--text2);font-size:11px">${r.obsNC||'—'}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;color:var(--text2);font-size:11px">${r.obsNC || '—'}</td>
       </tr>`).join('')}
     </tbody></table></div>`;
   renderPagination('ncPagination', filteredNc.length, ncPage, p => { ncPage = p; renderNcTable(); });
@@ -1169,20 +1697,20 @@ function renderNcTable() {
 function toggleRow(id, cb) { if (cb.checked) selectedIds.add(id); else selectedIds.delete(id); updateBulkBar(); }
 function toggleSelectAll() { const c = document.getElementById('selectAll').checked; filteredNc.forEach(r => { if (c) selectedIds.add(r.id); else selectedIds.delete(r.id); }); renderNcTable(); updateBulkBar(); }
 function clearSelection() { selectedIds.clear(); document.getElementById('selectAll').checked = false; renderNcTable(); updateBulkBar(); }
-function updateBulkBar() { const n = selectedIds.size; document.getElementById('bulkCount').textContent = n + ' registro' + (n===1?'':'s') + ' seleccionado' + (n===1?'':'s'); document.getElementById('bulkBar').classList.toggle('visible', n > 0); }
+function updateBulkBar() { const n = selectedIds.size; document.getElementById('bulkCount').textContent = n + ' registro' + (n === 1 ? '' : 's') + ' seleccionado' + (n === 1 ? '' : 's'); document.getElementById('bulkBar').classList.toggle('visible', n > 0); }
 
 function applyBulkAction() {
   const estado = document.getElementById('bulkEstado').value;
-  const obs    = document.getElementById('bulkObs').value.trim();
+  const obs = document.getElementById('bulkObs').value.trim();
   if (!estado && !obs) { alert('Seleccioná un estado o escribí una observación.'); return; }
   if (!selectedIds.size) { alert('No hay registros seleccionados.'); return; }
   const ids = [...selectedIds];
   document.getElementById('cm-title').textContent = '✏️ Confirmar actualización masiva';
-  document.getElementById('cm-text').textContent  = `Se actualizarán ${ids.length} registro${ids.length===1?'':'s'}:`;
+  document.getElementById('cm-text').textContent = `Se actualizarán ${ids.length} registro${ids.length === 1 ? '' : 's'}:`;
   document.getElementById('cm-details').innerHTML = `
-    ${estado?`<div style="background:var(--blue-d);border:1px solid var(--blue);padding:8px 12px;border-radius:7px;font-size:12px;margin-bottom:6px">Estado → <strong>${esc(estado)}</strong></div>`:''}
-    ${obs?`<div style="background:var(--blue-d);border:1px solid var(--blue);padding:8px 12px;border-radius:7px;font-size:12px">Obs N/C → <em>${esc(obs)}</em></div>`:''}
-    <p style="font-size:10px;color:var(--text3);margin-top:8px;font-family:'IBM Plex Mono',monospace">IDs: ${ids.slice(0,8).join(', ')}${ids.length>8?'…':''}</p>`;
+    ${estado ? `<div style="background:var(--blue-d);border:1px solid var(--blue);padding:8px 12px;border-radius:7px;font-size:12px;margin-bottom:6px">Estado → <strong>${esc(estado)}</strong></div>` : ''}
+    ${obs ? `<div style="background:var(--blue-d);border:1px solid var(--blue);padding:8px 12px;border-radius:7px;font-size:12px">Obs N/C → <em>${esc(obs)}</em></div>` : ''}
+    <p style="font-size:10px;color:var(--text3);margin-top:8px;font-family:'IBM Plex Mono',monospace">IDs: ${ids.slice(0, 8).join(', ')}${ids.length > 8 ? '…' : ''}</p>`;
   modalCb = () => executeBulkUpdate(ids, estado, obs);
   document.getElementById('cm-confirm').onclick = () => { if (modalCb) { const cb = modalCb; modalCb = null; cb(); } };
   document.getElementById('confirmModal').classList.add('open');
@@ -1195,12 +1723,12 @@ async function executeBulkUpdate(ids, estado, obs) {
   let ok = 0, err = 0;
   for (let i = 0; i < ids.length; i++) {
     const id = ids[i];
-    showSpinner('Procesando ' + (i+1) + ' / ' + ids.length + '…');
+    showSpinner('Procesando ' + (i + 1) + ' / ' + ids.length + '…');
     try {
       const payload = { action: 'updateRecord', id };
       if (estado) payload.estado = estado;
-      if (obs)    payload.observacionNC = obs;
-      const res  = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+      if (obs) payload.observacionNC = obs;
+      const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
       const json = await res.json();
       if (json.success) { ok++; const r = devData.find(x => x.id === id); if (r) { if (estado) r.estado = estado; if (obs) r.obsNC = obs; } }
       else err++;
@@ -1209,7 +1737,7 @@ async function executeBulkUpdate(ids, estado, obs) {
   hideSpinner();
   clearSelection();
   applyNcFilters(); renderMetricasPanel(); renderProvTable(); applyAccFilters(); updateResumenKPIs(); updateNavBadges();
-  showToast(err===0, ok + ' actualizado' + (ok===1?'':'s') + (err?' · ' + err + ' error' + (err===1?'':'s'):''));
+  showToast(err === 0, ok + ' actualizado' + (ok === 1 ? '' : 's') + (err ? ' · ' + err + ' error' + (err === 1 ? '' : 's') : ''));
 }
 
 function closeModal() { document.getElementById('confirmModal').classList.remove('open'); modalCb = null; }
@@ -1221,31 +1749,31 @@ document.getElementById('confirmModal').addEventListener('click', e => { if (e.t
 function openDevModal(evt, id) {
   evt.stopPropagation();
   const rec = devMap.get(id);
-  document.getElementById('dd-id').textContent   = id;
+  document.getElementById('dd-id').textContent = id;
   document.getElementById('dd-desc').textContent = rec ? (rec.descripcion || '—') : '—';
   const body = document.getElementById('dd-body');
   if (!rec) { body.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">No se encontró <strong>${esc(id)}</strong> en BD Devoluciones.</div>`; document.getElementById('devDetailModal').classList.add('open'); return; }
   const estadoCls = (rec.estado || 'PENDIENTE').replace(/[\s\/]/g, '-');
   const fotoMatch = String(rec.fotoRaw || '').match(/https?:\/\/[^"')]+/);
   const nc = rec.obsNC || '';
-  const f = (lbl, val, opts={}) => {
+  const f = (lbl, val, opts = {}) => {
     const isEmpty = !val || val === '';
-    return `<div class="dev-field${opts.full?' full':''}"><div class="dev-fl">${lbl}</div><div class="dev-fv${opts.mono?' mono':''}${isEmpty?' empty':''}">${isEmpty?'—':esc(String(val))}</div></div>`;
+    return `<div class="dev-field${opts.full ? ' full' : ''}"><div class="dev-fl">${lbl}</div><div class="dev-fv${opts.mono ? ' mono' : ''}${isEmpty ? ' empty' : ''}">${isEmpty ? '—' : esc(String(val))}</div></div>`;
   };
   body.innerHTML = `
-    <div class="dev-estado-badge ${estadoCls}">${rec.estado||'PENDIENTE'}</div>
+    <div class="dev-estado-badge ${estadoCls}">${rec.estado || 'PENDIENTE'}</div>
     <div class="dev-grid">
-      ${f('Sucursal',rec.sucursal)}${f('Usuario',rec.usuario)}
-      ${f('Fecha registro',fmtDateDisp(rec.fecha))}${f('Motivo',rec.motivo)}
-      ${f('EAN',rec.ean,{mono:true})}${f('Cód. interno',rec.codInterno,{mono:true})}
-      ${f('Gramaje',rec.gramaje)}${f('Cantidad',rec.cantidad)}
-      ${f('Fecha vencimiento',fmtVenc(rec.fechaVenc),{mono:true})}${f('Sector/Sección',[rec.sector,rec.seccion].filter(Boolean).join(' / '))}
-      ${f('Proveedor',rec.proveedor)}${f('Cód. proveedor',rec.codProv,{mono:true})}
-      ${f('Lote',rec.lote,{mono:true})}${f('Aclaración',rec.aclaracion)}
-      ${rec.comentarios?f('Comentarios',rec.comentarios,{full:true}):''}
+      ${f('Sucursal', rec.sucursal)}${f('Usuario', rec.usuario)}
+      ${f('Fecha registro', fmtDateDisp(rec.fecha))}${f('Motivo', rec.motivo)}
+      ${f('EAN', rec.ean, { mono: true })}${f('Cód. interno', rec.codInterno, { mono: true })}
+      ${f('Gramaje', rec.gramaje)}${f('Cantidad', rec.cantidad)}
+      ${f('Fecha vencimiento', fmtVenc(rec.fechaVenc), { mono: true })}${f('Sector/Sección', [rec.sector, rec.seccion].filter(Boolean).join(' / '))}
+      ${f('Proveedor', rec.proveedor)}${f('Cód. proveedor', rec.codProv, { mono: true })}
+      ${f('Lote', rec.lote, { mono: true })}${f('Aclaración', rec.aclaracion)}
+      ${rec.comentarios ? f('Comentarios', rec.comentarios, { full: true }) : ''}
     </div>
-    ${fotoMatch?`<a class="photo-link" href="${fotoMatch[0]}" target="_blank">📎 Ver foto adjunta</a>`:''}
-    ${nc?`<div class="nc-obs-box"><div class="nc-obs-lbl">Observación N/C</div><div style="font-size:12px;color:var(--text)">${esc(nc)}</div></div>`:''}
+    ${fotoMatch ? `<a class="photo-link" href="${fotoMatch[0]}" target="_blank">📎 Ver foto adjunta</a>` : ''}
+    ${nc ? `<div class="nc-obs-box"><div class="nc-obs-lbl">Observación N/C</div><div style="font-size:12px;color:var(--text)">${esc(nc)}</div></div>` : ''}
   `;
   document.getElementById('devDetailModal').classList.add('open');
 }
@@ -1255,34 +1783,34 @@ function closeDevModal(evt) { if (evt && evt.target !== document.getElementById(
 //  POPULATE SELECTS
 // ══════════════════════════════════════════════════════
 function populateFilterSelects() {
-  const provs    = [...new Set([...devData.map(r=>r.proveedor),...venData.map(r=>r.proveedor)].filter(Boolean))].sort();
-  const sucs     = [...new Set([...devData.map(r=>r.sucursal),...venData.map(r=>r.sucursal)].filter(Boolean))].sort();
-  const motivos  = [...new Set(devData.map(r=>r.motivo).filter(Boolean))].sort();
-  const venSucs  = [...new Set(venData.map(r=>r.sucursal).filter(Boolean))].sort();
-  const venProvs = [...new Set(venData.map(r=>r.proveedor).filter(Boolean))].sort();
-  fillSel('af-suc',sucs); fillSel('af-prov',provs); fillSel('af-motivo',motivos);
-  fillSel('vf-prov',venProvs); fillSel('vf-suc',venSucs);
-  fillSel('ncf-prov',provs); fillSel('ncf-suc',sucs); fillSel('ncf-motivo',motivos);
+  const provs = [...new Set([...devData.map(r => r.proveedor), ...venData.map(r => r.proveedor)].filter(Boolean))].sort();
+  const sucs = [...new Set([...devData.map(r => r.sucursal), ...venData.map(r => r.sucursal)].filter(Boolean))].sort();
+  const motivos = [...new Set(devData.map(r => r.motivo).filter(Boolean))].sort();
+  const venSucs = [...new Set(venData.map(r => r.sucursal).filter(Boolean))].sort();
+  const venProvs = [...new Set(venData.map(r => r.proveedor).filter(Boolean))].sort();
+  fillSel('af-suc', sucs); fillSel('af-prov', provs); fillSel('af-motivo', motivos);
+  fillSel('vf-prov', venProvs); fillSel('vf-suc', venSucs);
+  fillSel('ncf-prov', provs); fillSel('ncf-suc', sucs); fillSel('ncf-motivo', motivos);
 }
-function fillSel(id, vals) { const s = document.getElementById(id); if (!s) return; const cur = s.value; s.innerHTML = '<option value="">Todos/Todas</option>'; vals.forEach(v => s.add(new Option(v,v))); s.value = cur; }
+function fillSel(id, vals) { const s = document.getElementById(id); if (!s) return; const cur = s.value; s.innerHTML = '<option value="">Todos/Todas</option>'; vals.forEach(v => s.add(new Option(v, v))); s.value = cur; }
 
 // ══════════════════════════════════════════════════════
 //  STALE BADGE
 // ══════════════════════════════════════════════════════
 function staleStyle(dias) {
-  if (dias===null) return { fg:'#525e72', bg:'#1c2030', br:'#252a38', icon:'?' };
-  if (dias<=3)  return { fg:'#4ade80', bg:'#0a1f0a', br:'#14532d', icon:'✓' };
-  if (dias<=7)  return { fg:'#a3e635', bg:'#172100', br:'#2d4a00', icon:'●' };
-  if (dias<=14) return { fg:'#d4e635', bg:'#1e2200', br:'#3d4700', icon:'●' };
-  if (dias<=21) return { fg:'#fbbf24', bg:'#2d2200', br:'#78350f', icon:'●' };
-  if (dias<=30) return { fg:'#fb923c', bg:'#2d1500', br:'#7c2d12', icon:'!' };
-  if (dias<=45) return { fg:'#f87171', bg:'#2d0c0c', br:'#7f1d1d', icon:'!!' };
-  return { fg:'#ff3333', bg:'#3d0000', br:'#9b1c1c', icon:'⚠' };
+  if (dias === null) return { fg: '#525e72', bg: '#1c2030', br: '#252a38', icon: '?' };
+  if (dias <= 3) return { fg: '#4ade80', bg: '#0a1f0a', br: '#14532d', icon: '✓' };
+  if (dias <= 7) return { fg: '#a3e635', bg: '#172100', br: '#2d4a00', icon: '●' };
+  if (dias <= 14) return { fg: '#d4e635', bg: '#1e2200', br: '#3d4700', icon: '●' };
+  if (dias <= 21) return { fg: '#fbbf24', bg: '#2d2200', br: '#78350f', icon: '●' };
+  if (dias <= 30) return { fg: '#fb923c', bg: '#2d1500', br: '#7c2d12', icon: '!' };
+  if (dias <= 45) return { fg: '#f87171', bg: '#2d0c0c', br: '#7f1d1d', icon: '!!' };
+  return { fg: '#ff3333', bg: '#3d0000', br: '#9b1c1c', icon: '⚠' };
 }
-function staleBadgeHtml(dias, mini=false) {
+function staleBadgeHtml(dias, mini = false) {
   const s = staleStyle(dias);
-  const txt = s.icon + ' ' + (dias===null ? 'sin fecha' : `hace ${dias}d`);
-  return `<span class="stale" style="color:${s.fg};background:${s.bg};border-color:${s.br};font-size:${mini?'9px':'10px'}">${txt}</span>`;
+  const txt = s.icon + ' ' + (dias === null ? 'sin fecha' : `hace ${dias}d`);
+  return `<span class="stale" style="color:${s.fg};background:${s.bg};border-color:${s.br};font-size:${mini ? '9px' : '10px'}">${txt}</span>`;
 }
 
 // ══════════════════════════════════════════════════════
@@ -1304,23 +1832,23 @@ function staleBadgeHtml(dias, mini=false) {
  */
 function getCombinedRisk(dias, qty) {
   if (!qty || qty <= 0) return 'NORMAL';
-  if (dias === null)    return 'NORMAL';
+  if (dias === null) return 'NORMAL';
 
   let factor;
-  if      (dias <= 0)  factor = 10;
-  else if (dias <= 6)  factor = 4;
+  if (dias <= 0) factor = 10;
+  else if (dias <= 6) factor = 4;
   else if (dias <= 14) factor = 2;
   else if (dias <= 21) factor = 1;
   else if (dias <= 45) factor = 0.4;
   else if (dias <= 90) factor = 0.15;
-  else                 factor = 0.03;
+  else factor = 0.03;
 
   const score = qty * factor;
 
   if (score >= 1500) return 'CRITICO';
-  if (score >= 400)  return 'URGENTE';
-  if (score >= 80)   return 'PROXIMO';
-  if (score >= 20)   return 'ATENCION';
+  if (score >= 400) return 'URGENTE';
+  if (score >= 80) return 'PROXIMO';
+  if (score >= 20) return 'ATENCION';
   return 'NORMAL';
 }
 
@@ -1336,9 +1864,9 @@ function qtyRiskHtml(qty, dias, size = 'normal') {
   const showBadge = risk !== 'NORMAL';
 
   const RISK_LABELS = {
-    CRITICO:  '🔴 RIESGO ALTO',
-    URGENTE:  '🟠 RIESGO',
-    PROXIMO:  '🟡 ATENDER',
+    CRITICO: '🔴 RIESGO ALTO',
+    URGENTE: '🟠 RIESGO',
+    PROXIMO: '🟡 ATENDER',
     ATENCION: '🔵 MONITOREAR',
   };
 
@@ -1361,30 +1889,30 @@ function qtyRiskHtml(qty, dias, size = 'normal') {
 //  BADGE HELPERS
 // ══════════════════════════════════════════════════════
 function estadoBadge(est) {
-  const map = { 'PENDIENTE':'b-pend', 'EN GESTION':'b-gest', 'N/C RECIBIDA':'b-nc', 'RECHAZADA':'b-rech' };
-  return `<span class="badge ${map[est]||'b-pend'}">${esc(est||'PENDIENTE')}</span>`;
+  const map = { 'PENDIENTE': 'b-pend', 'EN GESTION': 'b-gest', 'N/C RECIBIDA': 'b-nc', 'RECHAZADA': 'b-rech' };
+  return `<span class="badge ${map[est] || 'b-pend'}">${esc(est || 'PENDIENTE')}</span>`;
 }
 function motivoBadge(m) {
   if (!m) return `<span class="mb mb-otro">—</span>`;
   const u = m.toUpperCase();
   let cls = 'mb-otro';
-  if (u==='ACCION 2X1'||u==='VENCIDO ACCION 2X1') cls='mb-2x1';
-  else if (u==='ACCION 50% OFF'||u==='VENCIDO ACCION 50% OFF') cls='mb-50off';
-  else if (u==='OTRO DESCUENTO') cls='mb-desc';
-  else if (u==='VENCIDO') cls='mb-venc';
-  else if (u==='ROTO/DAÑADO'||u==='MAL ESTADO') cls='mb-dano';
+  if (u === 'ACCION 2X1' || u === 'VENCIDO ACCION 2X1') cls = 'mb-2x1';
+  else if (u === 'ACCION 50% OFF' || u === 'VENCIDO ACCION 50% OFF') cls = 'mb-50off';
+  else if (u === 'OTRO DESCUENTO') cls = 'mb-desc';
+  else if (u === 'VENCIDO') cls = 'mb-venc';
+  else if (u === 'ROTO/DAÑADO' || u === 'MAL ESTADO') cls = 'mb-dano';
   return `<span class="mb ${cls}">${esc(m)}</span>`;
 }
 function vencBadge(str) {
   const txt = fmtVenc(str);
-  if (txt==='—') return `<span class="vb vb-nd">—</span>`;
+  if (txt === '—') return `<span class="vb vb-nd">—</span>`;
   const parts = txt.split('-');
-  if (parts.length!==3) return `<span class="vb-nd">${txt}</span>`;
-  const d = new Date(+parts[2],+parts[1]-1,+parts[0]);
+  if (parts.length !== 3) return `<span class="vb-nd">${txt}</span>`;
+  const d = new Date(+parts[2], +parts[1] - 1, +parts[0]);
   const diff = Math.ceil((d - new Date()) / 86400000);
   let cls = 'vb-ok';
-  if (diff<0) cls='vb-exp'; else if (diff<=7) cls='vb-crit'; else if (diff<=30) cls='vb-warn';
-  const icon = diff<0?'💀':diff<=7?'🔴':diff<=30?'🟡':'🟢';
+  if (diff < 0) cls = 'vb-exp'; else if (diff <= 7) cls = 'vb-crit'; else if (diff <= 30) cls = 'vb-warn';
+  const icon = diff < 0 ? '💀' : diff <= 7 ? '🔴' : diff <= 30 ? '🟡' : '🟢';
   return `<span class="vb ${cls}">${icon} ${txt}</span>`;
 }
 
@@ -1394,40 +1922,40 @@ function vencBadge(str) {
 function parseDate(str) {
   if (!str) return null;
   const s = String(str).trim(); let m;
-  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(m) return new Date(+m[3],+m[2]-1,+m[1]);
-  m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if(m) return new Date(+m[1],+m[2]-1,+m[3]);
-  m=s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/); if(m) return new Date(+m[3],+m[2]-1,+m[1]);
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/); if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
   return null;
 }
 function parseRegDate(str) {
   if (!str) return null;
-  const m=str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
-  if(m) return new Date(+m[3],+m[2]-1,+m[1],+m[4],+m[5],+m[6]);
-  const m2=str.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-  if(m2) return new Date(+m2[3],+m2[2]-1,+m2[1]);
-  const d=new Date(str); return isNaN(d)?null:d;
+  const m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5], +m[6]);
+  const m2 = str.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m2) return new Date(+m2[3], +m2[2] - 1, +m2[1]);
+  const d = new Date(str); return isNaN(d) ? null : d;
 }
 function fmtDate(v) {
   if (!v) return '—';
-  if (v instanceof Date) return v.toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
-  const s=String(v).trim();
-  const m1=s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}:\d{2}))?/);
-  if(m1) return m1[4]?`${m1[1]}-${m1[2]}-${m1[3]} ${m1[4]}`:`${m1[1]}-${m1[2]}-${m1[3]}`;
-  const m2=s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[\sT]+(\d{2}:\d{2}))?/);
-  if(m2) return m2[4]?`${m2[3]}-${m2[2]}-${m2[1]} ${m2[4]}`:`${m2[3]}-${m2[2]}-${m2[1]}`;
-  return s.slice(0,16);
+  if (v instanceof Date) return v.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const s = String(v).trim();
+  const m1 = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}:\d{2}))?/);
+  if (m1) return m1[4] ? `${m1[1]}-${m1[2]}-${m1[3]} ${m1[4]}` : `${m1[1]}-${m1[2]}-${m1[3]}`;
+  const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[\sT]+(\d{2}:\d{2}))?/);
+  if (m2) return m2[4] ? `${m2[3]}-${m2[2]}-${m2[1]} ${m2[4]}` : `${m2[3]}-${m2[2]}-${m2[1]}`;
+  return s.slice(0, 16);
 }
-function fmtDateOnly(str) { if(!str) return '—'; return fmtDate(str).split(' ')[0]; }
-function fmtDateDisp(d) { if(!d) return '—'; if(d instanceof Date) return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'}); return fmtDate(d); }
+function fmtDateOnly(str) { if (!str) return '—'; return fmtDate(str).split(' ')[0]; }
+function fmtDateDisp(d) { if (!d) return '—'; if (d instanceof Date) return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }); return fmtDate(d); }
 function fmtVenc(str) {
   if (!str) return '—';
-  const s=String(str).trim(); let m;
-  m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if(m) return m[3].padStart(2,'0')+'-'+m[2].padStart(2,'0')+'-'+m[1];
-  m=s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/); if(m) return m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0')+'-'+m[3];
-  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(m) return m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0')+'-'+m[3];
+  const s = String(str).trim(); let m;
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if (m) return m[3].padStart(2, '0') + '-' + m[2].padStart(2, '0') + '-' + m[1];
+  m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/); if (m) return m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0') + '-' + m[3];
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) return m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0') + '-' + m[3];
   return s;
 }
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
 // ══════════════════════════════════════════════════════
 //  PAGINATION
@@ -1436,16 +1964,16 @@ const _pageCbs = {};
 function renderPagination(containerId, total, current, cb) {
   const el = document.getElementById(containerId);
   const tp = Math.ceil(total / PAGE_SIZE);
-  if (tp<=1) { el.style.display='none'; return; }
+  if (tp <= 1) { el.style.display = 'none'; return; }
   _pageCbs[containerId] = cb;
   el.style.display = 'flex';
-  const shown = Math.min(current*PAGE_SIZE, total);
-  let html = `<span>Mostrando ${(current-1)*PAGE_SIZE+1}–${shown} de ${total}</span><div class="page-btns">`;
-  html += `<button class="page-btn" data-pg="${current-1}" data-cb="${containerId}" ${current===1?'disabled':''}>←</button>`;
-  for (let i=Math.max(1,current-2);i<=Math.min(tp,current+2);i++) html+=`<button class="page-btn${i===current?' active':''}" data-pg="${i}" data-cb="${containerId}">${i}</button>`;
-  html += `<button class="page-btn" data-pg="${current+1}" data-cb="${containerId}" ${current===tp?'disabled':''}>→</button></div>`;
+  const shown = Math.min(current * PAGE_SIZE, total);
+  let html = `<span>Mostrando ${(current - 1) * PAGE_SIZE + 1}–${shown} de ${total}</span><div class="page-btns">`;
+  html += `<button class="page-btn" data-pg="${current - 1}" data-cb="${containerId}" ${current === 1 ? 'disabled' : ''}>←</button>`;
+  for (let i = Math.max(1, current - 2); i <= Math.min(tp, current + 2); i++) html += `<button class="page-btn${i === current ? ' active' : ''}" data-pg="${i}" data-cb="${containerId}">${i}</button>`;
+  html += `<button class="page-btn" data-pg="${current + 1}" data-cb="${containerId}" ${current === tp ? 'disabled' : ''}>→</button></div>`;
   el.innerHTML = html;
-  el.querySelectorAll('button[data-pg]').forEach(btn=>btn.addEventListener('click',()=>{if(!btn.disabled){const c=_pageCbs[btn.dataset.cb];if(c)c(+btn.dataset.pg);}}));
+  el.querySelectorAll('button[data-pg]').forEach(btn => btn.addEventListener('click', () => { if (!btn.disabled) { const c = _pageCbs[btn.dataset.cb]; if (c) c(+btn.dataset.pg); } }));
 }
 
 // ══════════════════════════════════════════════════════
@@ -1453,11 +1981,11 @@ function renderPagination(containerId, total, current, cb) {
 // ══════════════════════════════════════════════════════
 function barcodeDataUrl(ean) {
   const canvas = document.createElement('canvas');
-  const code = String(ean||'').replace(/\D/g,'');
+  const code = String(ean || '').replace(/\D/g, '');
   if (!code) return null;
-  const fmt=/^\d{13}$/.test(code)?'ean13':(/^\d{8}$/.test(code)?'ean8':'code128');
-  try { JsBarcode(canvas,code,{format:fmt,displayValue:false,margin:6,width:3,height:90}); }
-  catch(e) { try{JsBarcode(canvas,code,{format:'code128',displayValue:false,margin:6,width:3,height:90});}catch(e2){return null;} }
+  const fmt = /^\d{13}$/.test(code) ? 'ean13' : (/^\d{8}$/.test(code) ? 'ean8' : 'code128');
+  try { JsBarcode(canvas, code, { format: fmt, displayValue: false, margin: 6, width: 3, height: 90 }); }
+  catch (e) { try { JsBarcode(canvas, code, { format: 'code128', displayValue: false, margin: 6, width: 3, height: 90 }); } catch (e2) { return null; } }
   return canvas.toDataURL('image/png').split(',')[1];
 }
 async function exportAccXlsx() {
@@ -1465,57 +1993,57 @@ async function exportAccXlsx() {
   if (!rows.length) { alert('No hay registros para exportar.'); return; }
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Acciones');
-  ws.pageSetup = { paperSize:9, orientation:'landscape', fitToPage:true, fitToWidth:1, fitToHeight:0, margins:{left:.3,right:.3,top:.4,bottom:.4,header:.2,footer:.2} };
-  ws.columns = [{key:'bc',width:26},{key:'fecha',width:12},{key:'suc',width:16},{key:'desc',width:34},{key:'gram',width:10},{key:'cant',width:10},{key:'venc',width:13},{key:'prov',width:24},{key:'mot',width:22},{key:'lote',width:14},{key:'est',width:16}];
-  const hRow = ws.addRow(['COD-BAR','Fecha','Sucursal','Descripción','Gramaje','Cantidad','Fecha Venc.','Proveedor','Motivo','Lote','Estado']);
+  ws.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: .3, right: .3, top: .4, bottom: .4, header: .2, footer: .2 } };
+  ws.columns = [{ key: 'bc', width: 26 }, { key: 'fecha', width: 12 }, { key: 'suc', width: 16 }, { key: 'desc', width: 34 }, { key: 'gram', width: 10 }, { key: 'cant', width: 10 }, { key: 'venc', width: 13 }, { key: 'prov', width: 24 }, { key: 'mot', width: 22 }, { key: 'lote', width: 14 }, { key: 'est', width: 16 }];
+  const hRow = ws.addRow(['COD-BAR', 'Fecha', 'Sucursal', 'Descripción', 'Gramaje', 'Cantidad', 'Fecha Venc.', 'Proveedor', 'Motivo', 'Lote', 'Estado']);
   hRow.height = 22;
-  hRow.eachCell(c=>{c.font={bold:true,color:{argb:'FFFFFFFF'},size:11};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF0D111F'}};c.alignment={horizontal:'center',vertical:'middle'};c.border={bottom:{style:'medium',color:{argb:'FF4f8eff'}}};});
-  for (let i=0;i<rows.length;i++) {
-    const r=rows[i]; const isEven=i%2===1;
-    const dRow=ws.addRow(['',r.fecha?r.fecha.toLocaleDateString('es-AR'):'',r.sucursal||'',r.descripcion||'',r.gramaje||'',r.cantidad||'',fmtVenc(r.fechaVenc),r.proveedor||'',r.motivo||'',r.lote||'',r.estado||'']);
-    dRow.height=70;
-    dRow.eachCell({includeEmpty:true},(c,col)=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:isEven?'FFF5F7FF':'FFFFFFFF'}};c.alignment={vertical:'middle',horizontal:col===1?'center':'left',wrapText:col===4};c.font={size:10};c.border={bottom:{style:'thin',color:{argb:'FFDDDDDD'}},right:{style:'thin',color:{argb:'FFDDDDDD'}}};});
-    const ec=dRow.getCell(11); const ecMap={'PENDIENTE':{bg:'FFFFF3CD',fg:'FF856404'},'EN GESTION':{bg:'FFD1ECF1',fg:'FF0C5460'},'N/C RECIBIDA':{bg:'FFD4EDDA',fg:'FF155724'},'RECHAZADA':{bg:'FFF8D7DA',fg:'FF721C24'}};
-    const ecv=ecMap[r.estado]; if(ecv){ec.fill={type:'pattern',pattern:'solid',fgColor:{argb:ecv.bg}};ec.font={size:10,bold:true,color:{argb:ecv.fg}};}
-    const b64=barcodeDataUrl(r.ean); if(b64){const imgId=wb.addImage({base64:b64,extension:'png'});ws.addImage(imgId,{tl:{col:.08,row:i+1+.06},ext:{width:145,height:60},editAs:'oneCell'});}
+  hRow.eachCell(c => { c.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D111F' } }; c.alignment = { horizontal: 'center', vertical: 'middle' }; c.border = { bottom: { style: 'medium', color: { argb: 'FF4f8eff' } } }; });
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]; const isEven = i % 2 === 1;
+    const dRow = ws.addRow(['', r.fecha ? r.fecha.toLocaleDateString('es-AR') : '', r.sucursal || '', r.descripcion || '', r.gramaje || '', r.cantidad || '', fmtVenc(r.fechaVenc), r.proveedor || '', r.motivo || '', r.lote || '', r.estado || '']);
+    dRow.height = 70;
+    dRow.eachCell({ includeEmpty: true }, (c, col) => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isEven ? 'FFF5F7FF' : 'FFFFFFFF' } }; c.alignment = { vertical: 'middle', horizontal: col === 1 ? 'center' : 'left', wrapText: col === 4 }; c.font = { size: 10 }; c.border = { bottom: { style: 'thin', color: { argb: 'FFDDDDDD' } }, right: { style: 'thin', color: { argb: 'FFDDDDDD' } } }; });
+    const ec = dRow.getCell(11); const ecMap = { 'PENDIENTE': { bg: 'FFFFF3CD', fg: 'FF856404' }, 'EN GESTION': { bg: 'FFD1ECF1', fg: 'FF0C5460' }, 'N/C RECIBIDA': { bg: 'FFD4EDDA', fg: 'FF155724' }, 'RECHAZADA': { bg: 'FFF8D7DA', fg: 'FF721C24' } };
+    const ecv = ecMap[r.estado]; if (ecv) { ec.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ecv.bg } }; ec.font = { size: 10, bold: true, color: { argb: ecv.fg } }; }
+    const b64 = barcodeDataUrl(r.ean); if (b64) { const imgId = wb.addImage({ base64: b64, extension: 'png' }); ws.addImage(imgId, { tl: { col: .08, row: i + 1 + .06 }, ext: { width: 145, height: 60 }, editAs: 'oneCell' }); }
   }
-  ws.views=[{state:'frozen',xSplit:0,ySplit:1,topLeftCell:'A2',activeCell:'A2'}];
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 1, topLeftCell: 'A2', activeCell: 'A2' }];
   try {
-    const buf=await wb.xlsx.writeBuffer();
-    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-    const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='acciones_'+fmtIso(new Date())+'.xlsx'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-  } catch(err){alert('Error al generar Excel: '+err.message);}
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'acciones_' + fmtIso(new Date()) + '.xlsx'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  } catch (err) { alert('Error al generar Excel: ' + err.message); }
 }
 function exportNcXlsx() {
-  const rows = selectedIds.size>0 ? filteredNc.filter(r=>selectedIds.has(r.id)) : filteredNc;
+  const rows = selectedIds.size > 0 ? filteredNc.filter(r => selectedIds.has(r.id)) : filteredNc;
   if (!rows.length) { alert('No hay registros para exportar.'); return; }
-  const headers=['ID','Fecha','Sucursal','EAN','Descripción','Gramaje','Cantidad','Fecha Venc.','Proveedor','Motivo','Lote','Estado','Obs. N/C'];
-  const wsData=[headers,...rows.map(r=>[r.id,r.fecha?r.fecha.toLocaleDateString('es-AR'):'',r.sucursal,r.ean,r.descripcion,r.gramaje,r.cantidad,fmtVenc(r.fechaVenc),r.proveedor,r.motivo,r.lote,r.estado,r.obsNC])];
-  const wb=XLSX.utils.book_new(); const ws=XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols']=[{wch:22},{wch:12},{wch:16},{wch:16},{wch:32},{wch:10},{wch:10},{wch:14},{wch:22},{wch:22},{wch:14},{wch:16},{wch:28}];
-  XLSX.utils.book_append_sheet(wb,ws,'Gestión NC');
-  XLSX.writeFile(wb,'gestion_nc_'+fmtIso(new Date())+'.xlsx');
+  const headers = ['ID', 'Fecha', 'Sucursal', 'EAN', 'Descripción', 'Gramaje', 'Cantidad', 'Fecha Venc.', 'Proveedor', 'Motivo', 'Lote', 'Estado', 'Obs. N/C'];
+  const wsData = [headers, ...rows.map(r => [r.id, r.fecha ? r.fecha.toLocaleDateString('es-AR') : '', r.sucursal, r.ean, r.descripcion, r.gramaje, r.cantidad, fmtVenc(r.fechaVenc), r.proveedor, r.motivo, r.lote, r.estado, r.obsNC])];
+  const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{ wch: 22 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 32 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 14 }, { wch: 16 }, { wch: 28 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Gestión NC');
+  XLSX.writeFile(wb, 'gestion_nc_' + fmtIso(new Date()) + '.xlsx');
 }
-function fmtIso(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmtIso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
 // ══════════════════════════════════════════════════════
 //  SPINNER / TOAST
 // ══════════════════════════════════════════════════════
-function showSpinner(msg) { document.getElementById('spinnerMsg').textContent=msg||'Procesando…'; document.getElementById('spinnerOverlay').classList.add('active'); }
+function showSpinner(msg) { document.getElementById('spinnerMsg').textContent = msg || 'Procesando…'; document.getElementById('spinnerOverlay').classList.add('active'); }
 function hideSpinner() { document.getElementById('spinnerOverlay').classList.remove('active'); }
 function showToast(isOk, msg) {
-  const t=document.createElement('div'); t.className='toast '+(isOk?'success':'error'); t.textContent=(isOk?'✅ ':'⚠️ ')+msg;
-  document.body.appendChild(t); setTimeout(()=>{if(t.parentNode)t.remove();},5000);
+  const t = document.createElement('div'); t.className = 'toast ' + (isOk ? 'success' : 'error'); t.textContent = (isOk ? '✅ ' : '⚠️ ') + msg;
+  document.body.appendChild(t); setTimeout(() => { if (t.parentNode) t.remove(); }, 5000);
 }
 
 // ══════════════════════════════════════════════════════
 //  CONFIG
 // ══════════════════════════════════════════════════════
-function openConfig() { document.getElementById('urlInput').value=SCRIPT_URL; document.getElementById('configModal').classList.add('open'); }
+function openConfig() { document.getElementById('urlInput').value = SCRIPT_URL; document.getElementById('configModal').classList.add('open'); }
 function saveConfig() {
-  const url=document.getElementById('urlInput').value.trim();
-  if (!url.startsWith('http')) { document.getElementById('urlInput').style.borderColor='var(--red)'; return; }
-  SCRIPT_URL=url; localStorage.setItem('nexus_script_url',url);
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url.startsWith('http')) { document.getElementById('urlInput').style.borderColor = 'var(--red)'; return; }
+  SCRIPT_URL = url; localStorage.setItem('nexus_script_url', url);
   document.getElementById('configModal').classList.remove('open');
   loadData();
 }
@@ -1524,195 +2052,195 @@ function saveConfig() {
 //  AJUSTE DE STOCK — con soporte pesable
 // ══════════════════════════════════════════════════════
 function ajustarStock(evt, id, delta) {
-    if (evt) evt.stopPropagation();
-    const elQty     = document.getElementById(`qty-${id}`);
-    const cantActual = elQty ? (parseFloat(elQty.textContent) || 0) : 0;
-    const item      = venData.find(v => v.id === id);
-    const suc       = item ? item.sucursal : '';
-    const pesable   = esPesable(item);
+  if (evt) evt.stopPropagation();
+  const elQty = document.getElementById(`qty-${id}`);
+  const cantActual = elQty ? (parseFloat(elQty.textContent) || 0) : 0;
+  const item = venData.find(v => v.id === id);
+  const suc = item ? item.sucursal : '';
+  const pesable = esPesable(item);
 
-    currentAdjustData = { id, delta, cantActual, suc, pesable };
+  currentAdjustData = { id, delta, cantActual, suc, pesable };
 
-    const isPos = delta > 0;
-    document.getElementById('adjModalTitle').textContent    = isPos ? '＋ Ajuste positivo' : '－ Ajuste negativo';
-    document.getElementById('adjModalTitle').style.color    = isPos ? 'var(--green)' : 'var(--red)';
-    document.getElementById('adjModalSubtitle').textContent =
-        `${esc(suc)}${pesable ? ' · ⚖ Pesable — ingresá en kg' : ' · Sin restricciones de cantidad'}`;
-    document.getElementById('adjCurrentStock').textContent  = cantActual;
+  const isPos = delta > 0;
+  document.getElementById('adjModalTitle').textContent = isPos ? '＋ Ajuste positivo' : '－ Ajuste negativo';
+  document.getElementById('adjModalTitle').style.color = isPos ? 'var(--green)' : 'var(--red)';
+  document.getElementById('adjModalSubtitle').textContent =
+    `${esc(suc)}${pesable ? ' · ⚖ Pesable — ingresá en kg' : ' · Sin restricciones de cantidad'}`;
+  document.getElementById('adjCurrentStock').textContent = cantActual;
 
-    const input = document.getElementById('adjustQty');
-    input.value = pesable ? '0.001' : 1;
-    input.step  = pesable ? '0.001' : '1';
-    input.min   = pesable ? '0.001' : '1';
+  const input = document.getElementById('adjustQty');
+  input.value = pesable ? '0.001' : 1;
+  input.step = pesable ? '0.001' : '1';
+  input.min = pesable ? '0.001' : '1';
 
-    const btn = document.getElementById('adjConfirmBtn');
-    btn.style.background = isPos ? 'var(--green)' : 'var(--red)';
-    btn.style.color      = isPos ? '#000' : '#fff';
+  const btn = document.getElementById('adjConfirmBtn');
+  btn.style.background = isPos ? 'var(--green)' : 'var(--red)';
+  btn.style.color = isPos ? '#000' : '#fff';
 
-    document.getElementById('modalAdjust').style.display = 'flex';
-    setTimeout(() => input.focus(), 100);
+  document.getElementById('modalAdjust').style.display = 'flex';
+  setTimeout(() => input.focus(), 100);
 }
 
 // ══════════════════════════════════════════════════════
 //  MODAL TRANSFERENCIA — con soporte pesable
 // ══════════════════════════════════════════════════════
 function abrirModalTransferencia(evt, id, origen, max) {
-    if (evt) evt.stopPropagation();
-    const item    = venData.find(v => v.id === id);
-    const pesable = esPesable(item);
-    currentTransferData = { id, origen, max, pesable };
+  if (evt) evt.stopPropagation();
+  const item = venData.find(v => v.id === id);
+  const pesable = esPesable(item);
+  currentTransferData = { id, origen, max, pesable };
 
-    const modal    = document.getElementById('modalTransfer');
-    const select   = document.getElementById('destSucursal');
-    const inputQty = document.getElementById('transferQty');
-    const labelMax = document.getElementById('transferMaxLabel');
+  const modal = document.getElementById('modalTransfer');
+  const select = document.getElementById('destSucursal');
+  const inputQty = document.getElementById('transferQty');
+  const labelMax = document.getElementById('transferMaxLabel');
 
-    if (!modal || !select) { console.error('No se encontró el modal de transferencia'); return; }
+  if (!modal || !select) { console.error('No se encontró el modal de transferencia'); return; }
 
-    select.innerHTML = '';
-    ['HIPER', 'CENTRO', 'RIBERA', 'MAYORISTA', 'PROVEEDOR', 'OTRO']
-        .filter(s => s !== origen)
-        .forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s; opt.textContent = s;
-            select.appendChild(opt);
-        });
+  select.innerHTML = '';
+  ['HIPER', 'CENTRO', 'RIBERA', 'MAYORISTA', 'PROVEEDOR', 'OTRO']
+    .filter(s => s !== origen)
+    .forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      select.appendChild(opt);
+    });
 
-    labelMax.textContent = `Disponible: ${max}${pesable ? ' kg' : ' u.'}`;
-    inputQty.max   = max;
-    inputQty.value = max;
-    inputQty.step  = pesable ? '0.001' : '1';
-    inputQty.min   = pesable ? '0.001' : '1';
+  labelMax.textContent = `Disponible: ${max}${pesable ? ' kg' : ' u.'}`;
+  inputQty.max = max;
+  inputQty.value = max;
+  inputQty.step = pesable ? '0.001' : '1';
+  inputQty.min = pesable ? '0.001' : '1';
 
-    const title = modal.querySelector('h3');
-    if (title) title.textContent = `⇄ Transferir Stock${pesable ? ' ⚖ (kg)' : ''}`;
+  const title = modal.querySelector('h3');
+  if (title) title.textContent = `⇄ Transferir Stock${pesable ? ' ⚖ (kg)' : ''}`;
 
-    modal.style.display = 'flex';
+  modal.style.display = 'flex';
 }
 
-function cerrarModalTransfer() { const modal=document.getElementById('modalTransfer'); if(modal) modal.style.display='none'; }
+function cerrarModalTransfer() { const modal = document.getElementById('modalTransfer'); if (modal) modal.style.display = 'none'; }
 
 // ══════════════════════════════════════════════════════
 //  EJECUTAR TRANSFERENCIA — con soporte pesable
 // ══════════════════════════════════════════════════════
 async function ejecutarTransferencia() {
-    const dest            = document.getElementById('destSucursal').value;
-    const raw             = document.getElementById('transferQty').value.replace(',', '.');
-    const cant            = parseFloat(raw);
-    const { max, pesable } = currentTransferData;
+  const dest = document.getElementById('destSucursal').value;
+  const raw = document.getElementById('transferQty').value.replace(',', '.');
+  const cant = parseFloat(raw);
+  const { max, pesable } = currentTransferData;
 
-    if (!cant || cant <= 0 || isNaN(cant)) {
-        showToast(false, pesable ? 'Ingresá un peso válido en kg.' : 'Ingresá una cantidad válida.');
-        return;
-    }
-    if (!pesable && !Number.isInteger(cant)) {
-        showToast(false, 'Este producto solo acepta cantidades enteras.');
-        return;
-    }
-    if (cant > max) {
-        showToast(false, `No podés transferir más de ${max}${pesable ? ' kg' : ' u.'}`);
-        document.getElementById('transferQty').value = max;
-        document.getElementById('transferQty').focus();
-        return;
-    }
+  if (!cant || cant <= 0 || isNaN(cant)) {
+    showToast(false, pesable ? 'Ingresá un peso válido en kg.' : 'Ingresá una cantidad válida.');
+    return;
+  }
+  if (!pesable && !Number.isInteger(cant)) {
+    showToast(false, 'Este producto solo acepta cantidades enteras.');
+    return;
+  }
+  if (cant > max) {
+    showToast(false, `No podés transferir más de ${max}${pesable ? ' kg' : ' u.'}`);
+    document.getElementById('transferQty').value = max;
+    document.getElementById('transferQty').focus();
+    return;
+  }
 
-    showSpinner('Procesando transferencia...'); cerrarModalTransfer();
-    try {
-        const res = await fetch(SCRIPT_URL, {
-            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'transferStock', idOrigen: currentTransferData.id, sucursalDestino: dest, cantidad: cant })
-        });
-        const result = await res.json();
-        if (result.success) {
-            showToast(true, `Transferencia: ${cant}${pesable ? ' kg' : ' u.'} → ${dest}`);
-            await loadData();
-        } else {
-            showToast(false, result.message || 'Error en la operación');
-        }
-    } catch (e) { showToast(false, 'Error de red'); console.error(e); }
-    hideSpinner();
+  showSpinner('Procesando transferencia...'); cerrarModalTransfer();
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'transferStock', idOrigen: currentTransferData.id, sucursalDestino: dest, cantidad: cant })
+    });
+    const result = await res.json();
+    if (result.success) {
+      showToast(true, `Transferencia: ${cant}${pesable ? ' kg' : ' u.'} → ${dest}`);
+      await loadData();
+    } else {
+      showToast(false, result.message || 'Error en la operación');
+    }
+  } catch (e) { showToast(false, 'Error de red'); console.error(e); }
+  hideSpinner();
 }
 
-function cerrarModalAdjust() { document.getElementById('modalAdjust').style.display='none'; currentAdjustData=null; }
+function cerrarModalAdjust() { document.getElementById('modalAdjust').style.display = 'none'; currentAdjustData = null; }
 
 // ══════════════════════════════════════════════════════
 //  EJECUTAR AJUSTE — con soporte pesable
 // ══════════════════════════════════════════════════════
 async function ejecutarAjuste() {
-    const { id, delta, cantActual, pesable } = currentAdjustData;
-    const raw = document.getElementById('adjustQty').value.replace(',', '.');
-    const qty = parseFloat(raw);
+  const { id, delta, cantActual, pesable } = currentAdjustData;
+  const raw = document.getElementById('adjustQty').value.replace(',', '.');
+  const qty = parseFloat(raw);
 
-    if (!qty || qty <= 0 || isNaN(qty)) {
-        showToast(false, pesable ? 'Ingresá un peso válido en kg (ej: 1.250)' : 'Ingresá una cantidad válida (≥ 1)');
-        return;
-    }
-    if (!pesable && !Number.isInteger(qty)) {
-        showToast(false, 'Este producto solo acepta cantidades enteras.');
-        return;
-    }
+  if (!qty || qty <= 0 || isNaN(qty)) {
+    showToast(false, pesable ? 'Ingresá un peso válido en kg (ej: 1.250)' : 'Ingresá una cantidad válida (≥ 1)');
+    return;
+  }
+  if (!pesable && !Number.isInteger(qty)) {
+    showToast(false, 'Este producto solo acepta cantidades enteras.');
+    return;
+  }
 
-    const nuevaCant = parseFloat(parseFloat((cantActual + delta * qty).toFixed(3)).toFixed(3));
-    cerrarModalAdjust();
-    showSpinner('Actualizando stock...');
-    try {
-        const response = await fetch(SCRIPT_URL, {
-            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'updateStock', id, nuevaCant })
-        });
-        const json = await response.json();
-        if (json.success) {
-            const elQty = document.getElementById('qty-' + id);
-            if (elQty) elQty.textContent = nuevaCant;
-            const item = venData.find(v => v.id === id);
-            if (item) item.cantidad = nuevaCant;
-            showToast(true, `Stock: ${cantActual} → ${nuevaCant}${pesable ? ' kg' : ' u.'}`);
-        } else {
-            showToast(false, json.message || 'Error al actualizar');
-        }
-    } catch (e) { showToast(false, 'Error de red al actualizar stock'); console.error(e); }
-    hideSpinner();
+  const nuevaCant = parseFloat(parseFloat((cantActual + delta * qty).toFixed(3)).toFixed(3));
+  cerrarModalAdjust();
+  showSpinner('Actualizando stock...');
+  try {
+    const response = await fetch(SCRIPT_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'updateStock', id, nuevaCant })
+    });
+    const json = await response.json();
+    if (json.success) {
+      const elQty = document.getElementById('qty-' + id);
+      if (elQty) elQty.textContent = nuevaCant;
+      const item = venData.find(v => v.id === id);
+      if (item) item.cantidad = nuevaCant;
+      showToast(true, `Stock: ${cantActual} → ${nuevaCant}${pesable ? ' kg' : ' u.'}`);
+    } else {
+      showToast(false, json.message || 'Error al actualizar');
+    }
+  } catch (e) { showToast(false, 'Error de red al actualizar stock'); console.error(e); }
+  hideSpinner();
 }
 
 // ══════════════════════════════════════════════════════
 //  MODO LOTE
 // ══════════════════════════════════════════════════════
 function toggleLoteMode() {
-  loteMode=!loteMode;
-  const btn=document.getElementById('btnLoteMode');
-  btn.classList.toggle('active',loteMode);
-  btn.textContent=loteMode?'✕ Salir de Lote':'🗂 Modo Lote';
-  if (!loteMode) { loteSeleccionados.clear(); loteQueue=[]; document.getElementById('loteModeBar').classList.remove('visible'); document.getElementById('loteQueueWrap').classList.remove('visible'); }
+  loteMode = !loteMode;
+  const btn = document.getElementById('btnLoteMode');
+  btn.classList.toggle('active', loteMode);
+  btn.textContent = loteMode ? '✕ Salir de Lote' : '🗂 Modo Lote';
+  if (!loteMode) { loteSeleccionados.clear(); loteQueue = []; document.getElementById('loteModeBar').classList.remove('visible'); document.getElementById('loteQueueWrap').classList.remove('visible'); }
   renderVencTable();
 }
 
-function toggleLoteRow(sucKey,id,desc,ean,fechaVenc,suc,cantActual,checkbox) {
-  if (checkbox.checked) loteSeleccionados.set(sucKey,{id,desc,ean,fechaVenc,suc,cantActual});
-  else { loteSeleccionados.delete(sucKey); loteQueue=loteQueue.filter(op=>op.sucKey!==sucKey); renderLoteQueue(); }
+function toggleLoteRow(sucKey, id, desc, ean, fechaVenc, suc, cantActual, checkbox) {
+  if (checkbox.checked) loteSeleccionados.set(sucKey, { id, desc, ean, fechaVenc, suc, cantActual });
+  else { loteSeleccionados.delete(sucKey); loteQueue = loteQueue.filter(op => op.sucKey !== sucKey); renderLoteQueue(); }
   updateLoteModeBar();
 }
 
 function updateLoteModeBar() {
-  const n=loteSeleccionados.size;
-  document.getElementById('loteCount').textContent=`${n} sucursal${n!==1?'es':''} seleccionada${n!==1?'s':''}`;
-  document.getElementById('loteModeBar').classList.toggle('visible',n>0);
-  loteSeleccionados.forEach((item,sucKey)=>{
-    const yaEsta=loteQueue.some(op=>op.sucKey===sucKey);
-    if (!yaEsta) loteQueue.push({sucKey,id:item.id,desc:item.desc,ean:item.ean,fechaVenc:item.fechaVenc,suc:item.suc,cantActual:item.cantActual,op:'adj_pos',cant:1,dest:''});
+  const n = loteSeleccionados.size;
+  document.getElementById('loteCount').textContent = `${n} sucursal${n !== 1 ? 'es' : ''} seleccionada${n !== 1 ? 's' : ''}`;
+  document.getElementById('loteModeBar').classList.toggle('visible', n > 0);
+  loteSeleccionados.forEach((item, sucKey) => {
+    const yaEsta = loteQueue.some(op => op.sucKey === sucKey);
+    if (!yaEsta) loteQueue.push({ sucKey, id: item.id, desc: item.desc, ean: item.ean, fechaVenc: item.fechaVenc, suc: item.suc, cantActual: item.cantActual, op: 'adj_pos', cant: 1, dest: '' });
   });
   renderLoteQueue();
 }
 
-function limpiarSeleccionLote() { loteSeleccionados.clear(); loteQueue=[]; renderLoteQueue(); document.getElementById('loteModeBar').classList.remove('visible'); renderVencTable(); }
-function vaciarColaLote() { loteQueue=[]; loteSeleccionados.clear(); renderLoteQueue(); document.getElementById('loteModeBar').classList.remove('visible'); renderVencTable(); }
+function limpiarSeleccionLote() { loteSeleccionados.clear(); loteQueue = []; renderLoteQueue(); document.getElementById('loteModeBar').classList.remove('visible'); renderVencTable(); }
+function vaciarColaLote() { loteQueue = []; loteSeleccionados.clear(); renderLoteQueue(); document.getElementById('loteModeBar').classList.remove('visible'); renderVencTable(); }
 
 // ══════════════════════════════════════════════════════
 //  RENDER LOTE QUEUE — con soporte pesable
 // ══════════════════════════════════════════════════════
 function renderLoteQueue() {
   const tbody = document.getElementById('loteQueueBody');
-  const wrap  = document.getElementById('loteQueueWrap');
-  document.getElementById('loteQueueCount').textContent = `${loteQueue.length} operación${loteQueue.length!==1?'es':''}`;
+  const wrap = document.getElementById('loteQueueWrap');
+  document.getElementById('loteQueueCount').textContent = `${loteQueue.length} operación${loteQueue.length !== 1 ? 'es' : ''}`;
   document.getElementById('btnEjecutarLote').disabled = loteQueue.length === 0;
 
   if (!loteQueue.length) {
@@ -1724,14 +2252,14 @@ function renderLoteQueue() {
 
   tbody.innerHTML = loteQueue.map((op, idx) => {
     // ── Detectar pesable para este ítem ──
-    const itemLote  = venData.find(v => v.id === op.id);
+    const itemLote = venData.find(v => v.id === op.id);
     const opPesable = esPesable(itemLote);
-    const minCant   = op.op === 'adj_directo' ? 0 : (opPesable ? 0.001 : 1);
-    const stepCant  = opPesable ? '0.001' : '1';
+    const minCant = op.op === 'adj_directo' ? 0 : (opPesable ? 0.001 : 1);
+    const stepCant = opPesable ? '0.001' : '1';
 
-    const sucursales = ['HIPER','CENTRO','RIBERA','MAYORISTA','PROVEEDOR','OTRO'].filter(s => s !== op.suc);
-    const destOpts   = sucursales.map(s => `<option value="${s}" ${op.dest===s?'selected':''}>${s}</option>`).join('');
-    const destCell   = op.op === 'transfer'
+    const sucursales = ['HIPER', 'CENTRO', 'RIBERA', 'MAYORISTA', 'PROVEEDOR', 'OTRO'].filter(s => s !== op.suc);
+    const destOpts = sucursales.map(s => `<option value="${s}" ${op.dest === s ? 'selected' : ''}>${s}</option>`).join('');
+    const destCell = op.op === 'transfer'
       ? `<select class="lote-dest-select" onchange="loteQueue[${idx}].dest=this.value"><option value="">— Elegir —</option>${destOpts}</select>`
       : op.op === 'adj_directo'
         ? `<span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--cyan)">→ reemplaza stock</span>`
@@ -1749,7 +2277,7 @@ function renderLoteQueue() {
         : `loteQueue[${idx}].cant=parseInt(this.value)||1`;
 
     const qtyTitle = op.op === 'adj_directo'
-      ? `<div style="font-size:9px;color:var(--cyan);font-family:'IBM Plex Mono',monospace;margin-top:2px;">stock final${opPesable?' (kg)':''}</div>`
+      ? `<div style="font-size:9px;color:var(--cyan);font-family:'IBM Plex Mono',monospace;margin-top:2px;">stock final${opPesable ? ' (kg)' : ''}</div>`
       : `<div style="font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:2px;">${opPesable ? 'delta kg' : 'delta'}</div>`;
 
     const pesBadge = opPesable
@@ -1764,10 +2292,10 @@ function renderLoteQueue() {
       <td class="c-right c-mono">${op.cantActual}</td>
       <td>
         <select class="lote-op-select" onchange="loteQueue[${idx}].op=this.value;renderLoteQueue()">
-          <option value="adj_pos"     ${op.op==='adj_pos'?'selected':''}>＋ Ajuste positivo</option>
-          <option value="adj_neg"     ${op.op==='adj_neg'?'selected':''}>－ Ajuste negativo</option>
-          <option value="adj_directo" ${op.op==='adj_directo'?'selected':''}>✎ Ajuste directo</option>
-          <option value="transfer"    ${op.op==='transfer'?'selected':''}>⇄ Transferencia</option>
+          <option value="adj_pos"     ${op.op === 'adj_pos' ? 'selected' : ''}>＋ Ajuste positivo</option>
+          <option value="adj_neg"     ${op.op === 'adj_neg' ? 'selected' : ''}>－ Ajuste negativo</option>
+          <option value="adj_directo" ${op.op === 'adj_directo' ? 'selected' : ''}>✎ Ajuste directo</option>
+          <option value="transfer"    ${op.op === 'transfer' ? 'selected' : ''}>⇄ Transferencia</option>
         </select>
       </td>
       <td><div>
@@ -1799,9 +2327,9 @@ async function ejecutarLote() {
 
   // ── Validaciones ──
   for (const op of loteQueue) {
-    const itemVal  = venData.find(v => v.id === op.id);
-    const opPes    = esPesable(itemVal);
-    const minCant  = opPes ? 0.001 : 1;
+    const itemVal = venData.find(v => v.id === op.id);
+    const opPes = esPesable(itemVal);
+    const minCant = opPes ? 0.001 : 1;
 
     if (op.op === 'adj_directo') {
       const val = parseFloat(String(op.cantDirecta ?? '').replace(',', '.'));
@@ -1832,10 +2360,10 @@ async function ejecutarLote() {
 
   for (let i = 0; i < loteQueue.length; i++) {
     const op = loteQueue[i];
-    showSpinner(`Procesando ${i+1} / ${total}…`);
+    showSpinner(`Procesando ${i + 1} / ${total}…`);
 
     // Parsear cantidades con soporte de coma
-    const opCant    = parseFloat(String(op.cant    ?? 0).replace(',', '.'));
+    const opCant = parseFloat(String(op.cant ?? 0).replace(',', '.'));
     const opDirecta = parseFloat(String(op.cantDirecta ?? op.cantActual).replace(',', '.'));
 
     try {
@@ -1843,19 +2371,19 @@ async function ejecutarLote() {
       const redondear = n => parseFloat(parseFloat(n).toFixed(3));
       if (op.op === 'adj_pos') {
         nuevaCant = redondear(op.cantActual + opCant);
-        payload   = { action: 'updateStock', id: op.id, nuevaCant };
+        payload = { action: 'updateStock', id: op.id, nuevaCant };
       } else if (op.op === 'adj_neg') {
         nuevaCant = redondear(op.cantActual - opCant);
-        payload   = { action: 'updateStock', id: op.id, nuevaCant };
+        payload = { action: 'updateStock', id: op.id, nuevaCant };
       } else if (op.op === 'adj_directo') {
         nuevaCant = redondear(opDirecta);
-        payload   = { action: 'updateStock', id: op.id, nuevaCant };
+        payload = { action: 'updateStock', id: op.id, nuevaCant };
       } else {
         nuevaCant = redondear(op.cantActual - opCant);
-        payload   = { action: 'transferStock', idOrigen: op.id, sucursalDestino: op.dest, cantidad: redondear(opCant) };
+        payload = { action: 'transferStock', idOrigen: op.id, sucursalDestino: op.dest, cantidad: redondear(opCant) };
       }
 
-      const res  = await fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+      const res = await fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
       const json = await res.json();
       if (json.success) {
         ok++;
@@ -1874,7 +2402,7 @@ async function ejecutarLote() {
 
   hideSpinner();
   exportLoteExcel(resultados);
-  showToast(err === 0, `${ok} op${ok!==1?'s':''} ejecutada${ok!==1?'s':''}${err ? ` · ${err} error${err!==1?'es':''}` : ''}`);
+  showToast(err === 0, `${ok} op${ok !== 1 ? 's' : ''} ejecutada${ok !== 1 ? 's' : ''}${err ? ` · ${err} error${err !== 1 ? 'es' : ''}` : ''}`);
   // Limpiar y salir del modo lote completamente
   loteQueue = []; loteSeleccionados.clear(); loteMode = false;
   const btnLote = document.getElementById('btnLoteMode');
@@ -1886,16 +2414,16 @@ async function ejecutarLote() {
 
 function exportLoteExcel(resultados) {
   if (!resultados.length) return;
-  const headers = ['Producto','EAN','Vencimiento','Sucursal','Stock Anterior','Operación','Cantidad','Destino','Nuevo Stock','Resultado','Fecha'];
+  const headers = ['Producto', 'EAN', 'Vencimiento', 'Sucursal', 'Stock Anterior', 'Operación', 'Cantidad', 'Destino', 'Nuevo Stock', 'Resultado', 'Fecha'];
   const now = new Date().toLocaleString('es-AR');
   const wsData = [headers, ...resultados.map(op => [
     op.desc, op.ean, fmtDateOnly(op.fechaVenc), op.suc, op.cantActual,
-    op.op==='adj_pos'?'Ajuste +':op.op==='adj_neg'?'Ajuste -':op.op==='adj_directo'?'Ajuste directo':'Transferencia',
-    op.cant, op.dest||'—', op.nuevaCant, op.resultado, now
+    op.op === 'adj_pos' ? 'Ajuste +' : op.op === 'adj_neg' ? 'Ajuste -' : op.op === 'adj_directo' ? 'Ajuste directo' : 'Transferencia',
+    op.cant, op.dest || '—', op.nuevaCant, op.resultado, now
   ])];
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols'] = [{wch:32},{wch:16},{wch:12},{wch:12},{wch:12},{wch:16},{wch:8},{wch:12},{wch:12},{wch:24},{wch:18}];
+  ws['!cols'] = [{ wch: 32 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 24 }, { wch: 18 }];
   XLSX.utils.book_append_sheet(wb, ws, 'Lote');
   XLSX.writeFile(wb, 'operaciones_lote_' + fmtIso(new Date()) + '.xlsx');
 }
@@ -1905,7 +2433,7 @@ function abrirModalLote() {
   document.getElementById('loteQueueWrap').classList.add('visible');
   const modal = document.getElementById('modalConfirmLote');
   const n = loteQueue.length;
-  document.getElementById('confirmLoteResumen').textContent = `Estás por ejecutar ${n} operación${n!==1?'es':''} en lote. ¿Confirmar?`;
+  document.getElementById('confirmLoteResumen').textContent = `Estás por ejecutar ${n} operación${n !== 1 ? 'es' : ''} en lote. ¿Confirmar?`;
   modal.style.display = 'flex';
 }
 

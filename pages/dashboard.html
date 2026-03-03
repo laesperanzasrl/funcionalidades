@@ -228,15 +228,16 @@
             <div class="panel" id="panel-vencimientos">
                 <div class="page-title">Control de Vencimientos</div>
                 <div class="page-sub">Agrupado por producto · EAN · Fecha de vencimiento — historial por sucursal ·
-                    <span style="color:var(--green);font-weight:600">⚡ Auto-vencimiento diario activado</span></div>
+                    <span style="color:var(--green);font-weight:600">⚡ Auto-vencimiento diario activado</span>
+                </div>
 
                 <div class="filters-bar">
                     <!-- FILA 1: buscar + selects principales -->
                     <div class="filters-row">
                         <div class="fg wide">
                             <div class="flabel">Buscar producto / EAN</div>
-                            <input class="fi" id="vf-buscar" type="text"
-                                placeholder="descripción, EAN, lote…" oninput="applyVencFilters()">
+                            <input class="fi" id="vf-buscar" type="text" placeholder="descripción, EAN, lote…"
+                                oninput="applyVencFilters()">
                         </div>
                         <div class="fg">
                             <div class="flabel">Proveedor</div>
@@ -273,7 +274,8 @@
                         </div>
                         <button class="btn btn-secondary btn-sm" style="align-self:flex-end"
                             onclick="clearVencFilters()">✕ Limpiar</button>
-                        <button class="btn-lote-toggle" id="btnLoteMode" onclick="toggleLoteMode()">🗂 Modo Lote</button>
+                        <button class="btn-lote-toggle" id="btnLoteMode" onclick="toggleLoteMode()">🗂 Modo
+                            Lote</button>
                     </div>
 
                     <!-- FILA 2: filtro de fechas con presets + toggle modo -->
@@ -281,14 +283,13 @@
                         <!-- Toggle: filtrar por Registro o Vencimiento -->
                         <div class="fg">
                             <div class="flabel">Filtrar fecha por</div>
-                            <div style="display:flex;height:32px;border:1px solid var(--border);border-radius:7px;overflow:hidden">
-                                <button id="vf-mode-reg"
-                                    onclick="setVencDateMode('registro')"
+                            <div
+                                style="display:flex;height:32px;border:1px solid var(--border);border-radius:7px;overflow:hidden">
+                                <button id="vf-mode-reg" onclick="setVencDateMode('registro')"
                                     style="flex:1;border:none;background:var(--blue);color:#fff;font-size:10px;font-weight:700;cursor:pointer;font-family:'Manrope',sans-serif;padding:0 10px;transition:all .15s;white-space:nowrap">
                                     📅 Registro
                                 </button>
-                                <button id="vf-mode-venc"
-                                    onclick="setVencDateMode('vencimiento')"
+                                <button id="vf-mode-venc" onclick="setVencDateMode('vencimiento')"
                                     style="flex:1;border:none;background:var(--surface);color:var(--text3);font-size:10px;font-weight:700;cursor:pointer;font-family:'Manrope',sans-serif;padding:0 10px;border-left:1px solid var(--border);transition:all .15s;white-space:nowrap">
                                     ⏰ Vencimiento
                                 </button>
@@ -341,25 +342,41 @@
                         <table class="lote-table">
                             <thead>
                                 <tr>
-                                    <th>Producto</th><th>EAN</th><th>Vencimiento</th>
-                                    <th>Sucursal</th><th class="c-right">Stock</th>
-                                    <th>Operación</th><th>Cant.</th><th>Destino</th><th></th>
+                                    <th>Producto</th>
+                                    <th>EAN</th>
+                                    <th>Vencimiento</th>
+                                    <th>Sucursal</th>
+                                    <th class="c-right">Stock</th>
+                                    <th>Operación</th>
+                                    <th>Cant.</th>
+                                    <th>Destino</th>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody id="loteQueueBody">
-                                <tr><td colspan="9"><div class="empty" style="padding:20px"><p>Seleccioná filas y configurá operaciones</p></div></td></tr>
+                                <tr>
+                                    <td colspan="9">
+                                        <div class="empty" style="padding:20px">
+                                            <p>Seleccioná filas y configurá operaciones</p>
+                                        </div>
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">
+                <div
+                    style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">
                     <div id="venc-count">—</div>
                     <div id="venc-detail">—</div>
                 </div>
 
                 <div class="table-wrap" id="vencTableWrap">
-                    <div class="empty"><div class="ei">📡</div><p>Cargá datos desde Configuración</p></div>
+                    <div class="empty">
+                        <div class="ei">📡</div>
+                        <p>Cargá datos desde Configuración</p>
+                    </div>
                 </div>
             </div>
 
@@ -369,18 +386,34 @@
                 <div class="page-sub">Todas las devoluciones, acciones 2x1, 50% off y productos vencidos</div>
 
                 <div class="filters-bar">
+                    <!-- FILA 1: buscar + selects principales -->
                     <div class="filters-row">
-                        <div class="fg">
-                            <div class="flabel">Sucursal</div><select class="fs" id="af-suc" onchange="applyAccFilters()"><option value="">Todas</option></select>
+                        <div class="fg wide">
+                            <div class="flabel">Buscar producto / EAN</div>
+                            <input class="fi" id="acc-search-top" type="text"
+                                placeholder="descripción, EAN, lote, proveedor…" oninput="applyAccFilters()">
                         </div>
                         <div class="fg">
-                            <div class="flabel">Proveedor</div><select class="fs" id="af-prov" onchange="applyAccFilters()"><option value="">Todos</option></select>
+                            <div class="flabel">Sucursal</div>
+                            <select class="fs" id="af-suc" onchange="applyAccFilters()">
+                                <option value="">Todas</option>
+                            </select>
                         </div>
                         <div class="fg">
-                            <div class="flabel">Motivo</div><select class="fs" id="af-motivo" onchange="applyAccFilters()"><option value="">Todos</option></select>
+                            <div class="flabel">Proveedor</div>
+                            <select class="fs" id="af-prov" onchange="applyAccFilters()">
+                                <option value="">Todos</option>
+                            </select>
                         </div>
                         <div class="fg">
-                            <div class="flabel">Estado</div><select class="fs" id="af-estado" onchange="applyAccFilters()">
+                            <div class="flabel">Motivo</div>
+                            <select class="fs" id="af-motivo" onchange="applyAccFilters()">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="fg">
+                            <div class="flabel">Estado</div>
+                            <select class="fs" id="af-estado" onchange="applyAccFilters()">
                                 <option value="">Todos</option>
                                 <option value="PENDIENTE">Pendiente</option>
                                 <option value="EN GESTION">En Gestión</option>
@@ -388,122 +421,254 @@
                                 <option value="RECHAZADA">Rechazada</option>
                             </select>
                         </div>
-                    </div>
-                    <div class="filters-row" style="margin-top:10px">
                         <div class="fg">
-                            <div class="flabel">Rango fecha registro</div>
-                            <div class="date-presets" id="acc-presets">
-                                <button class="dp active" onclick="setAccPreset('today',this)">Hoy</button>
-                                <button class="dp" onclick="setAccPreset('yesterday',this)">Ayer</button>
-                                <button class="dp" onclick="setAccPreset('3d',this)">3d</button>
-                                <button class="dp" onclick="setAccPreset('7d',this)">7d</button>
-                                <button class="dp" onclick="setAccPreset('14d',this)">14d</button>
-                                <button class="dp" onclick="setAccPreset('30d',this)">30d</button>
-                                <button class="dp" onclick="setAccPreset('all',this)">Todo</button>
+                            <div class="flabel">Urgencia venc.</div>
+                            <select class="fs" id="af-urg" onchange="applyAccFilters()">
+                                <option value="">Todas</option>
+                                <option value="VENCIDO">Vencido</option>
+                                <option value="CRITICO">Crítico</option>
+                                <option value="URGENTE">Urgente</option>
+                                <option value="PROXIMO">Próximo</option>
+                                <option value="ATENCION">Atención</option>
+                                <option value="NORMAL">Normal</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-secondary btn-sm" style="align-self:flex-end"
+                            onclick="clearAccFilters()">✕ Limpiar</button>
+                    </div>
+
+                    <!-- FILA 2: toggle fecha + presets + custom range -->
+                    <div class="filters-row" style="margin-top:10px;align-items:flex-end">
+                        <!-- Toggle: filtrar por Registro o Vencimiento -->
+                        <div class="fg">
+                            <div class="flabel">Filtrar fecha por</div>
+                            <div
+                                style="display:flex;height:32px;border:1px solid var(--border);border-radius:7px;overflow:hidden">
+                                <button id="af-mode-reg" onclick="setAccDateMode('registro')"
+                                    style="flex:1;border:none;background:var(--blue);color:#fff;font-size:10px;font-weight:700;cursor:pointer;font-family:'Manrope',sans-serif;padding:0 10px;transition:all .15s;white-space:nowrap">
+                                    📅 Registro
+                                </button>
+                                <button id="af-mode-venc" onclick="setAccDateMode('vencimiento')"
+                                    style="flex:1;border:none;background:var(--surface);color:var(--text3);font-size:10px;font-weight:700;cursor:pointer;font-family:'Manrope',sans-serif;padding:0 10px;border-left:1px solid var(--border);transition:all .15s;white-space:nowrap">
+                                    ⏰ Vencimiento
+                                </button>
                             </div>
                         </div>
+
+                        <!-- Presets de período -->
+                        <div class="fg" style="flex:1;min-width:0">
+                            <div class="flabel" id="af-period-label">Período — fecha de registro</div>
+                            <div class="date-presets" id="acc-presets">
+                                <button class="dp" onclick="setAccPreset('today',this)">Hoy</button>
+                                <button class="dp" onclick="setAccPreset('yesterday',this)">Ayer</button>
+                                <button class="dp" onclick="setAccPreset('3d',this)">Últ. 3d</button>
+                                <button class="dp" onclick="setAccPreset('7d',this)">Últ. 7d</button>
+                                <button class="dp" onclick="setAccPreset('14d',this)">Últ. 14d</button>
+                                <button class="dp" onclick="setAccPreset('30d',this)">Últ. 30d</button>
+                                <button class="dp active" onclick="setAccPreset('all',this)">Todos</button>
+                                <button class="dp" onclick="setAccPreset('custom',this)">📆 Personalizado</button>
+                            </div>
+                        </div>
+
+                        <!-- Fechas manuales (solo en modo custom) -->
                         <div class="fg" id="acc-date-from" style="display:none">
-                            <div class="flabel">Desde</div><input type="date" class="fi" id="af-date-from" onchange="applyAccFilters()">
+                            <div class="flabel">Desde</div>
+                            <input type="date" class="fi" id="af-date-from" onchange="applyAccFilters()">
                         </div>
                         <div class="fg" id="acc-date-to" style="display:none">
-                            <div class="flabel">Hasta</div><input type="date" class="fi" id="af-date-to" onchange="applyAccFilters()">
+                            <div class="flabel">Hasta</div>
+                            <input type="date" class="fi" id="af-date-to" onchange="applyAccFilters()">
                         </div>
-                        <button class="btn btn-secondary btn-sm" style="align-self:flex-end" onclick="clearAccFilters()">✕ Limpiar</button>
                     </div>
                 </div>
 
-                <div class="table-wrap">
-                    <div class="table-head-bar">
-                        <h3>📋 Registros</h3>
-                        <input type="text" class="search-inp" id="acc-search" placeholder="🔍 Producto, EAN, lote…" oninput="applyAccFilters()">
-                        <button class="btn btn-secondary btn-sm" onclick="exportAccXlsx()">⬇ Excel con Cód-Bar</button>
+            <div class="table-wrap">
+                <div class="table-head-bar">
+                    <h3>📋 Registros</h3>
+                    <input type="text" class="search-inp" id="acc-search" placeholder="🔍 Producto, EAN, lote…"
+                        oninput="applyAccFilters()">
+                    <button class="btn btn-secondary btn-sm" onclick="exportAccXlsx()">⬇ Excel con Cód-Bar</button>
+                </div>
+                <div id="accTableBody">
+                    <div class="empty">
+                        <div class="ei">📡</div>
+                        <p>Cargá datos para ver registros</p>
                     </div>
-                    <div id="accTableBody"><div class="empty"><div class="ei">📡</div><p>Cargá datos para ver registros</p></div></div>
-                    <div class="pagination" id="accPagination" style="display:none"></div>
+                </div>
+                <div class="pagination" id="accPagination" style="display:none"></div>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: MÉTRICAS ══ -->
+        <div class="panel" id="panel-metricas">
+            <div class="page-title">Métricas — Compras &amp; Proveedores</div>
+            <div class="page-sub">Indicadores de seguimiento de proveedores y acciones en todas las sucursales</div>
+            <div class="kpi-grid cols-6" style="margin-bottom:20px">
+                <div class="kpi-card kb">
+                    <div class="kpi-lbl">Total acciones</div>
+                    <div class="kpi-val" id="mk-total">—</div>
+                </div>
+                <div class="kpi-card kg">
+                    <div class="kpi-lbl">N/C Recibidas</div>
+                    <div class="kpi-val" id="mk-nc">—</div>
+                </div>
+                <div class="kpi-card kam">
+                    <div class="kpi-lbl">Pend. / Gestión</div>
+                    <div class="kpi-val" id="mk-pend">—</div>
+                </div>
+                <div class="kpi-card kr">
+                    <div class="kpi-lbl">Rechazadas</div>
+                    <div class="kpi-val" id="mk-rech">—</div>
+                </div>
+                <div class="kpi-card kpur">
+                    <div class="kpi-lbl">Proveedores</div>
+                    <div class="kpi-val" id="mk-prov">—</div>
+                </div>
+                <div class="kpi-card kt">
+                    <div class="kpi-lbl">Sucursales</div>
+                    <div class="kpi-val" id="mk-suc">—</div>
                 </div>
             </div>
-
-            <!-- ══ PANEL: MÉTRICAS ══ -->
-            <div class="panel" id="panel-metricas">
-                <div class="page-title">Métricas — Compras &amp; Proveedores</div>
-                <div class="page-sub">Indicadores de seguimiento de proveedores y acciones en todas las sucursales</div>
-                <div class="kpi-grid cols-6" style="margin-bottom:20px">
-                    <div class="kpi-card kb"><div class="kpi-lbl">Total acciones</div><div class="kpi-val" id="mk-total">—</div></div>
-                    <div class="kpi-card kg"><div class="kpi-lbl">N/C Recibidas</div><div class="kpi-val" id="mk-nc">—</div></div>
-                    <div class="kpi-card kam"><div class="kpi-lbl">Pend. / Gestión</div><div class="kpi-val" id="mk-pend">—</div></div>
-                    <div class="kpi-card kr"><div class="kpi-lbl">Rechazadas</div><div class="kpi-val" id="mk-rech">—</div></div>
-                    <div class="kpi-card kpur"><div class="kpi-lbl">Proveedores</div><div class="kpi-val" id="mk-prov">—</div></div>
-                    <div class="kpi-card kt"><div class="kpi-lbl">Sucursales</div><div class="kpi-val" id="mk-suc">—</div></div>
-                </div>
-                <div class="charts-grid">
-                    <div class="chart-card"><h4>📦 Acciones por Motivo</h4><div class="bar-chart" id="ch-motivo"><div class="empty" style="padding:20px"><p>Sin datos</p></div></div></div>
-                    <div class="chart-card"><h4>🏪 Por Sucursal</h4><div class="bar-chart" id="ch-sucursal"><div class="empty" style="padding:20px"><p>Sin datos</p></div></div></div>
-                    <div class="chart-card"><h4>🏷️ Por Sector</h4><div class="bar-chart" id="ch-sector"><div class="empty" style="padding:20px"><p>Sin datos</p></div></div></div>
-                    <div class="chart-card"><h4>🎯 N/C por Proveedor (Top 10)</h4><div class="bar-chart" id="ch-prov-nc"><div class="empty" style="padding:20px"><p>Sin datos</p></div></div></div>
-                </div>
-                <div class="table-wrap">
-                    <div class="table-head-bar">
-                        <h3>🏭 Resumen por Proveedor</h3>
-                        <input type="text" class="search-inp" id="prov-search" placeholder="🔍 Buscar proveedor…" oninput="renderProvTable()">
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h4>📦 Acciones por Motivo</h4>
+                    <div class="bar-chart" id="ch-motivo">
+                        <div class="empty" style="padding:20px">
+                            <p>Sin datos</p>
+                        </div>
                     </div>
-                    <div class="table-scroll">
-                        <table>
-                            <thead><tr>
-                                <th>Proveedor</th><th class="c-right">Total</th><th class="c-right">Pendiente</th>
-                                <th class="c-right">En Gestión</th><th class="c-right">N/C Recibida</th>
-                                <th class="c-right">Rechazada</th><th>Cobertura N/C</th>
-                            </tr></thead>
-                            <tbody id="provTableBody"><tr><td colspan="7"><div class="empty"><p>Sin datos</p></div></td></tr></tbody>
-                        </table>
+                </div>
+                <div class="chart-card">
+                    <h4>🏪 Por Sucursal</h4>
+                    <div class="bar-chart" id="ch-sucursal">
+                        <div class="empty" style="padding:20px">
+                            <p>Sin datos</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h4>🏷️ Por Sector</h4>
+                    <div class="bar-chart" id="ch-sector">
+                        <div class="empty" style="padding:20px">
+                            <p>Sin datos</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h4>🎯 N/C por Proveedor (Top 10)</h4>
+                    <div class="bar-chart" id="ch-prov-nc">
+                        <div class="empty" style="padding:20px">
+                            <p>Sin datos</p>
+                        </div>
                     </div>
                 </div>
             </div>
-
-            <!-- ══ PANEL: GESTIÓN N/C ══ -->
-            <div class="panel" id="panel-nc">
-                <div class="page-title">Gestión de Notas de Crédito</div>
-                <div class="page-sub">Actualizá estados en lote y registrá observaciones de N/C</div>
-                <div class="filters-bar">
-                    <div class="filters-row">
-                        <div class="fg"><div class="flabel">Proveedor</div><select class="fs" id="ncf-prov" onchange="applyNcFilters()"><option value="">Todos</option></select></div>
-                        <div class="fg"><div class="flabel">Estado</div><select class="fs" id="ncf-estado" onchange="applyNcFilters()">
-                            <option value="">Todos</option><option value="PENDIENTE">Pendiente</option>
-                            <option value="EN GESTION">En Gestión</option><option value="N/C RECIBIDA">N/C Recibida</option><option value="RECHAZADA">Rechazada</option>
-                        </select></div>
-                        <div class="fg"><div class="flabel">Sucursal</div><select class="fs" id="ncf-suc" onchange="applyNcFilters()"><option value="">Todas</option></select></div>
-                        <div class="fg"><div class="flabel">Motivo</div><select class="fs" id="ncf-motivo" onchange="applyNcFilters()"><option value="">Todos</option></select></div>
-                        <div class="fg wide"><div class="flabel">Buscar</div><input type="text" class="fi" id="ncf-search" placeholder="Producto, EAN, lote, ID…" oninput="applyNcFilters()"></div>
-                    </div>
+            <div class="table-wrap">
+                <div class="table-head-bar">
+                    <h3>🏭 Resumen por Proveedor</h3>
+                    <input type="text" class="search-inp" id="prov-search" placeholder="🔍 Buscar proveedor…"
+                        oninput="renderProvTable()">
                 </div>
-                <div class="bulk-bar" id="bulkBar">
-                    <div class="bulk-count" id="bulkCount">0 seleccionados</div>
-                    <div class="bulk-actions">
-                        <select id="bulkEstado">
-                            <option value="">— Nuevo estado —</option>
-                            <option value="PENDIENTE">Pendiente</option><option value="EN GESTION">En Gestión</option>
-                            <option value="N/C RECIBIDA">N/C Recibida</option><option value="RECHAZADA">Rechazada</option>
+                <div class="table-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Proveedor</th>
+                                <th class="c-right">Total</th>
+                                <th class="c-right">Pendiente</th>
+                                <th class="c-right">En Gestión</th>
+                                <th class="c-right">N/C Recibida</th>
+                                <th class="c-right">Rechazada</th>
+                                <th>Cobertura N/C</th>
+                            </tr>
+                        </thead>
+                        <tbody id="provTableBody">
+                            <tr>
+                                <td colspan="7">
+                                    <div class="empty">
+                                        <p>Sin datos</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══ PANEL: GESTIÓN N/C ══ -->
+        <div class="panel" id="panel-nc">
+            <div class="page-title">Gestión de Notas de Crédito</div>
+            <div class="page-sub">Actualizá estados en lote y registrá observaciones de N/C</div>
+            <div class="filters-bar">
+                <div class="filters-row">
+                    <div class="fg">
+                        <div class="flabel">Proveedor</div><select class="fs" id="ncf-prov" onchange="applyNcFilters()">
+                            <option value="">Todos</option>
                         </select>
-                        <input type="text" id="bulkObs" class="obs-inp" placeholder="Observación N/C (opcional)">
-                        <button class="btn btn-success btn-sm" onclick="applyBulkAction()">✔ Aplicar</button>
-                        <button class="btn btn-secondary btn-sm" onclick="clearSelection()">✕ Deselect</button>
                     </div>
-                </div>
-                <div class="table-wrap">
-                    <div class="table-head-bar">
-                        <h3>🧾 Registros para Gestión</h3>
-                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                            <button class="btn btn-secondary btn-sm" onclick="exportNcXlsx()">⬇ Exportar</button>
-                            <label style="font-size:11px;color:var(--text3);cursor:pointer;display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace">
-                                <input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> Sel. todo
-                            </label>
-                        </div>
+                    <div class="fg">
+                        <div class="flabel">Estado</div><select class="fs" id="ncf-estado" onchange="applyNcFilters()">
+                            <option value="">Todos</option>
+                            <option value="PENDIENTE">Pendiente</option>
+                            <option value="EN GESTION">En Gestión</option>
+                            <option value="N/C RECIBIDA">N/C Recibida</option>
+                            <option value="RECHAZADA">Rechazada</option>
+                        </select>
                     </div>
-                    <div id="ncTableBody"><div class="empty"><div class="ei">📡</div><p>Cargá datos para ver registros</p></div></div>
-                    <div class="pagination" id="ncPagination" style="display:none"></div>
+                    <div class="fg">
+                        <div class="flabel">Sucursal</div><select class="fs" id="ncf-suc" onchange="applyNcFilters()">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                    <div class="fg">
+                        <div class="flabel">Motivo</div><select class="fs" id="ncf-motivo" onchange="applyNcFilters()">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div class="fg wide">
+                        <div class="flabel">Buscar</div><input type="text" class="fi" id="ncf-search"
+                            placeholder="Producto, EAN, lote, ID…" oninput="applyNcFilters()">
+                    </div>
                 </div>
             </div>
+            <div class="bulk-bar" id="bulkBar">
+                <div class="bulk-count" id="bulkCount">0 seleccionados</div>
+                <div class="bulk-actions">
+                    <select id="bulkEstado">
+                        <option value="">— Nuevo estado —</option>
+                        <option value="PENDIENTE">Pendiente</option>
+                        <option value="EN GESTION">En Gestión</option>
+                        <option value="N/C RECIBIDA">N/C Recibida</option>
+                        <option value="RECHAZADA">Rechazada</option>
+                    </select>
+                    <input type="text" id="bulkObs" class="obs-inp" placeholder="Observación N/C (opcional)">
+                    <button class="btn btn-success btn-sm" onclick="applyBulkAction()">✔ Aplicar</button>
+                    <button class="btn btn-secondary btn-sm" onclick="clearSelection()">✕ Deselect</button>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <div class="table-head-bar">
+                    <h3>🧾 Registros para Gestión</h3>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                        <button class="btn btn-secondary btn-sm" onclick="exportNcXlsx()">⬇ Exportar</button>
+                        <label
+                            style="font-size:11px;color:var(--text3);cursor:pointer;display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace">
+                            <input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> Sel. todo
+                        </label>
+                    </div>
+                </div>
+                <div id="ncTableBody">
+                    <div class="empty">
+                        <div class="ei">📡</div>
+                        <p>Cargá datos para ver registros</p>
+                    </div>
+                </div>
+                <div class="pagination" id="ncPagination" style="display:none"></div>
+            </div>
+        </div>
 
-        </div><!-- /content -->
+    </div><!-- /content -->
     </div><!-- /main -->
 
     <div id="modalTransfer" class="modal-transfer-overlay">
@@ -514,8 +679,10 @@
             <input type="number" id="transferQty" min="1" value="1">
             <p id="transferMaxLabel" style="font-size:0.8rem;margin-top:-10px;margin-bottom:15px;opacity:0.6;"></p>
             <div style="display:flex;gap:12px;">
-                <button onclick="ejecutarTransferencia()" style="flex:2;background:var(--accent);color:var(--bg);border:none;padding:12px;border-radius:6px;font-weight:700;cursor:pointer;">CONFIRMAR</button>
-                <button onclick="cerrarModalTransfer()" style="flex:1;background:#444;color:white;border:none;padding:12px;border-radius:6px;cursor:pointer;">X</button>
+                <button onclick="ejecutarTransferencia()"
+                    style="flex:2;background:var(--accent);color:var(--bg);border:none;padding:12px;border-radius:6px;font-weight:700;cursor:pointer;">CONFIRMAR</button>
+                <button onclick="cerrarModalTransfer()"
+                    style="flex:1;background:#444;color:white;border:none;padding:12px;border-radius:6px;cursor:pointer;">X</button>
             </div>
         </div>
     </div>
@@ -528,25 +695,53 @@
             <input type="number" id="adjustQty" min="1" value="1" placeholder="Ingresá la cantidad...">
             <div class="modal-adj-note">Stock actual: <span id="adjCurrentStock">0</span> u.</div>
             <div class="modal-adj-btns">
-                <button onclick="ejecutarAjuste()" id="adjConfirmBtn" style="background:var(--green);color:#000">CONFIRMAR</button>
+                <button onclick="ejecutarAjuste()" id="adjConfirmBtn"
+                    style="background:var(--green);color:#000">CONFIRMAR</button>
                 <button onclick="cerrarModalAdjust()" style="background:#333;color:#fff">CANCELAR</button>
             </div>
         </div>
     </div>
 
     <!-- MODAL CONFIRMAR LOTE -->
-    <div id="modalConfirmLote" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);align-items:center;justify-content:center;z-index:9999;">
-        <div style="background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:28px 32px;width:360px;max-width:90vw;">
-            <h3 style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;margin-bottom:10px;">⚡ Confirmar ejecución de lote</h3>
-            <p id="confirmLoteResumen" style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.5;"></p>
-            <p style="font-size:11px;color:var(--text3);margin-bottom:20px;font-family:'IBM Plex Mono',monospace;">Esta acción modificará el stock en el sistema y no se puede deshacer. Se generará un Excel con los resultados.</p>
+    <div id="modalConfirmLote"
+        style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);align-items:center;justify-content:center;z-index:9999;">
+        <div
+            style="background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:28px 32px;width:360px;max-width:90vw;">
+            <h3 style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;margin-bottom:10px;">⚡ Confirmar
+                ejecución de lote</h3>
+            <p id="confirmLoteResumen" style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.5;">
+            </p>
+            <p style="font-size:11px;color:var(--text3);margin-bottom:20px;font-family:'IBM Plex Mono',monospace;">Esta
+                acción modificará el stock en el sistema y no se puede deshacer. Se generará un Excel con los
+                resultados.</p>
             <div style="display:flex;gap:10px;">
-                <button onclick="confirmarEjecutarLote()" style="flex:2;background:var(--green);color:#000;border:none;padding:11px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;font-family:'Manrope',sans-serif;">✔ Confirmar</button>
-                <button onclick="cerrarModalConfirmLote()" style="flex:1;background:var(--card2);color:var(--text2);border:1px solid var(--border);padding:11px;border-radius:8px;font-size:13px;cursor:pointer;font-family:'Manrope',sans-serif;">Cancelar</button>
+                <button onclick="confirmarEjecutarLote()"
+                    style="flex:2;background:var(--green);color:#000;border:none;padding:11px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;font-family:'Manrope',sans-serif;">✔
+                    Confirmar</button>
+                <button onclick="cerrarModalConfirmLote()"
+                    style="flex:1;background:var(--card2);color:var(--text2);border:1px solid var(--border);padding:11px;border-radius:8px;font-size:13px;cursor:pointer;font-family:'Manrope',sans-serif;">Cancelar</button>
             </div>
+        </div>
+    </div>
+
+
+    <div class="modal-overlay" id="venDetailModal" onclick="closeVenModal(event)">
+        <div class="modal-box" style="max-width:600px">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+                <div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#22d4e8;letter-spacing:.08em;text-transform:uppercase"
+                        id="vm-id">—</div>
+                    <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-top:3px"
+                        id="vm-desc">—</div>
+                </div>
+                <button class="btn btn-secondary btn-sm"
+                    onclick="document.getElementById('venDetailModal').classList.remove('open')">✕</button>
+            </div>
+            <div id="vm-body"></div>
         </div>
     </div>
 
     <script src="../js/dashboard.js"></script>
 </body>
+
 </html>
