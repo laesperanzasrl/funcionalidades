@@ -153,6 +153,7 @@
         <!-- Input de búsqueda (visible una vez cargado) -->
         <div class="cliente-search-wrap" id="clienteSearchWrap" style="display:none">
           <div class="cliente-status" id="clienteStatus" style="display:none"></div>
+
           <div class="cliente-input-row">
             <div class="cliente-input-inner">
               <svg class="cliente-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
@@ -161,12 +162,25 @@
                 <circle cx="12" cy="7" r="4" />
               </svg>
               <input type="text" id="clienteInput" class="cliente-input"
-                placeholder="Buscá por nombre, razón social o código…" autocomplete="off" autocorrect="off"
+                placeholder="Buscá por nombre, localidad, dirección…" autocomplete="off" autocorrect="off"
                 spellcheck="false" />
               <button class="cliente-clear-btn" id="btnClearCliente" aria-label="Limpiar cliente"
                 style="display:none">✕</button>
             </div>
           </div>
+
+          <!-- ── Chips de filtro por campo ── -->
+          <div class="cliente-filters" id="clienteFilters">
+            <button class="cf-chip cf-chip--active" data-field="all" data-label="Todo">Todo</button>
+            <button class="cf-chip" data-field="fantasia" data-label="Nombre">Nombre</button>
+            <button class="cf-chip" data-field="razons" data-label="Razón Social">Razón Social</button>
+            <button class="cf-chip" data-field="localidad" data-label="Localidad">Localidad</button>
+            <button class="cf-chip" data-field="direccion" data-label="Dirección">Dirección</button>
+          </div>
+
+          <!-- ── Tags de filtros activos (removibles) ── -->
+          <div class="active-cf-tags" id="activeCfTags"></div>
+
           <ul class="cliente-results" id="clienteResults" style="display:none" role="listbox"></ul>
         </div>
 

@@ -13,86 +13,88 @@ const state = {
   productos: [],
   clientes: [],
   currentCliente: null,
-  // MULTI-FILTRO: objeto { CAMPO: 'valor', ... }
+  // Filtros multi-campo para PRODUCTOS
   activeFilters: {},
   searchTimer: null,
   inputMode: 'cam',
   extDebounce: null,
   searchCart: new Map(),
   clienteTimer: null,
+  // Filtros multi-campo para CLIENTES
+  clienteActiveFilters: {},
 };
 
 // ── DOM ──────────────────────────────────────────────────
 const $ = (id) => document.getElementById(id);
 
 const els = {
-  clienteLoading:   $('clienteLoading'),
-  clienteSearchWrap:$('clienteSearchWrap'),
-  clienteInput:     $('clienteInput'),
-  btnClearCliente:  $('btnClearCliente'),
-  clienteResults:   $('clienteResults'),
-  clienteCard:      $('clienteCard'),
-  ccFantasia:       $('ccFantasia'),
-  ccRazons:         $('ccRazons'),
-  ccCodigo:         $('ccCodigo'),
-  ccZona:           $('ccZona'),
-  ccIva:            $('ccIva'),
-  ccLocalidad:      $('ccLocalidad'),
-  btnChangeCliente: $('btnChangeCliente'),
-  eCliente:         $('eCliente'),
-  productCard:      $('productCard'),
-  pcStateLabel:     $('pcStateLabel'),
-  pcDescripcion:    $('pcDescripcion'),
-  pcProveedor:      $('pcProveedor'),
-  pcGramaje:        $('pcGramaje'),
-  pcUxb:            $('pcUxb'),
-  btnClearProduct:  $('btnClearProduct'),
-  qtyRow:           $('qtyRow'),
-  fQty:             $('fQty'),
-  eQty:             $('eQty'),
-  btnAdd:           $('btnAdd'),
-  orderTable:       $('orderTable'),
-  orderBody:        $('orderBody'),
-  tableEmpty:       $('tableEmpty'),
-  totalesPanel:     $('totalesPanel'),
-  totalSuper:       $('totalSuper'),
-  totalMay:         $('totalMay'),
-  totalesAhorro:    $('totalesAhorro'),
-  ahorroMonto:      $('ahorroMonto'),
-  ahorroPct:        $('ahorroPct'),
-  btnExport:        $('btnExport'),
-  btnClearOrder:    $('btnClearOrder'),
-  badgeCount:       $('badgeCount'),
-  toast:            $('toast'),
-  toastMsg:         $('toastMsg'),
-  toastDot:         $('toastDot'),
-  scanOverlay:      $('scanOverlay'),
-  btnOpenScanner:   $('btnOpenScanner'),
-  btnCloseScanner:  $('btnCloseScanner'),
-  btnManualEntry:   $('btnManualEntry'),
-  camErr:           $('camErr'),
-  sHint:            $('sHint'),
-  searchOverlay:    $('searchOverlay'),
-  btnOpenSearch:    $('btnOpenSearch'),
-  btnCloseSearch:   $('btnCloseSearch'),
-  searchInput:      $('searchInput'),
-  btnClearSearch:   $('btnClearSearch'),
-  searchResults:    $('searchResults'),
-  searchStateEmpty: $('searchStateEmpty'),
-  searchStateNone:  $('searchStateNone'),
-  searchTermDisplay:$('searchTermDisplay'),
-  searchCount:      $('searchCount'),
-  searchCommitBar:  $('searchCommitBar'),
-  scbLabel:         $('scbLabel'),
-  btnCommitSearch:  $('btnCommitSearch'),
-  modeTabCam:       $('modeTabCam'),
-  modeTabExt:       $('modeTabExt'),
-  panelCam:         $('panelCam'),
-  panelExt:         $('panelExt'),
-  extInput:         $('extInput'),
-  btnExtClear:      $('btnExtClear'),
-  extStatus:        $('extStatus'),
-  extStatusText:    $('extStatusText'),
+  clienteLoading:    $('clienteLoading'),
+  clienteSearchWrap: $('clienteSearchWrap'),
+  clienteInput:      $('clienteInput'),
+  btnClearCliente:   $('btnClearCliente'),
+  clienteResults:    $('clienteResults'),
+  clienteCard:       $('clienteCard'),
+  ccFantasia:        $('ccFantasia'),
+  ccRazons:          $('ccRazons'),
+  ccCodigo:          $('ccCodigo'),
+  ccZona:            $('ccZona'),
+  ccIva:             $('ccIva'),
+  ccLocalidad:       $('ccLocalidad'),
+  btnChangeCliente:  $('btnChangeCliente'),
+  eCliente:          $('eCliente'),
+  productCard:       $('productCard'),
+  pcStateLabel:      $('pcStateLabel'),
+  pcDescripcion:     $('pcDescripcion'),
+  pcProveedor:       $('pcProveedor'),
+  pcGramaje:         $('pcGramaje'),
+  pcUxb:             $('pcUxb'),
+  btnClearProduct:   $('btnClearProduct'),
+  qtyRow:            $('qtyRow'),
+  fQty:              $('fQty'),
+  eQty:              $('eQty'),
+  btnAdd:            $('btnAdd'),
+  orderTable:        $('orderTable'),
+  orderBody:         $('orderBody'),
+  tableEmpty:        $('tableEmpty'),
+  totalesPanel:      $('totalesPanel'),
+  totalSuper:        $('totalSuper'),
+  totalMay:          $('totalMay'),
+  totalesAhorro:     $('totalesAhorro'),
+  ahorroMonto:       $('ahorroMonto'),
+  ahorroPct:         $('ahorroPct'),
+  btnExport:         $('btnExport'),
+  btnClearOrder:     $('btnClearOrder'),
+  badgeCount:        $('badgeCount'),
+  toast:             $('toast'),
+  toastMsg:          $('toastMsg'),
+  toastDot:          $('toastDot'),
+  scanOverlay:       $('scanOverlay'),
+  btnOpenScanner:    $('btnOpenScanner'),
+  btnCloseScanner:   $('btnCloseScanner'),
+  btnManualEntry:    $('btnManualEntry'),
+  camErr:            $('camErr'),
+  sHint:             $('sHint'),
+  searchOverlay:     $('searchOverlay'),
+  btnOpenSearch:     $('btnOpenSearch'),
+  btnCloseSearch:    $('btnCloseSearch'),
+  searchInput:       $('searchInput'),
+  btnClearSearch:    $('btnClearSearch'),
+  searchResults:     $('searchResults'),
+  searchStateEmpty:  $('searchStateEmpty'),
+  searchStateNone:   $('searchStateNone'),
+  searchTermDisplay: $('searchTermDisplay'),
+  searchCount:       $('searchCount'),
+  searchCommitBar:   $('searchCommitBar'),
+  scbLabel:          $('scbLabel'),
+  btnCommitSearch:   $('btnCommitSearch'),
+  modeTabCam:        $('modeTabCam'),
+  modeTabExt:        $('modeTabExt'),
+  panelCam:          $('panelCam'),
+  panelExt:          $('panelExt'),
+  extInput:          $('extInput'),
+  btnExtClear:       $('btnExtClear'),
+  extStatus:         $('extStatus'),
+  extStatusText:     $('extStatusText'),
 };
 
 // ══════════════════════════════════════════════
@@ -144,19 +146,10 @@ async function init() {
     els.searchInput.focus();
   });
 
-  // ══════════════════════════════════════════════
-  // CHIPS MULTI-FILTRO
-  // Flujo:
-  //  1. Escribís un valor en el input
-  //  2. Hacés clic en un chip (Sector, Proveedor, etc.)
-  //  3. Ese valor queda "fijado" como filtro para ese campo
-  //  4. Podés escribir otro valor y fijar otro campo → filtros AND
-  //  5. Clic en un chip activo → lo elimina
-  // ══════════════════════════════════════════════
+  // ── Chips PRODUCTOS (multi-filtro AND) ──
   document.querySelectorAll('.sf-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       const field = chip.dataset.field;
-
       if (field === 'all') {
         state.activeFilters = {};
         els.searchInput.value = '';
@@ -169,8 +162,6 @@ async function init() {
         renderSearchResults();
         return;
       }
-
-      // Si el chip ya tiene filtro activo → quitarlo
       if (state.activeFilters[field] !== undefined) {
         delete state.activeFilters[field];
         chip.classList.remove('sf-chip--active');
@@ -181,8 +172,6 @@ async function init() {
         renderSearchResults();
         return;
       }
-
-      // Fijar el texto del input para este campo
       const val = els.searchInput.value.trim();
       if (!val) {
         showToast('wrn', `Escribí un valor y luego presioná "${chip.dataset.label}" para filtrarlo`);
@@ -192,7 +181,6 @@ async function init() {
       chip.classList.add('sf-chip--active');
       chip.textContent = `${chip.dataset.label}: ${val}`;
       document.querySelector('.sf-chip[data-field="all"]').classList.remove('sf-chip--active');
-
       els.searchInput.value = '';
       els.btnClearSearch.style.display = 'none';
       els.searchInput.focus();
@@ -337,72 +325,231 @@ function initClienteSelector(successMsg, errorMsg) {
     }
   }
 
+  // ── Input principal ──
   els.clienteInput.addEventListener('input', () => {
     const val = els.clienteInput.value;
     els.btnClearCliente.style.display = val ? 'flex' : 'none';
+    // Si el input tiene texto, desactivar chip "Todo" visualmente
+    if (val.trim()) {
+      document.querySelector('.cf-chip[data-field="all"]')?.classList.remove('cf-chip--active');
+    } else if (!Object.keys(state.clienteActiveFilters).length) {
+      document.querySelector('.cf-chip[data-field="all"]')?.classList.add('cf-chip--active');
+    }
     clearTimeout(state.clienteTimer);
-    state.clienteTimer = setTimeout(() => renderClienteResults(val), 100);
+    state.clienteTimer = setTimeout(() => renderClienteResults(), 100);
   });
+
   els.clienteInput.addEventListener('focus', () => {
-    if (els.clienteInput.value.length >= 1) renderClienteResults(els.clienteInput.value);
+    const hasFilters = Object.keys(state.clienteActiveFilters).length > 0;
+    const hasInput   = els.clienteInput.value.length >= 1;
+    if (hasFilters || hasInput) renderClienteResults();
   });
+
   els.btnClearCliente.addEventListener('click', () => {
     els.clienteInput.value = '';
     els.btnClearCliente.style.display = 'none';
     els.clienteResults.style.display  = 'none';
+    if (!Object.keys(state.clienteActiveFilters).length) {
+      document.querySelector('.cf-chip[data-field="all"]')?.classList.add('cf-chip--active');
+    }
     els.clienteInput.focus();
   });
+
   els.btnChangeCliente.addEventListener('click', () => {
     state.currentCliente = null;
+    // Resetear filtros al volver al selector
+    state.clienteActiveFilters = {};
+    resetCfChips();
     els.clienteCard.style.display       = 'none';
     els.clienteSearchWrap.style.display = 'block';
     els.clienteInput.value              = '';
     els.btnClearCliente.style.display   = 'none';
     els.clienteResults.style.display    = 'none';
+    renderCfTags();
     setTimeout(() => els.clienteInput.focus(), 80);
   });
+
+  // Cerrar dropdown al hacer clic fuera
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.cliente-search-wrap')) {
       els.clienteResults.style.display = 'none';
     }
   });
+
+  // ── Chips de filtro de CLIENTES ──
+  document.querySelectorAll('.cf-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const field = chip.dataset.field;
+
+      // "Todo" → limpiar todos los filtros
+      if (field === 'all') {
+        state.clienteActiveFilters = {};
+        els.clienteInput.value = '';
+        els.btnClearCliente.style.display = 'none';
+        resetCfChips();
+        chip.classList.add('cf-chip--active');
+        renderCfTags();
+        renderClienteResults();
+        return;
+      }
+
+      // Si el chip ya tiene filtro activo → quitarlo
+      if (state.clienteActiveFilters[field] !== undefined) {
+        delete state.clienteActiveFilters[field];
+        chip.classList.remove('cf-chip--active');
+        chip.textContent = chip.dataset.label;
+        if (!Object.keys(state.clienteActiveFilters).length && !els.clienteInput.value.trim()) {
+          document.querySelector('.cf-chip[data-field="all"]')?.classList.add('cf-chip--active');
+        }
+        renderCfTags();
+        renderClienteResults();
+        return;
+      }
+
+      // Fijar el texto del input para este campo
+      const val = els.clienteInput.value.trim();
+      if (!val) {
+        showToast('wrn', `Escribí un valor y luego presioná "${chip.dataset.label}" para filtrarlo`);
+        return;
+      }
+      state.clienteActiveFilters[field] = val;
+      chip.classList.add('cf-chip--active');
+      chip.textContent = `${chip.dataset.label}: ${val}`;
+      document.querySelector('.cf-chip[data-field="all"]')?.classList.remove('cf-chip--active');
+
+      // Limpiar input y esperar próximo término
+      els.clienteInput.value = '';
+      els.btnClearCliente.style.display = 'none';
+      els.clienteInput.focus();
+      renderCfTags();
+      renderClienteResults();
+    });
+  });
 }
 
-function renderClienteResults(query) {
-  const q = normalize(query);
-  if (q.length === 0) { els.clienteResults.style.display = 'none'; return; }
+// ── Resetear chips de cliente al estado inicial ──
+function resetCfChips() {
+  document.querySelectorAll('.cf-chip').forEach(c => {
+    c.classList.remove('cf-chip--active');
+    c.textContent = c.dataset.label;
+  });
+}
+
+// ── Tags removibles de filtros activos de cliente ──
+function renderCfTags() {
+  const tagsEl = document.getElementById('activeCfTags');
+  if (!tagsEl) return;
+  const entries = Object.entries(state.clienteActiveFilters);
+  if (!entries.length) { tagsEl.innerHTML = ''; return; }
+
+  // Mapa de nombres de campo → etiqueta legible
+  const LABELS = { fantasia: 'Nombre', razons: 'Razón Social', localidad: 'Localidad', direccion: 'Dirección' };
+
+  tagsEl.innerHTML = `
+    <div class="aft-row">
+      <span class="aft-hint">Filtros activos:</span>
+      ${entries.map(([field, val]) => `
+        <button class="aft-tag" data-field="${esc(field)}">
+          <span class="aft-label">${esc(LABELS[field] || field)}:</span>
+          <strong>${esc(val)}</strong>
+          <span class="aft-x">✕</span>
+        </button>`).join('')}
+      <button class="aft-clear-all">Limpiar todo</button>
+    </div>`;
+
+  tagsEl.querySelectorAll('.aft-tag').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const f = btn.dataset.field;
+      delete state.clienteActiveFilters[f];
+      const chip = document.querySelector(`.cf-chip[data-field="${f}"]`);
+      if (chip) { chip.classList.remove('cf-chip--active'); chip.textContent = chip.dataset.label; }
+      if (!Object.keys(state.clienteActiveFilters).length && !els.clienteInput.value.trim()) {
+        document.querySelector('.cf-chip[data-field="all"]')?.classList.add('cf-chip--active');
+      }
+      renderCfTags();
+      renderClienteResults();
+    });
+  });
+
+  tagsEl.querySelector('.aft-clear-all')?.addEventListener('click', () => {
+    state.clienteActiveFilters = {};
+    els.clienteInput.value = '';
+    els.btnClearCliente.style.display = 'none';
+    resetCfChips();
+    document.querySelector('.cf-chip[data-field="all"]')?.classList.add('cf-chip--active');
+    renderCfTags();
+    renderClienteResults();
+  });
+}
+
+// ── Renderizado de resultados de clientes (multi-filtro AND) ──
+function renderClienteResults() {
+  const inputQuery   = normalize(els.clienteInput.value.trim());
+  const activeFields = Object.entries(state.clienteActiveFilters);
+  const hasAny       = activeFields.length > 0 || inputQuery.length >= 1;
+
+  if (!hasAny) {
+    els.clienteResults.style.display = 'none';
+    return;
+  }
+
   if (!state.clientes.length) {
     els.clienteResults.innerHTML = `<li class="cr-empty">⚠ No hay clientes cargados.</li>`;
     els.clienteResults.style.display = 'block';
     return;
   }
-  const matches = state.clientes.filter(c =>
-    normalize(c.fantasia).includes(q) || normalize(c.razons).includes(q)
-  ).slice(0, 50);
+
+  // Filtro AND: primero los campos fijados, luego texto libre en todos los campos buscables
+  const matches = state.clientes.filter(c => {
+    // 1. Filtros fijados (campo específico, AND entre ellos)
+    for (const [field, val] of activeFields) {
+      const q = normalize(val);
+      if (!normalize(String(c[field] ?? '')).includes(q)) return false;
+    }
+    // 2. Texto libre del input: busca en TODOS los campos buscables
+    if (inputQuery.length >= 1) {
+      return normalize(c.fantasia  ?? '').includes(inputQuery) ||
+             normalize(c.razons    ?? '').includes(inputQuery) ||
+             normalize(c.localidad ?? '').includes(inputQuery) ||
+             normalize(c.direccion ?? '').includes(inputQuery) ||
+             normalize(c.codigo    ?? '').includes(inputQuery);
+    }
+    return true;
+  }).slice(0, 60);
 
   if (!matches.length) {
-    els.clienteResults.innerHTML = `<li class="cr-empty">Sin resultados para "<strong>${esc(query)}</strong>"</li>`;
+    const desc = buildCfFilterDescription(inputQuery);
+    els.clienteResults.innerHTML = `<li class="cr-empty">Sin resultados para <strong>${esc(desc)}</strong></li>`;
     els.clienteResults.style.display = 'block';
     return;
   }
+
+  const q = inputQuery;
+
   els.clienteResults.innerHTML = matches.map(c => {
     const nombre = c.fantasia || c.razons || c.codigo;
-    const razons = (c.fantasia && c.razons && c.fantasia !== c.razons) ? c.razons : '';
+    const razons  = (c.fantasia && c.razons && c.fantasia !== c.razons) ? c.razons : '';
+    const loc     = c.localidad || '';
+    const dir     = c.direccion || '';
+
     return `
       <li class="cr-item" tabindex="0" data-codigo="${esc(c.codigo)}">
         <div class="cr-main">
           <div class="cr-fantasia">${highlight(nombre, q)}</div>
           ${razons ? `<div class="cr-razons">${highlight(razons, q)}</div>` : ''}
+          ${dir    ? `<div class="cr-dir">${highlight(dir, q)}</div>` : ''}
           <div class="cr-meta">
             ${c.codigo    ? `<span class="cr-chip">${esc(c.codigo)}</span>` : ''}
-            ${c.localidad ? `<span class="cr-chip cr-chip--loc">${esc(c.localidad)}</span>` : ''}
+            ${loc         ? `<span class="cr-chip cr-chip--loc">${highlight(loc, q)}</span>` : ''}
             ${c.zona      ? `<span class="cr-chip cr-chip--zona">${esc(c.zona)}</span>` : ''}
             ${c.iva       ? `<span class="cr-chip cr-chip--iva">${esc(c.iva)}</span>` : ''}
           </div>
         </div>
       </li>`;
   }).join('');
+
   els.clienteResults.style.display = 'block';
+
   els.clienteResults.querySelectorAll('.cr-item').forEach(li => {
     const codigo = li.dataset.codigo;
     const seleccionar = () => {
@@ -416,6 +563,13 @@ function renderClienteResults(query) {
       if (e.key === 'ArrowUp')   { e.preventDefault(); (li.previousElementSibling || li).focus(); }
     });
   });
+}
+
+function buildCfFilterDescription(inputQuery) {
+  const LABELS = { fantasia: 'Nombre', razons: 'Razón Social', localidad: 'Localidad', direccion: 'Dirección' };
+  const parts = Object.entries(state.clienteActiveFilters).map(([f, v]) => `${LABELS[f] || f}="${v}"`);
+  if (inputQuery) parts.push(`"${inputQuery}"`);
+  return parts.join(' + ');
 }
 
 // ══════════════════════════════════════════════
@@ -546,7 +700,7 @@ function showQtyRow() { els.qtyRow.style.display = 'flex'; }
 function hideQtyRow() { els.qtyRow.style.display = 'none'; }
 
 // ══════════════════════════════════════════════
-// ── Search Modal — MULTI-FILTRO (AND)
+// ── Search Modal — MULTI-FILTRO (AND) — PRODUCTOS
 // ══════════════════════════════════════════════
 function openSearchModal() {
   state.searchCart.clear();
@@ -598,7 +752,6 @@ function renderSearchResults() {
     return;
   }
 
-  // Filtros fijados (AND) + texto libre adicional
   const matches = state.productos.filter(p => {
     for (const [field, val] of activeFields) {
       const q = normalize(val);
@@ -715,7 +868,6 @@ function renderSearchResults() {
   });
 }
 
-// ── Tags removibles de filtros activos ──
 function renderFilterTags() {
   let tagsEl = document.getElementById('activeFilterTags');
   if (!tagsEl) {
@@ -1053,7 +1205,7 @@ function showToast(type, msg, duration = 3000) {
 }
 
 // ══════════════════════════════════════════════
-// ── Export Excel — SIN PRECIOS NI TOTALES DE PRECIO
+// ── Export Excel
 // ══════════════════════════════════════════════
 async function exportExcel() {
   if (!state.order.length) return;
@@ -1162,7 +1314,6 @@ async function exportExcel() {
     setVal('H', item.cantidad, { bold: true });
   }
 
-  // Total — solo cantidad, sin precios
   const totRow = 6 + state.order.length;
   ws.mergeCells(`A${totRow}:G${totRow}`);
   const tc = ws.getCell(`A${totRow}`);
@@ -1183,7 +1334,7 @@ async function exportExcel() {
 }
 
 // ══════════════════════════════════════════════
-// ── Export PDF — SIN PRECIOS NI TOTALES DE PRECIO
+// ── Export PDF
 // ══════════════════════════════════════════════
 async function exportPDF() {
   if (!state.order.length) return;
@@ -1279,12 +1430,10 @@ async function exportPDF() {
     },
   });
 
-  const pdfBlob = doc.output('blob');
   doc.save(filename);
   showToast('ok', 'PDF generado.');
 }
 
-// ── Drive upload ──────────────────────────────
 function blobToBase64(blob) {
   return new Promise((res, rej) => {
     const reader = new FileReader();
@@ -1293,4 +1442,3 @@ function blobToBase64(blob) {
     reader.readAsDataURL(blob);
   });
 }
-

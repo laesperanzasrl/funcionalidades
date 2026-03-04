@@ -2,7 +2,7 @@
 //  STATE
 // ══════════════════════════════════════════════════════
 
-let accDateMode  = 'registro';
+let accDateMode = 'registro';
 let loteMode = false;
 let loteSeleccionados = new Map();
 let loteQueue = [];
@@ -239,20 +239,27 @@ function calcDias(str) {
   if (!str) return null;
   const s = String(str).trim();
   let d;
-  if (/^\d{2}[-\/]\d{2}[-\/]\d{4}/.test(s)) { const [dd, mm, yyyy] = s.split(/[-\/]/); d = new Date(+yyyy, +mm - 1, +dd); }
-  else if (/^\d{4}[-\/]\d{2}[-\/]\d{2}/.test(s)) { d = new Date(s.slice(0, 10)); }
-  else { d = new Date(s); }
+  if (/^\d{2}[-\/]\d{2}[-\/]\d{4}/.test(s)) {
+    const [dd, mm, yyyy] = s.split(/[-\/]/);
+    d = new Date(+yyyy, +mm - 1, +dd);
+  } else if (/^\d{4}[-\/]\d{2}[-\/]\d{2}/.test(s)) {
+    d = new Date(s.slice(0, 10));
+  } else {
+    d = new Date(s);
+  }
   if (isNaN(d)) return null;
   const hoy = new Date(); hoy.setHours(0, 0, 0, 0); d.setHours(0, 0, 0, 0);
-  return Math.round((d - hoy) / 86400000);
+  // +1: se cuenta el día de vencimiento como plazo válido
+  return Math.round((d - hoy) / 86400000) + 1;
 }
+
 function getUrg(dias) {
   if (dias === null) return 'NORMAL';
-  if (dias <= 0) return 'VENCIDO';
-  if (dias <= 6) return 'CRITICO';
-  if (dias <= 14) return 'URGENTE';
-  if (dias <= 21) return 'PROXIMO';
-  if (dias <= 45) return 'ATENCION';
+  if (dias <= 0) return 'VENCIDO';   // venció ayer o antes
+  if (dias <= 7) return 'CRITICO';   // vence hoy…7 días  (antes: ≤6)
+  if (dias <= 15) return 'URGENTE';   // 8–15 días          (antes: ≤14)
+  if (dias <= 22) return 'PROXIMO';   // 16–22 días         (antes: ≤21)
+  if (dias <= 46) return 'ATENCION';  // 23–46 días         (antes: ≤45)
   return 'NORMAL';
 }
 
@@ -572,12 +579,17 @@ function toggleProd(row, ean) {
 // ══════════════════════════════════════════════════════
 //  VENCIMIENTOS — RENDER TABLE
 // ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
+//  VENCIMIENTOS — RENDER TABLE  (reemplaza la función completa)
+// ══════════════════════════════════════════════════════
 function renderVencTable() {
   const wrap = document.getElementById('vencTableWrap');
   const sinAccion = filteredVen.filter(g => g.grupoEstado === 'ACTIVO').length;
   const conAccion = filteredVen.filter(g => g.grupoEstado !== 'ACTIVO').length;
-  document.getElementById('venc-count').innerHTML = `<strong>${filteredVenProd.length}</strong> producto${filteredVenProd.length !== 1 ? 's' : ''}`;
-  document.getElementById('venc-detail').innerHTML = `⚠ <strong>${sinAccion}</strong> grupos sin acción · ✓ <strong>${conAccion}</strong> gestionados`;
+  document.getElementById('venc-count').innerHTML =
+    `<strong>${filteredVenProd.length}</strong> producto${filteredVenProd.length !== 1 ? 's' : ''}`;
+  document.getElementById('venc-detail').innerHTML =
+    `⚠ <strong>${sinAccion}</strong> grupos sin acción · ✓ <strong>${conAccion}</strong> gestionados`;
 
   if (!filteredVenProd.length) {
     wrap.innerHTML = `
@@ -589,16 +601,16 @@ function renderVencTable() {
     return;
   }
 
-  const NCOLS = 7;
+  // 8 columnas: +1 "Acciones vinculadas" al final
+  const NCOLS = 8;
+
   const headBar = `
     <div class="table-head-bar">
       <h3>⏰ Vencimientos <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);font-weight:400;margin-left:8px">${filteredVenProd.length} productos · ${filteredVen.length} grupos</span></h3>
       <button class="btn btn-secondary btn-sm" onclick="exportVencXlsx()" title="Exportar tabla filtrada a Excel">⬇ Exportar Excel</button>
     </div>`;
 
-  // ═══════════════════════════════════════
-  //  DESKTOP TABLE (igual que antes)
-  // ═══════════════════════════════════════
+  // ─── DESKTOP TABLE ───────────────────────────────────
   let tableHtml = `
     <div class="venc-desktop">
     <div class="table-scroll"><table class="venc-main-table"><thead><tr>
@@ -630,17 +642,63 @@ function renderVencTable() {
         <div>📅 Fechas de vencimiento</div>
         <div style="font-size:8px;font-weight:400;color:var(--text3);margin-top:2px;letter-spacing:.04em;text-transform:none">todos los lotes detectados</div>
       </th>
+      <th>
+        <div>🔗 Acciones</div>
+        <div style="font-size:8px;font-weight:400;color:var(--text3);margin-top:2px;letter-spacing:.04em;text-transform:none">vinculadas al producto</div>
+      </th>
     </tr></thead><tbody>`;
 
   filteredVenProd.forEach(prod => {
     const isProdOpen = openProds.has(prod.ean);
-    const barPct = prod.worstDias === null ? 0 : Math.max(0, Math.min(100, Math.round(prod.worstDias / 90 * 100)));
-    const sucBadges = prod.allSucs.map(s => `<span class="suc-b ${getSucClass(s)}">${esc(s)}</span>`).join('');
+    const barPct = prod.worstDias === null ? 0
+      : Math.max(0, Math.min(100, Math.round(prod.worstDias / 90 * 100)));
+    const sucBadges = prod.allSucs
+      .map(s => `<span class="suc-b ${getSucClass(s)}">${esc(s)}</span>`).join('');
     const vencMini = prod.vencGrupos.map(g =>
       `<span class="urg ${g.urg}" style="font-size:9px;padding:2px 5px">${fmtDateOnly(g.fechaVenc)} ${g.dias !== null ? (g.dias <= 0 ? '⚠' : g.dias + 'd') : ''}</span>`
     ).join(' ');
     const prodTotal = prod.vencGrupos.reduce((sum, g) =>
-      sum + g.sucursales.reduce((s2, se) => s2 + (parseFloat(String(se.latest.cantidad || 0).replace(',', '.')) || 0), 0), 0);
+      sum + g.sucursales.reduce((s2, se) =>
+        s2 + (parseFloat(String(se.latest.cantidad || 0).replace(',', '.')) || 0), 0), 0);
+
+    // ── Acumular TODAS las acciones vinculadas al producto (todas las sucursales, todos los grupos) ──
+    const seenDevIds = new Set();
+    const allLinkedDevs = [];
+    prod.vencGrupos.forEach(g => {
+      g.sucursales.forEach(se => {
+        const _eanF = String(se.latest.ean || '').trim();
+        const _fvF = fmtDateOnly(se.latest.fechaVenc);
+        const _sucF = (se.latest.sucursal || '').toUpperCase().trim();
+        devData
+          .filter(d =>
+            String(d.ean || '').trim() === _eanF &&
+            fmtDateOnly(d.fechaVenc) === _fvF &&
+            (d.sucursal || '').toUpperCase().trim() === _sucF
+          )
+          .sort((a, b) => {
+            if (!a.fecha && !b.fecha) return 0;
+            if (!a.fecha) return 1;
+            if (!b.fecha) return -1;
+            return b.fecha - a.fecha;
+          })
+          .forEach(d => {
+            if (!seenDevIds.has(d.id)) {
+              seenDevIds.add(d.id);
+              allLinkedDevs.push(d);
+            }
+          });
+      });
+    });
+
+    const allLinkedDevsHtml = allLinkedDevs.length > 0
+      ? `<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+          ${allLinkedDevs.map(d => {
+        const autoLabel = d.usuario === 'SISTEMA AUTO' ? ' ⚡' : '';
+        const sucLabel = d.sucursal ? `<span style="font-size:8px;opacity:.7;margin-left:2px">[${esc(d.sucursal)}]</span>` : '';
+        return `<span class="dev-chip" onclick="openDevModal(event,'${esc(d.id)}')" title="Acción ${esc(d.id)} · ${esc(d.sucursal || '')} · ${esc(d.motivo || '')}">${esc(d.id)}${autoLabel} ${sucLabel}↗</span>`;
+      }).join('')}
+         </div>`
+      : `<span style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:9px">—</span>`;
 
     tableHtml += `
     <tr class="prod-row${isProdOpen ? ' open' : ''}" onclick="toggleProd(this,'${esc(prod.ean)}')">
@@ -659,15 +717,19 @@ function renderVencTable() {
       <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;color:var(--text2)" title="${esc(prod.prov)}">${esc(prod.prov || '—')}</td>
       <td><div class="suc-badges">${sucBadges}</div></td>
       <td>${vencMini}</td>
+      <td style="vertical-align:middle;min-width:120px">${allLinkedDevsHtml}</td>
     </tr>`;
 
     prod.vencGrupos.forEach(g => {
       const isGrupoOpen = openGrupos.has(g.key);
       const sucFilter = document.getElementById('vf-suc').value;
       const sucVis = sucFilter ? g.sucursales.filter(se => se.suc === sucFilter) : g.sucursales;
-      const gBarPct = g.dias === null ? 0 : Math.max(0, Math.min(100, Math.round(g.dias / 90 * 100)));
-      const gSucBadges = sucVis.map(se => `<span class="suc-b ${getSucClass(se.suc)}">${esc(se.suc || '—')}</span>`).join('');
-      const grupoTotal = sucVis.reduce((s, se) => s + (parseFloat(String(se.latest.cantidad || 0).replace(',', '.')) || 0), 0);
+      const gBarPct = g.dias === null ? 0
+        : Math.max(0, Math.min(100, Math.round(g.dias / 90 * 100)));
+      const gSucBadges = sucVis
+        .map(se => `<span class="suc-b ${getSucClass(se.suc)}">${esc(se.suc || '—')}</span>`).join('');
+      const grupoTotal = sucVis.reduce((s, se) =>
+        s + (parseFloat(String(se.latest.cantidad || 0).replace(',', '.')) || 0), 0);
 
       tableHtml += `
       <tr class="venc-grupo-row${isProdOpen ? ' visible' : ''}${isGrupoOpen ? ' open' : ''}"
@@ -691,6 +753,7 @@ function renderVencTable() {
         <td></td>
         <td><div class="suc-badges">${gSucBadges}</div></td>
         <td></td>
+        <td></td>
       </tr>`;
 
       sucVis.forEach(se => {
@@ -706,30 +769,35 @@ function renderVencTable() {
         const ctrlBadge = `<span class="ctrl-badge ${hasHistory ? 'multi' : 'single'}">${nControles} control${nControles !== 1 ? 'es' : ''}</span>`;
 
         const _eanF = String(f.ean || '').trim();
-        const _fvF  = fmtDateOnly(f.fechaVenc);
+        const _fvF = fmtDateOnly(f.fechaVenc);
         const _sucF = (f.sucursal || '').toUpperCase().trim();
         const linkedDevs = devData.filter(d =>
           String(d.ean || '').trim() === _eanF &&
           fmtDateOnly(d.fechaVenc) === _fvF &&
           (d.sucursal || '').toUpperCase().trim() === _sucF
-        ).sort((a, b) => { if (!a.fecha && !b.fecha) return 0; if (!a.fecha) return 1; if (!b.fecha) return -1; return b.fecha - a.fecha; });
+        ).sort((a, b) => {
+          if (!a.fecha && !b.fecha) return 0;
+          if (!a.fecha) return 1;
+          if (!b.fecha) return -1;
+          return b.fecha - a.fecha;
+        });
 
         const devChip = linkedDevs.length > 0
           ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">${linkedDevs.map(d => {
-              const autoLabel = d.usuario === 'SISTEMA AUTO' ? ' ⚡' : '';
-              return `<span class="dev-chip" onclick="openDevModal(event,'${esc(d.id)}')" title="${esc(d.id)}">${esc(d.id)}${autoLabel} ↗</span>`;
-            }).join('')}</div>`
+            const autoLabel = d.usuario === 'SISTEMA AUTO' ? ' ⚡' : '';
+            return `<span class="dev-chip" onclick="openDevModal(event,'${esc(d.id)}')" title="${esc(d.id)}">${esc(d.id)}${autoLabel} ↗</span>`;
+          }).join('')}</div>`
           : `<span style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:10px">Sin acción</span>`;
 
         const loteCheckbox = loteMode ? `
           <input type="checkbox" data-suc-key="${esc(sucKey)}"
             ${loteSeleccionados.has(sucKey) ? 'checked' : ''}
-            onclick="event.stopPropagation();toggleLoteRow('${esc(sucKey)}','${esc(f.id)}','${esc(f.descripcion||'')}','${esc(f.ean||'')}','${esc(f.fechaVenc||'')}','${esc(f.sucursal||'')}',${cantActualSuc},this)"
+            onclick="event.stopPropagation();toggleLoteRow('${esc(sucKey)}','${esc(f.id)}','${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}','${esc(f.sucursal || '')}',${cantActualSuc},this)"
             style="cursor:pointer;accent-color:#60a5fa;width:14px;height:14px;flex-shrink:0">
         ` : '';
 
         const btnRegistrarVencimiento = (!loteMode && g.urg === 'VENCIDO' && est === 'ACTIVO' && cantActualSuc > 0)
-          ? `<button onclick="registrarVencimientoManual(event,'${esc(f.id)}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion||'')}','${esc(f.ean||'')}','${esc(f.fechaVenc||'')}')"
+          ? `<button onclick="registrarVencimientoManual(event,'${esc(f.id)}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}')"
                class="btn-action" style="background:#3d0000;color:#ff4444;border:1px solid #9b1c1c;font-weight:800;padding:6px 12px;font-size:11px">
                🚨 Registrar Vencimiento
              </button>`
@@ -754,10 +822,10 @@ function renderVencTable() {
                 </div>
               </div>
               <div class="suc-card-body">
-                <div class="sf"><div class="sf-lbl">Controlado por</div><div class="sf-val${!f.usuario?' empty':''}">${f.usuario||'—'}</div></div>
-                <div class="sf"><div class="sf-lbl">Fecha control</div><div class="sf-val mono">${fmtDate(f.fechaReg||'')}</div></div>
+                <div class="sf"><div class="sf-lbl">Controlado por</div><div class="sf-val${!f.usuario ? ' empty' : ''}">${f.usuario || '—'}</div></div>
+                <div class="sf"><div class="sf-lbl">Fecha control</div><div class="sf-val mono">${fmtDate(f.fechaReg || '')}</div></div>
                 <div class="sf"><div class="sf-lbl">Unidades</div><div class="sf-val mono" id="qty-${f.id}">${cantActualSuc}</div></div>
-                <div class="sf"><div class="sf-lbl">Lote</div><div class="sf-val mono${!f.lote?' empty':''}">${f.lote||'—'}</div></div>
+                <div class="sf"><div class="sf-lbl">Lote</div><div class="sf-val mono${!f.lote ? ' empty' : ''}">${f.lote || '—'}</div></div>
                 ${!loteMode ? `
 <div class="sf medium">
   <div class="sf-lbl">Ajuste / Movimientos</div>
@@ -768,8 +836,8 @@ function renderVencTable() {
     ${btnRegistrarVencimiento}
   </div>
 </div>` : `<div class="sf"><div class="sf-lbl">Modo Lote</div><div class="sf-val" style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:10px;margin-top:3px">☑ Seleccionado</div></div>`}
-                <div class="sf wide"><div class="sf-lbl">Acción${linkedDevs.length>1?'es':''} vinculada${linkedDevs.length>1?'s':''} (${linkedDevs.length||'sin acción'})</div><div class="sf-val" style="margin-top:2px">${devChip}</div></div>
-                ${f.aclaracion?`<div class="sf wide"><div class="sf-lbl">Aclaración</div><div class="sf-val">${esc(f.aclaracion)}</div></div>`:''}
+                <div class="sf wide"><div class="sf-lbl">Acción${linkedDevs.length > 1 ? 'es' : ''} vinculada${linkedDevs.length > 1 ? 's' : ''} (${linkedDevs.length || 'sin acción'})</div><div class="sf-val" style="margin-top:2px">${devChip}</div></div>
+                ${f.aclaracion ? `<div class="sf wide"><div class="sf-lbl">Aclaración</div><div class="sf-val">${esc(f.aclaracion)}</div></div>` : ''}
               </div>
             </div>
           </td>
@@ -789,32 +857,34 @@ function renderVencTable() {
               deltaHtml = `<span class="delta ${cls}">${diff > 0 ? '+' : ''}${diff}d vs anterior</span>`;
             }
           }
-          const ctrlChip = ctrlAcc ? `<span class="dev-chip" onclick="openDevModal(event,'${esc(ctrlAcc)}')">${esc(ctrlAcc)} ↗</span>` : '';
+          const ctrlChip = ctrlAcc
+            ? `<span class="dev-chip" onclick="openDevModal(event,'${esc(ctrlAcc)}')">${esc(ctrlAcc)} ↗</span>`
+            : '';
           tableHtml += `
-          <tr class="ctrl-row${showCtrl?' visible':''}"
+          <tr class="ctrl-row${showCtrl ? ' visible' : ''}"
               data-suc-key="${esc(sucKey)}" data-prod-ean="${esc(prod.ean)}" data-grupo-key="${esc(g.key)}">
             <td colspan="${NCOLS}" style="padding:0">
-              <div class="ctrl-card${isLatest?' is-latest':''}">
+              <div class="ctrl-card${isLatest ? ' is-latest' : ''}">
                 <div class="ctrl-num-wrap">
                   <div style="display:flex;flex-direction:column;gap:3px">
                     <span style="font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--text3)">N° Ctrl</span>
                     <div style="display:flex;align-items:center;gap:5px">
-                      <span class="ctrl-n${isLatest?' latest':''}">C${nControles-idx}</span>
-                      ${isLatest?`<span class="ult-badge">✓ ÚLTIMO</span>`:''}
+                      <span class="ctrl-n${isLatest ? ' latest' : ''}">C${nControles - idx}</span>
+                      ${isLatest ? `<span class="ult-badge">✓ ÚLTIMO</span>` : ''}
                     </div>
                   </div>
                 </div>
                 <div class="ctrl-fields">
-                  <div class="ctrl-field"><div class="cf-lbl">Fecha</div><div class="cf-val mono${isLatest?' latest':''}">${fmtDate(ctrl.fechaReg||'')}</div></div>
-                  <div class="ctrl-field"><div class="cf-lbl">Usuario</div><div class="cf-val${isLatest?' latest':''}">${esc(ctrl.usuario||'—')}</div></div>
-                  <div class="ctrl-field"><div class="cf-lbl">Unidades</div><div class="cf-val${isLatest?' latest':''}">${ctrl.cantidad?ctrl.cantidad+' u':'—'}</div></div>
-                  <div class="ctrl-field"><div class="cf-lbl">Lote</div><div class="cf-val mono${isLatest?' latest':''}">${esc(ctrl.lote||'—')}</div></div>
+                  <div class="ctrl-field"><div class="cf-lbl">Fecha</div><div class="cf-val mono${isLatest ? ' latest' : ''}">${fmtDate(ctrl.fechaReg || '')}</div></div>
+                  <div class="ctrl-field"><div class="cf-lbl">Usuario</div><div class="cf-val${isLatest ? ' latest' : ''}">${esc(ctrl.usuario || '—')}</div></div>
+                  <div class="ctrl-field"><div class="cf-lbl">Unidades</div><div class="cf-val${isLatest ? ' latest' : ''}">${ctrl.cantidad ? ctrl.cantidad + ' u' : '—'}</div></div>
+                  <div class="ctrl-field"><div class="cf-lbl">Lote</div><div class="cf-val mono${isLatest ? ' latest' : ''}">${esc(ctrl.lote || '—')}</div></div>
                   ${isLatest
-                    ? `<div class="ctrl-field"><div class="cf-lbl">Días desde</div><div style="margin-top:2px">${staleBadgeHtml(se.diasDesde,true)}</div></div>`
-                    : (deltaHtml?`<div class="ctrl-field"><div class="cf-lbl">Intervalo</div><div style="margin-top:2px">${deltaHtml}</div></div>`:'')
-                  }
-                  <div class="ctrl-field"><div class="cf-lbl">Estado</div><div class="cf-val${isLatest?' latest':''}"><span class="eg ${ctrlEst}" style="font-size:8px;padding:2px 5px">${ctrlEst.replace(/-/g,' ')}</span></div></div>
-                  ${ctrlAcc?`<div class="ctrl-field"><div class="cf-lbl">Acción</div><div style="margin-top:2px">${ctrlChip}</div></div>`:''}
+              ? `<div class="ctrl-field"><div class="cf-lbl">Días desde</div><div style="margin-top:2px">${staleBadgeHtml(se.diasDesde, true)}</div></div>`
+              : (deltaHtml ? `<div class="ctrl-field"><div class="cf-lbl">Intervalo</div><div style="margin-top:2px">${deltaHtml}</div></div>` : '')
+            }
+                  <div class="ctrl-field"><div class="cf-lbl">Estado</div><div class="cf-val${isLatest ? ' latest' : ''}"><span class="eg ${ctrlEst}" style="font-size:8px;padding:2px 5px">${ctrlEst.replace(/-/g, ' ')}</span></div></div>
+                  ${ctrlAcc ? `<div class="ctrl-field"><div class="cf-lbl">Acción</div><div style="margin-top:2px">${ctrlChip}</div></div>` : ''}
                 </div>
               </div>
             </td>
@@ -826,22 +896,49 @@ function renderVencTable() {
 
   tableHtml += '</tbody></table></div></div>'; // close .venc-desktop
 
-  // ═══════════════════════════════════════
-  //  MOBILE CARDS
-  // ═══════════════════════════════════════
+  // ─── MOBILE CARDS ────────────────────────────────────
   let mobileHtml = '<div class="venc-mobile-cards">';
 
   filteredVenProd.forEach(prod => {
     const prodId = 'vmp-' + prod.ean.replace(/\D/g, '');
     const isOpen = openProds.has(prod.ean);
-    const barPct = prod.worstDias === null ? 0 : Math.max(0, Math.min(100, Math.round(prod.worstDias / 90 * 100)));
     const prodTotal = prod.vencGrupos.reduce((sum, g) =>
-      sum + g.sucursales.reduce((s2, se) => s2 + (parseFloat(String(se.latest.cantidad || 0).replace(',', '.')) || 0), 0), 0);
+      sum + g.sucursales.reduce((s2, se) =>
+        s2 + (parseFloat(String(se.latest.cantidad || 0).replace(',', '.')) || 0), 0), 0);
+
+    // Acciones vinculadas al producto (mobile)
+    const mSeenIds = new Set();
+    const mAllLinkedDevs = [];
+    prod.vencGrupos.forEach(g => {
+      g.sucursales.forEach(se => {
+        const _eanF = String(se.latest.ean || '').trim();
+        const _fvF = fmtDateOnly(se.latest.fechaVenc);
+        const _sucF = (se.latest.sucursal || '').toUpperCase().trim();
+        devData
+          .filter(d =>
+            String(d.ean || '').trim() === _eanF &&
+            fmtDateOnly(d.fechaVenc) === _fvF &&
+            (d.sucursal || '').toUpperCase().trim() === _sucF
+          )
+          .forEach(d => {
+            if (!mSeenIds.has(d.id)) { mSeenIds.add(d.id); mAllLinkedDevs.push(d); }
+          });
+      });
+    });
+
+    const mLinkedHtml = mAllLinkedDevs.length > 0
+      ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;width:100%;margin-bottom:2px">🔗 Acciones vinculadas</span>
+          ${mAllLinkedDevs.map(d => {
+        const autoLabel = d.usuario === 'SISTEMA AUTO' ? ' ⚡' : '';
+        return `<span class="dev-chip" onclick="openDevModal(event,'${esc(d.id)}')">${esc(d.id)}${autoLabel} <span style="font-size:8px;opacity:.7">[${esc(d.sucursal || '')}]</span> ↗</span>`;
+      }).join('')}
+         </div>`
+      : '';
 
     mobileHtml += `
     <div class="vmc-prod vmc-urg-${prod.worstUrg}" id="${prodId}">
 
-      <!-- ── Cabecera del producto (siempre visible) ── -->
       <div class="vmc-prod-hdr" onclick="toggleVMProd('${esc(prod.ean)}','${prodId}')">
         <div class="vmc-dias-block">
           <span class="vmc-dias-num ${prod.worstUrg}">${prod.worstDias !== null ? prod.worstDias : '?'}</span>
@@ -857,33 +954,30 @@ function renderVencTable() {
             ${prod.allSucs.map(s => `<span class="suc-b ${getSucClass(s)}">${esc(s)}</span>`).join('')}
             <span class="vmc-stock-chip">${prodTotal} u. total</span>
           </div>
-          <!-- Mini fechas resumen -->
           <div class="vmc-fechas-mini">
             ${prod.vencGrupos.map(g => `
               <span class="vmc-fecha-chip ${g.urg}">
                 ${fmtDateOnly(g.fechaVenc)}
-                <span class="vmc-fecha-dias">${g.dias !== null ? (g.dias <= 0 ? 'VENC' : g.dias+'d') : '?'}</span>
+                <span class="vmc-fecha-dias">${g.dias !== null ? (g.dias <= 0 ? 'VENC' : g.dias + 'd') : '?'}</span>
               </span>`).join('')}
           </div>
+          ${mLinkedHtml}
         </div>
         <div class="vmc-expand-btn${isOpen ? ' open' : ''}">
           <span class="vmc-expand-icon">›</span>
         </div>
       </div>
 
-      <!-- ── Grupos de vencimiento (expandibles) ── -->
       <div class="vmc-grupos${isOpen ? ' open' : ''}">
         ${prod.vencGrupos.map((g, gi) => {
-          const grupoId = prodId + '-g' + gi;
-          const isGrupoOpen = openGrupos.has(g.key);
-          const sucFilter = document.getElementById('vf-suc') ? document.getElementById('vf-suc').value : '';
-          const sucVis = sucFilter ? g.sucursales.filter(se => se.suc === sucFilter) : g.sucursales;
-          const grupoTotal = sucVis.reduce((s, se) => s + (parseFloat(String(se.latest.cantidad || 0).replace(',', '.')) || 0), 0);
+      const grupoId = prodId + '-g' + gi;
+      const isGrupoOpen = openGrupos.has(g.key);
+      const sucFilter = document.getElementById('vf-suc') ? document.getElementById('vf-suc').value : '';
+      const sucVis = sucFilter ? g.sucursales.filter(se => se.suc === sucFilter) : g.sucursales;
+      const grupoTotal = sucVis.reduce((s, se) => s + (parseFloat(String(se.latest.cantidad || 0).replace(',', '.')) || 0), 0);
 
-          return `
+      return `
           <div class="vmc-grupo" id="${grupoId}">
-
-            <!-- Cabecera de fecha/grupo -->
             <div class="vmc-grupo-hdr" onclick="toggleVMGrupo('${esc(g.key)}','${grupoId}')">
               <div class="vmc-grupo-urg-bar vmc-urg-bar-${g.urg}"></div>
               <div class="vmc-grupo-info">
@@ -904,52 +998,46 @@ function renderVencTable() {
               <span class="vmc-group-arrow${isGrupoOpen ? ' open' : ''}">›</span>
             </div>
 
-            <!-- Sucursales del grupo -->
             <div class="vmc-sucs${isGrupoOpen ? ' open' : ''}">
               ${sucVis.map((se, si) => {
-                const f = se.latest;
-                const est = (f.estadoGest || 'ACTIVO').replace(/\s+/g, '-');
-                const cantActualSuc = parseFloat(String(f.cantidad || 0).replace(',', '.')) || 0;
-                const sucKey = g.key + '||' + se.suc;
-                const sucColor = getSucColorVar(se.suc);
-                const nControles = se.controles.length;
-                const hasHistory = nControles > 1;
-                const isSucOpen = openSucs.has(sucKey);
-                const sucId = grupoId + '-s' + si;
+        const f = se.latest;
+        const est = (f.estadoGest || 'ACTIVO').replace(/\s+/g, '-');
+        const cantActualSuc = parseFloat(String(f.cantidad || 0).replace(',', '.')) || 0;
+        const sucKey = g.key + '||' + se.suc;
+        const sucColor = getSucColorVar(se.suc);
+        const nControles = se.controles.length;
+        const hasHistory = nControles > 1;
+        const isSucOpen = openSucs.has(sucKey);
+        const sucId = grupoId + '-s' + si;
 
-                // Acciones vinculadas
-                const _eanF = String(f.ean || '').trim();
-                const _fvF  = fmtDateOnly(f.fechaVenc);
-                const _sucF = (f.sucursal || '').toUpperCase().trim();
-                const linkedDevs = devData.filter(d =>
-                  String(d.ean || '').trim() === _eanF &&
-                  fmtDateOnly(d.fechaVenc) === _fvF &&
-                  (d.sucursal || '').toUpperCase().trim() === _sucF
-                );
+        const _eanF = String(f.ean || '').trim();
+        const _fvF = fmtDateOnly(f.fechaVenc);
+        const _sucF = (f.sucursal || '').toUpperCase().trim();
+        const linkedDevs = devData.filter(d =>
+          String(d.ean || '').trim() === _eanF &&
+          fmtDateOnly(d.fechaVenc) === _fvF &&
+          (d.sucursal || '').toUpperCase().trim() === _sucF
+        );
 
-                const btnRegistrar = (!loteMode && g.urg === 'VENCIDO' && est === 'ACTIVO' && cantActualSuc > 0)
-                  ? `<button onclick="registrarVencimientoManual(event,'${esc(f.id)}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion||'')}','${esc(f.ean||'')}','${esc(f.fechaVenc||'')}')"
+        const btnRegistrar = (!loteMode && g.urg === 'VENCIDO' && est === 'ACTIVO' && cantActualSuc > 0)
+          ? `<button onclick="registrarVencimientoManual(event,'${esc(f.id)}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}')"
                        class="vmc-btn vmc-btn-venc">🚨 Registrar Vencido</button>` : '';
 
-                const loteCheck = loteMode ? `
+        const loteCheck = loteMode ? `
                   <input type="checkbox" ${loteSeleccionados.has(sucKey) ? 'checked' : ''}
-                    onclick="event.stopPropagation();toggleLoteRow('${esc(sucKey)}','${esc(f.id)}','${esc(f.descripcion||'')}','${esc(f.ean||'')}','${esc(f.fechaVenc||'')}','${esc(f.sucursal||'')}',${cantActualSuc},this)"
+                    onclick="event.stopPropagation();toggleLoteRow('${esc(sucKey)}','${esc(f.id)}','${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}','${esc(f.sucursal || '')}',${cantActualSuc},this)"
                     style="width:18px;height:18px;cursor:pointer;accent-color:#60a5fa;flex-shrink:0">` : '';
 
-                return `
+        return `
                 <div class="vmc-suc-card" id="${sucId}" style="border-left-color:${sucColor}">
-
-                  <!-- Cabecera sucursal -->
                   <div class="vmc-suc-hdr" onclick="toggleVMSuc('${esc(sucKey)}','${sucId}',event)">
                     ${loteCheck}
                     <span class="vmc-suc-name" style="color:${sucColor}">${esc(f.sucursal || '—')}</span>
                     <span class="vmc-suc-qty-badge ${est === 'ACTIVO' ? 'qty-active' : 'qty-done'}">${cantActualSuc} u.</span>
-                    <span class="eg ${est}" style="font-size:9px;margin-left:auto">${est.replace(/-/g,' ')}</span>
+                    <span class="eg ${est}" style="font-size:9px;margin-left:auto">${est.replace(/-/g, ' ')}</span>
                     ${staleBadgeHtml(se.diasDesde, true)}
                     ${hasHistory ? `<span class="vmc-hist-btn${isSucOpen ? ' open' : ''}">📋 ${nControles}</span>` : ''}
                   </div>
-
-                  <!-- Detalle sucursal (expandible) -->
                   <div class="vmc-suc-detail">
                     <div class="vmc-detail-grid">
                       <div class="vmc-dfield"><div class="vmc-dlbl">Usuario</div><div class="vmc-dval">${f.usuario || '—'}</div></div>
@@ -958,8 +1046,6 @@ function renderVencTable() {
                       <div class="vmc-dfield"><div class="vmc-dlbl">Lote</div><div class="vmc-dval mono">${f.lote || '—'}</div></div>
                       ${f.aclaracion ? `<div class="vmc-dfield vmc-dfield-wide"><div class="vmc-dlbl">Aclaración</div><div class="vmc-dval">${esc(f.aclaracion)}</div></div>` : ''}
                     </div>
-
-                    <!-- Botones de acción -->
                     ${!loteMode ? `
                     <div class="vmc-action-btns">
                       <button onclick="abrirModalTransferencia(event,'${f.id}','${esc(f.sucursal)}',${cantActualSuc})" class="vmc-btn vmc-btn-transfer">⇄ Transferir</button>
@@ -967,26 +1053,22 @@ function renderVencTable() {
                       <button onclick="ajustarStock(event,'${f.id}',-1)" class="vmc-btn vmc-btn-neg">－ Ajuste</button>
                       ${btnRegistrar}
                     </div>` : ''}
-
-                    <!-- Acciones vinculadas -->
                     ${linkedDevs.length > 0 ? `
                     <div class="vmc-linked-devs">
                       <div class="vmc-dlbl" style="margin-bottom:4px">Acciones vinculadas</div>
                       <div style="display:flex;flex-wrap:wrap;gap:5px">
                         ${linkedDevs.map(d => {
-                          const autoLabel = d.usuario === 'SISTEMA AUTO' ? ' ⚡' : '';
-                          return `<span class="dev-chip" onclick="openDevModal(event,'${esc(d.id)}')">${esc(d.id)}${autoLabel} ↗</span>`;
-                        }).join('')}
+          const autoLabel = d.usuario === 'SISTEMA AUTO' ? ' ⚡' : '';
+          return `<span class="dev-chip" onclick="openDevModal(event,'${esc(d.id)}')">${esc(d.id)}${autoLabel} ↗</span>`;
+        }).join('')}
                       </div>
                     </div>` : ''}
-
-                    <!-- Historial de controles -->
                     ${hasHistory ? `
                     <div class="vmc-history${isSucOpen ? ' open' : ''}">
                       <div class="vmc-history-title">📋 Historial de controles</div>
                       ${se.controles.map((ctrl, idx) => {
-                        const isLatest = idx === 0;
-                        return `
+          const isLatest = idx === 0;
+          return `
                         <div class="vmc-ctrl-row${isLatest ? ' latest' : ''}">
                           <div class="vmc-ctrl-num">C${nControles - idx}${isLatest ? ' ✓' : ''}</div>
                           <div class="vmc-ctrl-fields">
@@ -996,16 +1078,14 @@ function renderVencTable() {
                             ${ctrl.lote ? `<span class="vmc-ctrl-val mono">${esc(ctrl.lote)}</span>` : ''}
                           </div>
                         </div>`;
-                      }).join('')}
+        }).join('')}
                     </div>` : ''}
                   </div>
-
-                </div>`; // end vmc-suc-card
-              }).join('')}
+                </div>`;
+      }).join('')}
             </div>
-
-          </div>`; // end vmc-grupo
-        }).join('')}
+          </div>`;
+    }).join('')}
       </div>
 
     </div>`; // end vmc-prod
@@ -1029,9 +1109,9 @@ function toggleVMProd(ean, prodId) {
   const card = document.getElementById(prodId);
   if (!card) return;
   const grupos = card.querySelector('.vmc-grupos');
-  const btn    = card.querySelector('.vmc-expand-btn');
+  const btn = card.querySelector('.vmc-expand-btn');
   if (grupos) grupos.classList.toggle('open', opening);
-  if (btn)    btn.classList.toggle('open', opening);
+  if (btn) btn.classList.toggle('open', opening);
 
   // Colapsar sub-niveles al cerrar
   if (!opening) {
@@ -1062,9 +1142,9 @@ function toggleVMGrupo(key, grupoId) {
 function toggleVMSuc(sucKey, sucId, evt) {
   // Evitar que chips/botones propagen
   if (evt.target.classList.contains('dev-chip') ||
-      evt.target.classList.contains('vmc-btn') ||
-      evt.target.tagName === 'BUTTON' ||
-      evt.target.tagName === 'INPUT') return;
+    evt.target.classList.contains('vmc-btn') ||
+    evt.target.tagName === 'BUTTON' ||
+    evt.target.tagName === 'INPUT') return;
 
   const opening = !openSucs.has(sucKey);
   if (opening) openSucs.add(sucKey); else openSucs.delete(sucKey);
@@ -1253,9 +1333,9 @@ function setAccPreset(preset, btn) {
   if (btn) btn.classList.add('active');
 
   const fromWrap = document.getElementById('acc-date-from');
-  const toWrap   = document.getElementById('acc-date-to');
+  const toWrap = document.getElementById('acc-date-to');
   fromWrap.style.display = preset === 'custom' ? '' : 'none';
-  toWrap.style.display   = preset === 'custom' ? '' : 'none';
+  toWrap.style.display = preset === 'custom' ? '' : 'none';
 
   const now = new Date(); now.setHours(0, 0, 0, 0);
 
@@ -1264,29 +1344,29 @@ function setAccPreset(preset, btn) {
   } else if (preset === 'yesterday') {
     const y = new Date(now); y.setDate(y.getDate() - 1);
     accDateFrom = y;
-    accDateTo   = new Date(y); accDateTo.setHours(23, 59, 59, 999);
+    accDateTo = new Date(y); accDateTo.setHours(23, 59, 59, 999);
   } else if (preset === 'today') {
     accDateFrom = new Date(now);
-    accDateTo   = new Date(); accDateTo.setHours(23, 59, 59, 999);
+    accDateTo = new Date(); accDateTo.setHours(23, 59, 59, 999);
   } else {
     const days = { '3d': 3, '7d': 7, '14d': 14, '30d': 30 }[preset] ?? 0;
     accDateFrom = new Date(now); accDateFrom.setDate(accDateFrom.getDate() - days);
-    accDateTo   = new Date();    accDateTo.setHours(23, 59, 59, 999);
+    accDateTo = new Date(); accDateTo.setHours(23, 59, 59, 999);
   }
   applyAccFilters();
 }
 
 function applyAccFilters() {
-  const suc    = document.getElementById('af-suc')?.value    || '';
-  const prov   = document.getElementById('af-prov')?.value   || '';
-  const mot    = document.getElementById('af-motivo')?.value || '';
-  const est    = document.getElementById('af-estado')?.value || '';
-  const urg    = document.getElementById('af-urg')?.value    || '';
+  const suc = document.getElementById('af-suc')?.value || '';
+  const prov = document.getElementById('af-prov')?.value || '';
+  const mot = document.getElementById('af-motivo')?.value || '';
+  const est = document.getElementById('af-estado')?.value || '';
+  const urg = document.getElementById('af-urg')?.value || '';
 
   // Búsqueda unificada: input superior (nuevo) + input del head-bar (existente)
   const searchTop = (document.getElementById('acc-search-top')?.value || '').toLowerCase().trim();
-  const searchOld = (document.getElementById('acc-search')?.value     || '').toLowerCase().trim();
-  const search    = searchTop || searchOld;
+  const searchOld = (document.getElementById('acc-search')?.value || '').toLowerCase().trim();
+  const search = searchTop || searchOld;
 
   // Fechas
   let from = accDateFrom, to = accDateTo;
@@ -1294,19 +1374,19 @@ function applyAccFilters() {
     const f = document.getElementById('af-date-from')?.value;
     const t = document.getElementById('af-date-to')?.value;
     from = f ? new Date(f) : null;
-    to   = t ? new Date(t + 'T23:59:59') : null;
+    to = t ? new Date(t + 'T23:59:59') : null;
   }
 
   filteredAcc = devData.filter(r => {
     // Filtros de select
-    if (suc  && r.sucursal  !== suc)  return false;
+    if (suc && r.sucursal !== suc) return false;
     if (prov && r.proveedor !== prov) return false;
-    if (mot  && r.motivo    !== mot)  return false;
-    if (est  && r.estado    !== est)  return false;
+    if (mot && r.motivo !== mot) return false;
+    if (est && r.estado !== est) return false;
 
     // Urgencia: calculada desde fechaVenc del registro de acción
     if (urg) {
-      const dias   = calcDias(r.fechaVenc);
+      const dias = calcDias(r.fechaVenc);
       const urgRec = getUrg(dias);
       if (urgRec !== urg) return false;
     }
@@ -1315,13 +1395,13 @@ function applyAccFilters() {
     if (from || to) {
       if (accDateMode === 'registro') {
         if (from && r.fecha && r.fecha < from) return false;
-        if (to   && r.fecha && r.fecha > to)   return false;
+        if (to && r.fecha && r.fecha > to) return false;
       } else {
         // modo vencimiento: parsear fechaVenc del registro
         const fv = parseFechaVenc(r.fechaVenc);
         if (!fv) return false;
         if (from && fv < from) return false;
-        if (to   && fv > to)   return false;
+        if (to && fv > to) return false;
       }
     }
 
@@ -1362,17 +1442,17 @@ function clearAccFilters() {
 function setAccDateMode(mode) {
   accDateMode = mode;
 
-  const btnReg  = document.getElementById('af-mode-reg');
+  const btnReg = document.getElementById('af-mode-reg');
   const btnVenc = document.getElementById('af-mode-venc');
-  const label   = document.getElementById('af-period-label');
+  const label = document.getElementById('af-period-label');
 
   if (mode === 'registro') {
-    if (btnReg)  { btnReg.style.background  = 'var(--blue)'; btnReg.style.color  = '#fff'; }
+    if (btnReg) { btnReg.style.background = 'var(--blue)'; btnReg.style.color = '#fff'; }
     if (btnVenc) { btnVenc.style.background = 'var(--surface)'; btnVenc.style.color = 'var(--text3)'; }
     if (label) label.textContent = 'Período — fecha de registro';
   } else {
-    if (btnVenc) { btnVenc.style.background = 'var(--blue)'; btnVenc.style.color  = '#fff'; }
-    if (btnReg)  { btnReg.style.background  = 'var(--surface)'; btnReg.style.color = 'var(--text3)'; }
+    if (btnVenc) { btnVenc.style.background = 'var(--blue)'; btnVenc.style.color = '#fff'; }
+    if (btnReg) { btnReg.style.background = 'var(--surface)'; btnReg.style.color = 'var(--text3)'; }
     if (label) label.textContent = 'Período — fecha de vencimiento';
   }
 
