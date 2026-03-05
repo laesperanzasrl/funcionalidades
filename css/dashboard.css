@@ -2368,7 +2368,7 @@ tbody tr:hover td {
 
 .modal-transfer-content h3 {
   margin-bottom: 20px;
-  color: var(--accent);
+  color: white;
 }
 
 .modal-transfer-content label {
