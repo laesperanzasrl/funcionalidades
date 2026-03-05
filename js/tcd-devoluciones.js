@@ -1087,9 +1087,9 @@ function esc(str) {
 // RESTRICCIÓN HORARIA
 // ─────────────────────────────────────────────
 const HORARIO = {
-    diasHabiles: [1, 2, 3, 4, 5], // 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
+    diasHabiles: [1, 2, 3, 4, 5, 6], // 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
     inicio: { h: 9, m: 0 },
-    fin: { h: 16, m: 0 },
+    fin: { h: 11, m: 30 },
 };
 
 function dentroDelHorario() {
