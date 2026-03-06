@@ -787,6 +787,76 @@
   </div>
 </div>
 
+    <!-- MODAL VENTA / AJUSTE — solo para vencidos -->
+<div id="modalVentaAjuste" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);
+     align-items:center;justify-content:center;z-index:4100;backdrop-filter:blur(4px)">
+  <div style="background:#131728;border:1px solid rgba(248,113,113,.3);border-radius:14px;
+              padding:28px 32px;width:400px;max-width:92vw;display:flex;flex-direction:column;gap:14px">
+    <!-- Header -->
+    <div>
+      <h3 id="vaModalTitle" style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;
+          color:#f87171;margin:0 0 4px">📊 Registrar Venta / Ajuste</h3>
+      <p id="vaModalDesc" style="font-size:13px;color:var(--text2);margin:0;
+         font-family:'Manrope',sans-serif;font-weight:500"></p>
+    </div>
+    <!-- Info total -->
+    <div style="background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.18);
+                border-radius:8px;padding:10px 14px;font-size:12px;color:var(--text2);line-height:1.7">
+      Disponible en esta sucursal:
+      <strong id="vaModalCantTotal" style="color:var(--text);font-family:'IBM Plex Mono',monospace"></strong>
+      <br>
+      <span style="font-size:11px;color:var(--text3)">
+        Ingresá cuántas unidades <em>efectivamente se vendieron</em> de esta sucursal.<br>
+        El resto se registra como vencido en góndola para el reclamo al proveedor.
+      </span>
+    </div>
+    <!-- Input cantidad vendida -->
+    <div>
+      <label style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;
+             display:block;margin-bottom:6px;letter-spacing:.04em">CANTIDAD VENDIDA (0 si no se vendió nada)</label>
+      <input type="number" id="vaQty" min="0" value="0" oninput="calcVentaAjuste()"
+             style="width:100%;background:var(--card2);color:var(--text);
+                    border:1px solid var(--border2);border-radius:7px;padding:10px 12px;
+                    font-size:16px;font-family:'IBM Plex Mono',monospace;
+                    box-sizing:border-box">
+    </div>
+    <!-- Resultado desglose -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div style="background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.2);
+                  border-radius:8px;padding:10px 14px;text-align:center">
+        <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;
+             letter-spacing:.04em;margin-bottom:4px">✓ VENDIDAS</div>
+        <div id="vaResultVendida" style="font-size:18px;font-weight:700;
+             font-family:'IBM Plex Mono',monospace;color:var(--text3)">0 u.</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:3px">reclamo al precio de acción</div>
+      </div>
+      <div style="background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.2);
+                  border-radius:8px;padding:10px 14px;text-align:center">
+        <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;
+             letter-spacing:.04em;margin-bottom:4px">⛔ VENC. GÓNDOLA</div>
+        <div id="vaResultVencida" style="font-size:18px;font-weight:700;
+             font-family:'IBM Plex Mono',monospace;color:var(--text3)">0 u.</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:3px">reclamo al costo completo</div>
+      </div>
+    </div>
+    <!-- Botones -->
+    <div style="display:flex;gap:10px;margin-top:2px">
+      <button onclick="ejecutarVentaAjuste()"
+              style="flex:2;background:#f87171;color:#000;border:none;padding:12px;
+                     border-radius:8px;font-weight:700;cursor:pointer;
+                     font-family:'Manrope',sans-serif;font-size:13px">
+        ✔ Confirmar
+      </button>
+      <button onclick="cerrarModalVentaAjuste()"
+              style="flex:1;background:var(--card2);color:var(--text2);
+                     border:1px solid var(--border);padding:12px;border-radius:8px;
+                     cursor:pointer;font-family:'Manrope',sans-serif;font-size:13px">
+        Cancelar
+      </button>
+    </div>
+  </div>
+</div>
+
     <script src="../js/dashboard.js"></script>
 </body>
 

@@ -196,6 +196,8 @@ function processDevData(raw) {
       obsNC: r['OBSERVACION N/C'] || '',
       idOrigen: r['ID_ORIGEN'] || '',
       sucOrigenTransfer: r['SUC_ORIGEN'] || '',
+      cantVendida: parseFloat(String(r['CANT_VENDIDA'] || '0').replace(',', '.')) || 0,
+      cantVencidaGondola: parseFloat(String(r['CANT_VENCIDA_GONDOLA'] || '0').replace(',', '.')) || 0,
     };
   }).filter(r => r.id);
   devMap.clear();
@@ -1518,9 +1520,11 @@ function renderAccTable() {
     const diasDt = calcDias(r.fechaVenc);
     const esVencido = diasDt !== null && diasDt <= 0;
     const puedeTransf = cantDisp > 0 && r.estado !== 'VENDIDO' && !esVencido;
-    const puedeVender = cantDisp > 0 && r.estado !== 'VENDIDO' && !esVencido;
+    const puedeVentaAjuste = esVencido && r.estado !== 'VENDIDO' && cantDisp > 0;
+    const yaRegistrado = r.estado === 'VENDIDO' && (r.cantVendida > 0 || r.cantVencidaGondola > 0);
     const rowStyle = r.estado === 'VENDIDO'
       ? 'background:rgba(34,197,94,.06);border-left:2px solid rgba(34,197,94,.3);'
+      : esVencido ? 'background:rgba(248,113,113,.04);border-left:2px solid rgba(248,113,113,.25);'
       : '';
 
     return `<tr style="${rowStyle}">
@@ -1547,15 +1551,20 @@ function renderAccTable() {
         ? `<button onclick="abrirModalTransferenciaAcc(event,'${esc(r.id)}','${esc(r.sucursal)}',${cantDisp},'${esc(r.descripcion || '')}')"
                          class="btn-action btn-transfer-sm">⇄ Transferir</button>`
         : ''}
-                  ${puedeVender
-        ? `<button onclick="marcarVendidoAcc(event,'${esc(r.id)}','${esc(r.descripcion || '')}',${cantDisp})"
-                         class="btn-action btn-vender">✓ Vendido</button>`
+                  ${puedeVentaAjuste
+        ? `<button onclick="abrirModalVentaAjuste(event,'${esc(r.id)}','${esc(r.descripcion || '')}',${cantDisp})"
+                         class="btn-action btn-vender">📊 Venta/Ajuste</button>`
         : ''}
-                  ${r.estado === 'VENDIDO'
-        ? `<span style="font-size:10px;color:#94a3b8;font-family:'IBM Plex Mono',monospace">vendido</span>`
+                  ${yaRegistrado
+        ? `<span style="font-size:10px;color:#94a3b8;font-family:'IBM Plex Mono',monospace;line-height:1.5">
+             ✓ ${r.cantVendida}${r.cantVendida === 1 ? ' u.' : ' u.'} vendida${r.cantVendida !== 1 ? 's' : ''}<br>
+             <span style="color:#f87171">⛔ ${r.cantVencidaGondola} venc. góndola</span>
+           </span>`
+        : r.estado === 'VENDIDO'
+        ? `<span style="font-size:10px;color:#94a3b8;font-family:'IBM Plex Mono',monospace">✓ vendido</span>`
         : ''}
                   ${esVencido && r.estado !== 'VENDIDO'
-        ? `<span style="font-size:10px;color:#f87171;font-family:'IBM Plex Mono',monospace">vencido</span>`
+        ? `<span style="font-size:10px;color:#f87171;font-family:'IBM Plex Mono',monospace">⛔ vencido</span>`
         : ''}
                 </div>
               </td>
@@ -1576,9 +1585,11 @@ function renderAccTable() {
     const urg = getUrg(dias);
     const esVencido = dias !== null && dias <= 0;
     const puedeTransf = cantDisp > 0 && r.estado !== 'VENDIDO' && !esVencido;
-    const puedeVender = cantDisp > 0 && r.estado !== 'VENDIDO' && !esVencido;
+    const puedeVentaAjuste = esVencido && r.estado !== 'VENDIDO' && cantDisp > 0;
+    const yaRegistrado = r.estado === 'VENDIDO' && (r.cantVendida > 0 || r.cantVencidaGondola > 0);
     const cardVendidoStyle = r.estado === 'VENDIDO'
       ? 'border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.04);'
+      : esVencido ? 'border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.04);'
       : '';
     return `
         <div class="acc-card acc-card-urg-${urg}" style="${cardVendidoStyle}">
@@ -1614,11 +1625,12 @@ function renderAccTable() {
               <div class="acc-card-val mono">${esc(r.lote)}</div>
             </div>` : ''}
           </div>
-          ${(hasVen || puedeTransf || puedeVender || esVencido) ? `
+          ${(hasVen || puedeTransf || puedeVentaAjuste || esVencido || yaRegistrado) ? `
           <div class="acc-card-footer" style="display:flex;gap:6px;flex-wrap:wrap">
   ${hasVen ? `<span class="ven-chip ven-chip-full" onclick="openVenDetailFromAcc('${esc(r.id)}')">📦 Ver venc. ↗</span>` : ''}
   ${puedeTransf ? `<button onclick="abrirModalTransferenciaAcc(event,'${esc(r.id)}','${esc(r.sucursal)}',${cantDisp},'${esc(r.descripcion || '')}')" class="btn-action btn-transfer-sm">⇄ Transferir</button>` : ''}
-  ${puedeVender ? `<button onclick="marcarVendidoAcc(event,'${esc(r.id)}','${esc(r.descripcion || '')}',${cantDisp})" class="btn-action btn-vender">✓ Vendido</button>` : ''}
+  ${puedeVentaAjuste ? `<button onclick="abrirModalVentaAjuste(event,'${esc(r.id)}','${esc(r.descripcion || '')}',${cantDisp})" class="btn-action btn-vender">📊 Venta/Ajuste</button>` : ''}
+  ${yaRegistrado ? `<span style="font-size:10px;color:#94a3b8;font-family:'IBM Plex Mono',monospace;align-self:center">✓ ${r.cantVendida}u. vend. · <span style="color:#f87171">⛔ ${r.cantVencidaGondola}u. góndola</span></span>` : r.estado === 'VENDIDO' ? `<span style="font-size:10px;color:#94a3b8;font-family:'IBM Plex Mono',monospace;align-self:center">✓ vendido</span>` : ''}
   ${esVencido && r.estado !== 'VENDIDO' ? `<span style="font-size:10px;color:#f87171;font-family:'IBM Plex Mono',monospace;align-self:center">⛔ vencido</span>` : ''}
 </div>` : ''}
         </div>`;
@@ -1706,47 +1718,88 @@ async function ejecutarTransferenciaAcc() {
   hideSpinner();
 }
 
-async function marcarVendidoAcc(evt, id, desc, cantDisponible) {
+// ══════════════════════════════════════════════════════
+//  MODAL VENTA / AJUSTE (solo para productos VENCIDOS)
+// ══════════════════════════════════════════════════════
+let currentVentaAjusteData = null;
+
+function abrirModalVentaAjuste(evt, id, desc, cantDisponible) {
   if (evt) evt.stopPropagation();
+  const item = devData.find(d => d.id === id);
+  const pesable = esPesable(item);
+  const cantBase = parseFloat(String(cantDisponible).replace(',', '.')) || 0;
+  currentVentaAjusteData = { id, desc, cantTotal: cantBase, pesable };
+  document.getElementById('vaModalTitle').textContent = 'Registrar Venta / Ajuste';
+  document.getElementById('vaModalDesc').textContent = desc;
+  document.getElementById('vaModalCantTotal').textContent = cantBase + (pesable ? ' kg' : ' u.');
+  const inp = document.getElementById('vaQty');
+  inp.value = '0';
+  inp.max = cantBase;
+  inp.step = pesable ? '0.001' : '1';
+  inp.min = '0';
+  calcVentaAjuste();
+  document.getElementById('modalVentaAjuste').style.display = 'flex';
+  setTimeout(() => inp.focus(), 100);
+}
 
-  document.getElementById('cm-title').textContent = '✓ Marcar como Vendido';
-  document.getElementById('cm-text').textContent = `¿"${desc}" fue vendido en tienda?`;
-  document.getElementById('cm-details').innerHTML = `
-    <div style="background:rgba(71,85,105,.15);border:1px solid rgba(71,85,105,.4);padding:10px 14px;border-radius:7px;font-size:12px;color:#94a3b8;margin-bottom:8px;line-height:1.7">
-      Esta acción va a marcar el registro como <strong>VENDIDO</strong>
-      y va a ocultarlo del dashboard activo.<br>
-      <span style="color:var(--green);font-size:11px">✓ La cantidad original queda intacta para la gestión de N/C.</span>
-    </div>
-    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)">
-      ID: ${esc(id)} · Disponible: ${cantDisponible} u.
-    </div>`;
+function calcVentaAjuste() {
+  if (!currentVentaAjusteData) return;
+  const { cantTotal, pesable } = currentVentaAjusteData;
+  const raw = (document.getElementById('vaQty').value || '0').replace(',', '.');
+  const vendida = Math.max(0, Math.min(parseFloat(raw) || 0, cantTotal));
+  const vencida = Math.max(0, cantTotal - vendida);
+  const dec = pesable ? 3 : 0;
+  document.getElementById('vaResultVendida').textContent = vendida.toFixed(dec) + (pesable ? ' kg' : ' u.');
+  document.getElementById('vaResultVencida').textContent = vencida.toFixed(dec) + (pesable ? ' kg' : ' u.');
+  document.getElementById('vaResultVendida').style.color = vendida > 0 ? '#4ade80' : 'var(--text3)';
+  document.getElementById('vaResultVencida').style.color = vencida > 0 ? '#f87171' : 'var(--text3)';
+}
 
-  modalCb = async () => {
-    document.getElementById('confirmModal').classList.remove('open');
-    showSpinner('Actualizando...');
-    try {
-      const res = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'marcarVendidoAccion', id })
-      });
-      const json = await res.json();
-      if (json.success) {
-        showToast(true, 'Marcado como VENDIDO');
-        // Actualizar localmente sin recargar todo
-        const item = devData.find(d => d.id === id);
-        if (item) { item.estado = 'VENDIDO'; item.cantDisponible = 0; }
-        applyAccFilters();
-        updateResumenKPIs();
-      } else {
-        showToast(false, json.message || 'Error al actualizar');
+function cerrarModalVentaAjuste() {
+  document.getElementById('modalVentaAjuste').style.display = 'none';
+  currentVentaAjusteData = null;
+}
+
+async function ejecutarVentaAjuste() {
+  if (!currentVentaAjusteData) return;
+  const { id, cantTotal, pesable } = currentVentaAjusteData;
+  const raw = (document.getElementById('vaQty').value || '0').replace(',', '.');
+  const cantVendida = parseFloat(raw) || 0;
+  if (cantVendida < 0 || cantVendida > cantTotal) {
+    showToast(false, 'La cantidad vendida debe estar entre 0 y ' + cantTotal);
+    return;
+  }
+  if (!pesable && !Number.isInteger(cantVendida)) {
+    showToast(false, 'Solo se aceptan cantidades enteras para productos no pesables.');
+    return;
+  }
+  cerrarModalVentaAjuste();
+  showSpinner('Registrando venta/ajuste...');
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'marcarVendidoAccion', id, cantidadVendida: cantVendida })
+    });
+    const json = await res.json();
+    if (json.success) {
+      const vencida = json.cantVencidaGondola !== undefined ? json.cantVencidaGondola : (cantTotal - cantVendida);
+      showToast(true, 'Vendidas: ' + cantVendida + ' | Venc. gondola: ' + vencida);
+      const item = devData.find(d => d.id === id);
+      if (item) {
+        item.estado = 'VENDIDO';
+        item.cantDisponible = 0;
+        item.cantVendida = cantVendida;
+        item.cantVencidaGondola = vencida;
       }
-    } catch (e) { showToast(false, 'Error de red'); }
-    hideSpinner();
-  };
-
-  document.getElementById('cm-confirm').onclick = () => { if (modalCb) { const cb = modalCb; modalCb = null; cb(); } };
-  document.getElementById('confirmModal').classList.add('open');
+      applyAccFilters();
+      applyNcFilters();
+      updateResumenKPIs();
+    } else {
+      showToast(false, json.message || 'Error al registrar venta/ajuste');
+    }
+  } catch (e) { showToast(false, 'Error de red'); console.error(e); }
+  hideSpinner();
 }
 
 // ══════════════════════════════════════════════════════
@@ -1944,7 +1997,7 @@ function renderNcTable() {
 
   tbody.innerHTML = `<div class="table-scroll"><table>
     <thead><tr><th style="width:36px"></th><th>ID</th><th>Fecha</th><th>Sucursal orig.</th>
-    <th>Descripción</th><th>EAN</th><th class="c-right">Cant. total</th><th>Distribución actual</th><th>Venc.</th>
+    <th>Descripción</th><th>EAN</th><th class="c-right">Cant. total</th><th>Distribución actual</th><th>Vend./Venc. góndola</th><th>Venc.</th>
     <th>Proveedor</th><th>Motivo</th><th>Lote</th><th>Estado</th><th>Obs. N/C</th></tr></thead>
     <tbody>${page.map(r => {
     const distrib = getDistrib(r);
@@ -1957,6 +2010,28 @@ function renderNcTable() {
            font-family:'IBM Plex Mono',monospace;white-space:nowrap;margin:1px">
            <span style="font-weight:700;color:var(--text)">${s.cant}</span>&nbsp;${esc(s.suc)}
            </span>`).join('')
+      : `<span style="color:var(--text3);font-size:11px">—</span>`;
+    // Desglose vendido vs vencido en góndola para NC
+    const cantVend = r.cantVendida || 0;
+    const cantVencG = r.cantVencidaGondola || 0;
+    const tieneDesglose = r.estado === 'VENDIDO' && (cantVend > 0 || cantVencG > 0);
+    const desgloseHtml = tieneDesglose
+      ? `<div style="display:flex;flex-direction:column;gap:3px;min-width:130px">
+           <span style="display:inline-flex;align-items:center;gap:4px;font-size:9px;
+             background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.2);
+             border-radius:4px;padding:2px 7px;color:#4ade80;
+             font-family:'IBM Plex Mono',monospace;white-space:nowrap">
+             ✓ <strong>${cantVend}</strong>&nbsp;vendidas (${esc(r.motivo || '—')})
+           </span>
+           ${cantVencG > 0 ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:9px;
+             background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);
+             border-radius:4px;padding:2px 7px;color:#f87171;
+             font-family:'IBM Plex Mono',monospace;white-space:nowrap">
+             ⛔ <strong>${cantVencG}</strong>&nbsp;venc. góndola
+           </span>` : ''}
+         </div>`
+      : r.estado === 'VENDIDO'
+      ? `<span style="color:#94a3b8;font-size:11px;font-family:'IBM Plex Mono',monospace">✓ vendido</span>`
       : `<span style="color:var(--text3);font-size:11px">—</span>`;
     const rowStyle = r.estado === 'VENDIDO'
       ? 'background:rgba(34,197,94,.06);border-left:3px solid rgba(34,197,94,.35);'
@@ -1971,6 +2046,7 @@ function renderNcTable() {
         <td class="c-mono" style="font-size:11px">${r.ean || '—'}</td>
         <td class="c-right c-mono" style="font-weight:700">${r.cantidad || '—'}</td>
         <td style="min-width:130px">${distribHtml}</td>
+        <td style="min-width:140px">${desgloseHtml}</td>
         <td>${vencBadge(r.fechaVenc)}</td>
         <td>${esc(r.proveedor || '—')}</td>
         <td>${motivoBadge(r.motivo)}</td>
@@ -2308,15 +2384,136 @@ async function exportAccXlsx() {
     const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'acciones_' + fmtIso(new Date()) + '.xlsx'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   } catch (err) { alert('Error al generar Excel: ' + err.message); }
 }
-function exportNcXlsx() {
+async function exportNcXlsx() {
   const rows = selectedIds.size > 0 ? filteredNc.filter(r => selectedIds.has(r.id)) : filteredNc;
   if (!rows.length) { alert('No hay registros para exportar.'); return; }
-  const headers = ['ID', 'Fecha', 'Sucursal', 'EAN', 'Descripción', 'Gramaje', 'Cantidad', 'Fecha Venc.', 'Proveedor', 'Motivo', 'Lote', 'Estado', 'Obs. N/C'];
-  const wsData = [headers, ...rows.map(r => [r.id, r.fecha ? r.fecha.toLocaleDateString('es-AR') : '', r.sucursal, r.ean, r.descripcion, r.gramaje, r.cantidad, fmtVenc(r.fechaVenc), r.proveedor, r.motivo, r.lote, r.estado, r.obsNC])];
-  const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols'] = [{ wch: 22 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 32 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 14 }, { wch: 16 }, { wch: 28 }];
-  XLSX.utils.book_append_sheet(wb, ws, 'Gestión NC');
-  XLSX.writeFile(wb, 'gestion_nc_' + fmtIso(new Date()) + '.xlsx');
+
+  // ── Para cada fila calcular totales consolidados (padre + hijos transferidos) ──
+  const rowsConsolidados = rows.map(r => {
+    const hijosAll = devData.filter(h => h.idOrigen === r.id);
+    const totalVend  = (r.cantVendida || 0)        + hijosAll.reduce((s, h) => s + (h.cantVendida        || 0), 0);
+    const totalVencG = (r.cantVencidaGondola || 0) + hijosAll.reduce((s, h) => s + (h.cantVencidaGondola || 0), 0);
+    return { r, totalVend, totalVencG };
+  });
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'NEXUS'; wb.created = new Date();
+  const ws = wb.addWorksheet('Gestión NC');
+
+  ws.pageSetup = {
+    paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+    margins: { left: .3, right: .3, top: .4, bottom: .4, header: .2, footer: .2 }
+  };
+
+  ws.columns = [
+    { key: 'sucursal',   width: 16 },
+    { key: 'descripcion',width: 36 },
+    { key: 'ean',        width: 16 },
+    { key: 'cantTotal',  width: 12 },
+    { key: 'vendidas',   width: 12 },
+    { key: 'vencGondola',width: 14 },
+    { key: 'venc',       width: 14 },
+    { key: 'proveedor',  width: 26 },
+    { key: 'motivo',     width: 22 },
+    { key: 'lote',       width: 14 },
+  ];
+
+  // ── Encabezado ──────────────────────────────────────────
+  const hRow = ws.addRow([
+    'Sucursal orig.', 'Descripción', 'EAN',
+    'Cant. total', 'Vendidas', 'Venc. góndola',
+    'Vencimiento', 'Proveedor', 'Motivo', 'Lote'
+  ]);
+  hRow.height = 24;
+  hRow.eachCell(c => {
+    c.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D111F' } };
+    c.alignment = { horizontal: 'center', vertical: 'middle' };
+    c.border = { bottom: { style: 'medium', color: { argb: 'FF4f8eff' } } };
+  });
+
+  // ── Datos ────────────────────────────────────────────────
+  rowsConsolidados.forEach(({ r, totalVend, totalVencG }, i) => {
+    const isEven = i % 2 === 1;
+    const dRow = ws.addRow([
+      r.sucursal  || '—',
+      r.descripcion || '—',
+      r.ean        || '—',
+      r.cantidad   || 0,
+      totalVend,
+      totalVencG,
+      fmtVenc(r.fechaVenc),
+      r.proveedor  || '—',
+      r.motivo     || '—',
+      r.lote       || '—',
+    ]);
+    dRow.height = 20;
+
+    dRow.eachCell({ includeEmpty: true }, (c, col) => {
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isEven ? 'FFF5F7FF' : 'FFFFFFFF' } };
+      c.alignment = { vertical: 'middle', horizontal: [4,5,6].includes(col) ? 'center' : 'left', wrapText: col === 2 };
+      c.font = { size: 10 };
+      c.border = { bottom: { style: 'thin', color: { argb: 'FFDDDDDD' } }, right: { style: 'thin', color: { argb: 'FFDDDDDD' } } };
+    });
+
+    // Columna Vendidas → verde
+    const cellVend = dRow.getCell(5);
+    if (totalVend > 0) {
+      cellVend.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4EDDA' } };
+      cellVend.font = { size: 10, bold: true, color: { argb: 'FF155724' } };
+    }
+
+    // Columna Venc. góndola → rojo si > 0
+    const cellVencG = dRow.getCell(6);
+    if (totalVencG > 0) {
+      cellVencG.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8D7DA' } };
+      cellVencG.font = { size: 10, bold: true, color: { argb: 'FF721C24' } };
+    }
+
+    // Columna Vencimiento: tachado si ya venció
+    const vencCell = dRow.getCell(7);
+    const diasV = calcDias(r.fechaVenc);
+    if (diasV !== null && diasV <= 0) {
+      vencCell.font = { size: 10, strike: true, color: { argb: 'FFFF4444' } };
+      vencCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3D0000' } };
+    }
+
+    // Columna Motivo → color badge
+    const motivoCell = dRow.getCell(9);
+    const mU = (r.motivo || '').toUpperCase();
+    if (mU.includes('2X1'))       { motivoCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } }; motivoCell.font = { size: 10, bold: true, color: { argb: 'FF93C5FD' } }; }
+    else if (mU.includes('50%'))  { motivoCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3B1F6A' } }; motivoCell.font = { size: 10, bold: true, color: { argb: 'FFCA9FFC' } }; }
+    else if (mU.includes('VENC')) { motivoCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3D0000' } }; motivoCell.font = { size: 10, bold: true, color: { argb: 'FFFF4444' } }; }
+    else if (mU.includes('ROT') || mU.includes('DA') || mU.includes('ESTADO')) { motivoCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3D2200' } }; motivoCell.font = { size: 10, bold: true, color: { argb: 'FFFB923C' } }; }
+  });
+
+  // ── Fila de totales ──────────────────────────────────────
+  const sumCant  = rowsConsolidados.reduce((s, { r }) => s + (parseFloat(String(r.cantidad || 0).replace(',', '.')) || 0), 0);
+  const sumVend  = rowsConsolidados.reduce((s, { totalVend })  => s + totalVend,  0);
+  const sumVencG = rowsConsolidados.reduce((s, { totalVencG }) => s + totalVencG, 0);
+
+  const totRow = ws.addRow(['', `TOTAL: ${rows.length} registros`, '', sumCant, sumVend, sumVencG, '', '', '', '']);
+  totRow.height = 22;
+  totRow.eachCell({ includeEmpty: true }, (c, col) => {
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D111F' } };
+    c.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+    c.alignment = { vertical: 'middle', horizontal: [4,5,6].includes(col) ? 'center' : 'left' };
+  });
+  const tVend = totRow.getCell(5);
+  tVend.font = { bold: true, color: { argb: 'FF4ADE80' }, size: 10 };
+  const tVencG = totRow.getCell(6);
+  tVencG.font = { bold: true, color: { argb: 'FFF87171' }, size: 10 };
+
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 1, topLeftCell: 'A2', activeCell: 'A2' }];
+
+  try {
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'gestion_nc_' + fmtIso(new Date()) + '.xlsx';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  } catch (err) { alert('Error al generar Excel: ' + err.message); console.error(err); }
 }
 function fmtIso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
