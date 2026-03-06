@@ -47,6 +47,8 @@ const SUCURSALES_LIST = ['HIPER', 'CENTRO', 'RIBERA', 'MAYORISTA', 'PROVEEDOR', 
 let currentTransferData = null;
 let currentAdjustData = null;
 
+let currentAccTransferData = null;
+
 // ══════════════════════════════════════════════════════
 //  HELPER: ¿Es producto pesable?
 // ══════════════════════════════════════════════════════
@@ -162,29 +164,40 @@ async function loadData() {
 }
 
 function processDevData(raw) {
-  devData = raw.map(r => ({
-    id: r['ID'] || '',
-    fecha: parseDate(r['FECHA REGISTRO'] || r['FECHA'] || ''),
-    sucursal: r['SUCURSAL'] || '',
-    usuario: r['USUARIO'] || '',
-    ean: String(r['EAN'] || ''),
-    codInterno: r['COD. INTERNO'] || '',
-    descripcion: r['DESCRIPCION'] || '',
-    gramaje: r['GRAMAJE'] || '',
-    cantidad: r['CANTIDAD'] || '',
-    fechaVenc: r['FECHA VENC.'] || '',
-    sector: r['SECTOR'] || '',
-    seccion: r['SECCION'] || '',
-    proveedor: r['PROVEEDOR'] || '',
-    codProv: r['COD. PROVEEDOR'] || '',
-    motivo: r['MOTIVO'] || '',
-    lote: r['LOTE'] || '',
-    aclaracion: r['ACLARACION'] || '',
-    comentarios: r['COMENTARIOS'] || '',
-    fotoRaw: r['ARCHIVO ADJUNTO'] || '',
-    estado: r['ESTADO'] || 'PENDIENTE',
-    obsNC: r['OBSERVACION N/C'] || '',
-  })).filter(r => r.id);
+  devData = raw.map(r => {
+    // CANT_DISPONIBLE: usa el campo nuevo si existe, sino cae a CANTIDAD
+    const cdRaw = r['CANT_DISPONIBLE'];
+    const cantDisponible = (cdRaw !== undefined && cdRaw !== '' && cdRaw !== null)
+      ? (parseFloat(String(cdRaw).replace(',', '.')) || 0)
+      : (parseFloat(String(r['CANTIDAD'] || '0').replace(',', '.')) || 0);
+
+    return {
+      id: r['ID'] || '',
+      fecha: parseDate(r['FECHA REGISTRO'] || r['FECHA'] || ''),
+      sucursal: r['SUCURSAL'] || '',
+      usuario: r['USUARIO'] || '',
+      ean: String(r['EAN'] || ''),
+      codInterno: r['COD. INTERNO'] || '',
+      descripcion: r['DESCRIPCION'] || '',
+      gramaje: r['GRAMAJE'] || '',
+      cantidad: r['CANTIDAD'] || '',
+      cantDisponible,
+      fechaVenc: r['FECHA VENC.'] || '',
+      sector: r['SECTOR'] || '',
+      seccion: r['SECCION'] || '',
+      proveedor: r['PROVEEDOR'] || '',
+      codProv: r['COD. PROVEEDOR'] || '',
+      motivo: r['MOTIVO'] || '',
+      lote: r['LOTE'] || '',
+      aclaracion: r['ACLARACION'] || '',
+      comentarios: r['COMENTARIOS'] || '',
+      fotoRaw: r['ARCHIVO ADJUNTO'] || '',
+      estado: r['ESTADO'] || 'PENDIENTE',
+      obsNC: r['OBSERVACION N/C'] || '',
+      idOrigen: r['ID_ORIGEN'] || '',
+      sucOrigenTransfer: r['SUC_ORIGEN'] || '',
+    };
+  }).filter(r => r.id);
   devMap.clear();
   devData.forEach(r => devMap.set(r.id, r));
   document.getElementById('recCount').textContent = devData.length + ' acciones · ' + venData.length + ' vencimientos';
@@ -1378,6 +1391,11 @@ function applyAccFilters() {
   }
 
   filteredAcc = devData.filter(r => {
+
+    // Ocultar registros transferidos por completo (cantDisponible=0),
+    // EXCEPTO los VENDIDO que siempre deben aparecer (en verde)
+    if (r.cantDisponible <= 0 && r.estado !== 'VENDIDO') return false;
+
     // Filtros de select
     if (suc && r.sucursal !== suc) return false;
     if (prov && r.proveedor !== prov) return false;
@@ -1471,11 +1489,10 @@ function renderAccTable() {
     return;
   }
 
-  // Mapa devId → venData (para chipear el vencimiento vinculado)
   const venByDevId = new Map();
   venData.forEach(v => { if (v.idAccion) venByDevId.set(v.idAccion, v); });
 
-  // ── Desktop: tabla clásica (sin columna ID) ──
+  // ── Desktop ──────────────────────────────────────────────────
   const tableHtml = `
     <div class="table-scroll acc-desktop">
       <table>
@@ -1484,23 +1501,37 @@ function renderAccTable() {
           <th>Sucursal</th>
           <th>Descripción</th>
           <th>EAN</th>
-          <th class="c-right">Cant.</th>
+          <th class="c-right">Disp.</th>
           <th>Vencimiento</th>
           <th>Proveedor</th>
           <th>Motivo</th>
           <th>Lote</th>
           <th>Estado</th>
-          <th>Venc. vinculado</th>
+        <th>Venc. vinculado</th>
+<th>Acciones</th>  
         </tr></thead>
         <tbody>
           ${page.map(r => {
     const hasVen = venByDevId.has(r.id);
-    return `<tr>
+    const cantDisp = r.cantDisponible;
+    const esHijo = !!r.idOrigen;
+    const diasDt = calcDias(r.fechaVenc);
+    const esVencido = diasDt !== null && diasDt <= 0;
+    const puedeTransf = cantDisp > 0 && r.estado !== 'VENDIDO' && !esVencido;
+    const puedeVender = cantDisp > 0 && r.estado !== 'VENDIDO' && !esVencido;
+    const rowStyle = r.estado === 'VENDIDO'
+      ? 'background:rgba(34,197,94,.06);border-left:2px solid rgba(34,197,94,.3);'
+      : '';
+
+    return `<tr style="${rowStyle}">
               <td class="c-mono" style="font-size:11px;white-space:nowrap">${fmtDateDisp(r.fecha)}</td>
-              <td><span class="b-tag">${esc(r.sucursal || '—')}</span></td>
+              <td>
+                <span class="suc-b ${getSucClass(r.sucursal)}">${esc(r.sucursal || '—')}</span>
+                ${esHijo ? `<br><span class="transfer-origin-badge" style="font-size:9px">⇄ de ${esc(r.sucOrigenTransfer || '?')}</span>` : ''}
+              </td>
               <td class="c-main">${esc(r.descripcion || '—')}</td>
               <td class="c-mono" style="font-size:11px">${r.ean || '—'}</td>
-              <td class="c-right c-mono">${r.cantidad || '—'}</td>
+              <td class="c-right c-mono">${cantDisp}</td>
               <td>${vencBadge(r.fechaVenc)}</td>
               <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis">${esc(r.proveedor || '—')}</td>
               <td>${motivoBadge(r.motivo)}</td>
@@ -1510,27 +1541,54 @@ function renderAccTable() {
         ? `<span class="ven-chip" onclick="openVenDetailFromAcc('${esc(r.id)}')">📦 Ver venc. ↗</span>`
         : '<span style="color:var(--text3);font-size:10px;font-family:\'IBM Plex Mono\',monospace">—</span>'
       }</td>
+              <td>
+                <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+                  ${puedeTransf
+        ? `<button onclick="abrirModalTransferenciaAcc(event,'${esc(r.id)}','${esc(r.sucursal)}',${cantDisp},'${esc(r.descripcion || '')}')"
+                         class="btn-action btn-transfer-sm">⇄ Transferir</button>`
+        : ''}
+                  ${puedeVender
+        ? `<button onclick="marcarVendidoAcc(event,'${esc(r.id)}','${esc(r.descripcion || '')}',${cantDisp})"
+                         class="btn-action btn-vender">✓ Vendido</button>`
+        : ''}
+                  ${r.estado === 'VENDIDO'
+        ? `<span style="font-size:10px;color:#94a3b8;font-family:'IBM Plex Mono',monospace">vendido</span>`
+        : ''}
+                  ${esVencido && r.estado !== 'VENDIDO'
+        ? `<span style="font-size:10px;color:#f87171;font-family:'IBM Plex Mono',monospace">vencido</span>`
+        : ''}
+                </div>
+              </td>
             </tr>`;
   }).join('')}
         </tbody>
       </table>
     </div>`;
 
-  // ── Mobile: cards apiladas ──
+  // ── Mobile: cards ────────────────────────────────────────────
   const cardsHtml = `
     <div class="acc-mobile-cards">
       ${page.map(r => {
     const hasVen = venByDevId.has(r.id);
+    const cantDisp = r.cantDisponible;
+    const esHijo = !!r.idOrigen;
     const dias = calcDias(r.fechaVenc);
     const urg = getUrg(dias);
+    const esVencido = dias !== null && dias <= 0;
+    const puedeTransf = cantDisp > 0 && r.estado !== 'VENDIDO' && !esVencido;
+    const puedeVender = cantDisp > 0 && r.estado !== 'VENDIDO' && !esVencido;
+    const cardVendidoStyle = r.estado === 'VENDIDO'
+      ? 'border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.04);'
+      : '';
     return `
-        <div class="acc-card acc-card-urg-${urg}">
+        <div class="acc-card acc-card-urg-${urg}" style="${cardVendidoStyle}">
           <div class="acc-card-top">
             <div class="acc-card-desc">${esc(r.descripcion || '—')}</div>
             ${estadoBadge(r.estado)}
           </div>
           <div class="acc-card-meta">
             <span class="suc-b ${getSucClass(r.sucursal)}">${esc(r.sucursal || '—')}</span>
+            ${esHijo ? `<span class="transfer-origin-badge">⇄ de ${esc(r.sucOrigenTransfer || '?')}</span>` : ''}
             <span class="acc-card-fecha">${fmtDateDisp(r.fecha)}</span>
             ${motivoBadge(r.motivo)}
           </div>
@@ -1540,8 +1598,8 @@ function renderAccTable() {
               <div class="acc-card-val mono">${r.ean || '—'}</div>
             </div>
             <div class="acc-card-field">
-              <div class="acc-card-lbl">Cantidad</div>
-              <div class="acc-card-val mono">${r.cantidad || '—'}</div>
+              <div class="acc-card-lbl">Disponible</div>
+              <div class="acc-card-val mono">${cantDisp}</div>
             </div>
             <div class="acc-card-field acc-card-field-wide">
               <div class="acc-card-lbl">Fecha vencimiento</div>
@@ -1556,18 +1614,139 @@ function renderAccTable() {
               <div class="acc-card-val mono">${esc(r.lote)}</div>
             </div>` : ''}
           </div>
-          ${hasVen ? `
-          <div class="acc-card-footer">
-            <span class="ven-chip ven-chip-full" onclick="openVenDetailFromAcc('${esc(r.id)}')">
-              📦 Ver vencimiento vinculado ↗
-            </span>
-          </div>` : ''}
+          ${(hasVen || puedeTransf || puedeVender || esVencido) ? `
+          <div class="acc-card-footer" style="display:flex;gap:6px;flex-wrap:wrap">
+  ${hasVen ? `<span class="ven-chip ven-chip-full" onclick="openVenDetailFromAcc('${esc(r.id)}')">📦 Ver venc. ↗</span>` : ''}
+  ${puedeTransf ? `<button onclick="abrirModalTransferenciaAcc(event,'${esc(r.id)}','${esc(r.sucursal)}',${cantDisp},'${esc(r.descripcion || '')}')" class="btn-action btn-transfer-sm">⇄ Transferir</button>` : ''}
+  ${puedeVender ? `<button onclick="marcarVendidoAcc(event,'${esc(r.id)}','${esc(r.descripcion || '')}',${cantDisp})" class="btn-action btn-vender">✓ Vendido</button>` : ''}
+  ${esVencido && r.estado !== 'VENDIDO' ? `<span style="font-size:10px;color:#f87171;font-family:'IBM Plex Mono',monospace;align-self:center">⛔ vencido</span>` : ''}
+</div>` : ''}
         </div>`;
   }).join('')}
     </div>`;
 
   tbody.innerHTML = tableHtml + cardsHtml;
   renderPagination('accPagination', filteredAcc.length, accPage, p => { accPage = p; renderAccTable(); });
+}
+
+
+// ══════════════════════════════════════════════════════
+//  TRANSFERENCIA DE ACCIONES ENTRE SUCURSALES
+// ══════════════════════════════════════════════════════
+function abrirModalTransferenciaAcc(evt, id, sucOrigen, cantDisponible, desc) {
+  if (evt) evt.stopPropagation();
+  const item = devData.find(d => d.id === id);
+  const pesable = esPesable(item);
+  currentAccTransferData = { id, sucOrigen, cantDisponible, desc, pesable };
+
+  const select = document.getElementById('destSucursalAcc');
+  const inputQty = document.getElementById('transferQtyAcc');
+  const labelMax = document.getElementById('transferMaxLabelAcc');
+  const infoEl = document.getElementById('transferAccInfo');
+
+  select.innerHTML = '';
+  SUCURSALES_LIST.filter(s => s !== sucOrigen).forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    select.appendChild(opt);
+  });
+
+  if (infoEl) infoEl.textContent = desc + ' · ' + sucOrigen;
+  labelMax.textContent = 'Máximo disponible: ' + cantDisponible + (pesable ? ' kg' : ' u.');
+  inputQty.max = cantDisponible;
+  inputQty.value = cantDisponible;
+  inputQty.step = pesable ? '0.001' : '1';
+  inputQty.min = pesable ? '0.001' : '1';
+
+  document.getElementById('modalTransferAcc').style.display = 'flex';
+  setTimeout(() => inputQty.focus(), 100);
+}
+
+function cerrarModalTransferAcc() {
+  document.getElementById('modalTransferAcc').style.display = 'none';
+  currentAccTransferData = null;
+}
+
+async function ejecutarTransferenciaAcc() {
+  const dest = document.getElementById('destSucursalAcc').value;
+  const raw = document.getElementById('transferQtyAcc').value.replace(',', '.');
+  const cant = parseFloat(raw);
+  const { id, cantDisponible, pesable, sucOrigen } = currentAccTransferData;
+
+  if (!cant || cant <= 0 || isNaN(cant)) {
+    showToast(false, pesable ? 'Ingresá un peso válido en kg.' : 'Ingresá una cantidad válida.');
+    return;
+  }
+  if (!pesable && !Number.isInteger(cant)) {
+    showToast(false, 'Solo se aceptan cantidades enteras.');
+    return;
+  }
+  if (cant > cantDisponible) {
+    showToast(false, `Máximo disponible: ${cantDisponible}${pesable ? ' kg' : ' u.'}`);
+    document.getElementById('transferQtyAcc').value = cantDisponible;
+    return;
+  }
+
+  cerrarModalTransferAcc();
+  showSpinner('Procesando transferencia...');
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'transferirAccion', idOrigen: id, sucursalDestino: dest, cantidad: cant })
+    });
+    const json = await res.json();
+    if (json.success) {
+      showToast(true, `${cant}${pesable ? ' kg' : ' u.'} transferido/s a ${dest}`);
+      await loadData();
+    } else {
+      showToast(false, json.message || 'Error en la transferencia');
+    }
+  } catch (e) { showToast(false, 'Error de red'); console.error(e); }
+  hideSpinner();
+}
+
+async function marcarVendidoAcc(evt, id, desc, cantDisponible) {
+  if (evt) evt.stopPropagation();
+
+  document.getElementById('cm-title').textContent = '✓ Marcar como Vendido';
+  document.getElementById('cm-text').textContent = `¿"${desc}" fue vendido en tienda?`;
+  document.getElementById('cm-details').innerHTML = `
+    <div style="background:rgba(71,85,105,.15);border:1px solid rgba(71,85,105,.4);padding:10px 14px;border-radius:7px;font-size:12px;color:#94a3b8;margin-bottom:8px;line-height:1.7">
+      Esta acción va a marcar el registro como <strong>VENDIDO</strong>
+      y va a ocultarlo del dashboard activo.<br>
+      <span style="color:var(--green);font-size:11px">✓ La cantidad original queda intacta para la gestión de N/C.</span>
+    </div>
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)">
+      ID: ${esc(id)} · Disponible: ${cantDisponible} u.
+    </div>`;
+
+  modalCb = async () => {
+    document.getElementById('confirmModal').classList.remove('open');
+    showSpinner('Actualizando...');
+    try {
+      const res = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'marcarVendidoAccion', id })
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast(true, 'Marcado como VENDIDO');
+        // Actualizar localmente sin recargar todo
+        const item = devData.find(d => d.id === id);
+        if (item) { item.estado = 'VENDIDO'; item.cantDisponible = 0; }
+        applyAccFilters();
+        updateResumenKPIs();
+      } else {
+        showToast(false, json.message || 'Error al actualizar');
+      }
+    } catch (e) { showToast(false, 'Error de red'); }
+    hideSpinner();
+  };
+
+  document.getElementById('cm-confirm').onclick = () => { if (modalCb) { const cb = modalCb; modalCb = null; cb(); } };
+  document.getElementById('confirmModal').classList.add('open');
 }
 
 // ══════════════════════════════════════════════════════
@@ -1736,6 +1915,8 @@ function applyNcFilters() {
   const mot = document.getElementById('ncf-motivo')?.value || '';
   const search = (document.getElementById('ncf-search')?.value || '').toLowerCase();
   filteredNc = devData.filter(r => {
+    // Solo registros originales — los hijos de transferencia no son reclamos al proveedor
+    if (r.idOrigen) return false;
     if (prov && r.proveedor !== prov) return false;
     if (est && r.estado !== est) return false;
     if (suc && r.sucursal !== suc) return false;
@@ -1751,26 +1932,52 @@ function renderNcTable() {
   const page = filteredNc.slice(start, start + PAGE_SIZE);
   const tbody = document.getElementById('ncTableBody');
   if (!filteredNc.length) { tbody.innerHTML = '<div class="empty"><div class="ei">🔍</div><p>Sin resultados</p></div>'; document.getElementById('ncPagination').style.display = 'none'; return; }
+
+  // Distribución actual de cantDisponible por sucursal para un registro padre
+  function getDistrib(r) {
+    const hijos = devData.filter(h => h.idOrigen === r.id && h.cantDisponible > 0);
+    const distrib = [];
+    if (r.cantDisponible > 0) distrib.push({ suc: r.sucursal, cant: r.cantDisponible });
+    hijos.forEach(h => distrib.push({ suc: h.sucursal, cant: h.cantDisponible }));
+    return distrib;
+  }
+
   tbody.innerHTML = `<div class="table-scroll"><table>
-    <thead><tr><th style="width:36px"></th><th>ID</th><th>Fecha</th><th>Sucursal</th>
-    <th>Descripción</th><th>EAN</th><th class="c-right">Cant.</th><th>Venc.</th>
+    <thead><tr><th style="width:36px"></th><th>ID</th><th>Fecha</th><th>Sucursal orig.</th>
+    <th>Descripción</th><th>EAN</th><th class="c-right">Cant. total</th><th>Distribución actual</th><th>Venc.</th>
     <th>Proveedor</th><th>Motivo</th><th>Lote</th><th>Estado</th><th>Obs. N/C</th></tr></thead>
-    <tbody>${page.map(r => `
-      <tr>
+    <tbody>${page.map(r => {
+    const distrib = getDistrib(r);
+    const tieneHijos = devData.some(h => h.idOrigen === r.id);
+    const distribHtml = tieneHijos
+      ? distrib.map(s =>
+          `<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;
+           background:rgba(79,142,255,.1);border:1px solid rgba(79,142,255,.2);
+           border-radius:4px;padding:2px 6px;color:var(--text2);
+           font-family:'IBM Plex Mono',monospace;white-space:nowrap;margin:1px">
+           <span style="font-weight:700;color:var(--text)">${s.cant}</span>&nbsp;${esc(s.suc)}
+           </span>`).join('')
+      : `<span style="color:var(--text3);font-size:11px">—</span>`;
+    const rowStyle = r.estado === 'VENDIDO'
+      ? 'background:rgba(34,197,94,.06);border-left:3px solid rgba(34,197,94,.35);'
+      : '';
+    return `
+      <tr style="${rowStyle}">
         <td><input type="checkbox" ${selectedIds.has(r.id) ? 'checked' : ''} onchange="toggleRow('${r.id}',this)"></td>
         <td class="c-id">${r.id}</td>
         <td class="c-mono" style="font-size:11px">${fmtDateDisp(r.fecha)}</td>
         <td><span class="b-tag">${r.sucursal || '—'}</span></td>
         <td class="c-main">${esc(r.descripcion || '—')}</td>
         <td class="c-mono" style="font-size:11px">${r.ean || '—'}</td>
-        <td class="c-right c-mono">${r.cantidad || '—'}</td>
+        <td class="c-right c-mono" style="font-weight:700">${r.cantidad || '—'}</td>
+        <td style="min-width:130px">${distribHtml}</td>
         <td>${vencBadge(r.fechaVenc)}</td>
         <td>${esc(r.proveedor || '—')}</td>
         <td>${motivoBadge(r.motivo)}</td>
         <td class="c-mono" style="font-size:11px">${r.lote || '—'}</td>
         <td>${estadoBadge(r.estado)}</td>
         <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;color:var(--text2);font-size:11px">${r.obsNC || '—'}</td>
-      </tr>`).join('')}
+      </tr>`; }).join('')}
     </tbody></table></div>`;
   renderPagination('ncPagination', filteredNc.length, ncPage, p => { ncPage = p; renderNcTable(); });
 }
@@ -1969,9 +2176,16 @@ function qtyRiskHtml(qty, dias, size = 'normal') {
 //  BADGE HELPERS
 // ══════════════════════════════════════════════════════
 function estadoBadge(est) {
-  const map = { 'PENDIENTE': 'b-pend', 'EN GESTION': 'b-gest', 'N/C RECIBIDA': 'b-nc', 'RECHAZADA': 'b-rech' };
+  const map = {
+    'PENDIENTE': 'b-pend',
+    'EN GESTION': 'b-gest',
+    'N/C RECIBIDA': 'b-nc',
+    'RECHAZADA': 'b-rech',
+    'VENDIDO': 'b-vendido'
+  };
   return `<span class="badge ${map[est] || 'b-pend'}">${esc(est || 'PENDIENTE')}</span>`;
 }
+
 function motivoBadge(m) {
   if (!m) return `<span class="mb mb-otro">—</span>`;
   const u = m.toUpperCase();

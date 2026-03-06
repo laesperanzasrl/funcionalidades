@@ -641,6 +641,7 @@
                         <option value="EN GESTION">En Gestión</option>
                         <option value="N/C RECIBIDA">N/C Recibida</option>
                         <option value="RECHAZADA">Rechazada</option>
+                        <option value="VENDIDO">Vendido</option>
                     </select>
                     <input type="text" id="bulkObs" class="obs-inp" placeholder="Observación N/C (opcional)">
                     <button class="btn btn-success btn-sm" onclick="applyBulkAction()">✔ Aplicar</button>
@@ -740,6 +741,51 @@
             <div id="vm-body"></div>
         </div>
     </div>
+
+    <!-- MODAL TRANSFERENCIA ACCIONES -->
+<div id="modalTransferAcc" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);
+     align-items:center;justify-content:center;z-index:4000;backdrop-filter:blur(4px)">
+  <div style="background:#131728;border:1px solid #1e3a5f;border-radius:14px;padding:28px 32px;
+              width:380px;max-width:90vw;display:flex;flex-direction:column;gap:12px">
+    <h3 style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:#60a5fa">
+      ⇄ Transferir entre Sucursales
+    </h3>
+    <p id="transferAccInfo" style="font-size:11px;color:var(--text2);font-family:'IBM Plex Mono',monospace;
+       background:rgba(79,142,255,.07);border:1px solid rgba(79,142,255,.15);
+       padding:8px 10px;border-radius:7px;margin:0"></p>
+    <div>
+      <label style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;
+             display:block;margin-bottom:5px;letter-spacing:.04em">SUCURSAL DESTINO</label>
+      <select id="destSucursalAcc" style="width:100%;background:var(--card2);color:var(--text);
+              border:1px solid var(--border2);border-radius:7px;padding:9px 12px;font-size:13px;
+              font-family:'Manrope',sans-serif"></select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;
+             display:block;margin-bottom:5px;letter-spacing:.04em">CANTIDAD A TRANSFERIR</label>
+      <input type="number" id="transferQtyAcc" min="1" value="1"
+             style="width:100%;background:var(--card2);color:var(--text);
+                    border:1px solid var(--border2);border-radius:7px;padding:9px 12px;
+                    font-size:14px;font-family:'IBM Plex Mono',monospace">
+      <p id="transferMaxLabelAcc" style="font-size:11px;color:var(--text3);margin-top:5px;
+         font-family:'IBM Plex Mono',monospace"></p>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button onclick="ejecutarTransferenciaAcc()"
+              style="flex:2;background:var(--blue);color:#fff;border:none;padding:12px;
+                     border-radius:8px;font-weight:700;cursor:pointer;font-family:'Manrope',sans-serif;
+                     font-size:13px">
+        CONFIRMAR
+      </button>
+      <button onclick="cerrarModalTransferAcc()"
+              style="flex:1;background:var(--card2);color:var(--text2);
+                     border:1px solid var(--border);padding:12px;border-radius:8px;
+                     cursor:pointer;font-family:'Manrope',sans-serif;font-size:13px">
+        Cancelar
+      </button>
+    </div>
+  </div>
+</div>
 
     <script src="../js/dashboard.js"></script>
 </body>

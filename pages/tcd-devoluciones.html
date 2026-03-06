@@ -512,6 +512,19 @@
         <span id="toastMsg"></span>
     </div>
 
+    <div class="dup-overlay" id="dupOverlay" role="dialog" aria-modal="true" aria-label="Registro duplicado">
+  <div class="dup-modal">
+    <div class="dup-icon">⚠️</div>
+    <h2 class="dup-title">Registro duplicado detectado</h2>
+    <p class="dup-body" id="dupBody"></p>
+    <div class="dup-hint">Realizá los ajustes de stock desde el dashboard para evitar duplicar información.</div>
+    <div class="dup-actions">
+      <button class="dup-btn dup-btn--cancel" id="dupBtnCancel">Cancelar y revisar</button>
+      <button class="dup-btn dup-btn--proceed" id="dupBtnProceed">Registrar de todas formas</button>
+    </div>
+  </div>
+</div>
+
     <script src="../js/tcd-devoluciones.js" defer></script>
 
     <script>

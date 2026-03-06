@@ -90,6 +90,10 @@ const els = {
     toastDot: $('toastDot'),
     counterBadge: $('counterBadge'),
     cfgBanner: $('cfgBanner'),
+    dupOverlay: $('dupOverlay'),
+  dupBody: $('dupBody'),
+  dupBtnCancel: $('dupBtnCancel'),
+  dupBtnProceed: $('dupBtnProceed'),
 };
 
 const MOTIVOS_VENCIMIENTO = ['CONTROL DE VENCIMIENTO'];
@@ -279,6 +283,70 @@ function toggleBdBadge(motivo) {
         ? '📋 Se guardará en: Control de Vencimientos'
         : '📦 Se guardará en: Devoluciones / Acciones';
     badge.style.display = 'flex';
+}
+
+// ─────────────────────────────────────────────
+// VALIDACIÓN DE DUPLICADOS
+// ─────────────────────────────────────────────
+
+// Determina en qué hoja buscar según el tipo de registro
+function sheetParaTipoRegistro(tipoRegistro) {
+    if (MOTIVOS_VENCIMIENTO.includes(tipoRegistro)) return 'controlVencimientos';
+    return 'controlAcciones';
+}
+
+async function checkDuplicateActivo(ean, fechaVenc, sucursal, tipoRegistro) {
+    if (APPS_SCRIPT_URL === 'PEGA_AQUI_TU_URL_DE_APPS_SCRIPT') return null;
+    try {
+        const params = new URLSearchParams({
+            action: 'checkDuplicate',
+            ean: ean,
+            fechaVenc: fechaVenc,
+            sucursal: sucursal,
+            tipoRegistro: tipoRegistro,
+            sheet: sheetParaTipoRegistro(tipoRegistro)
+        });
+        const res = await fetch(`${APPS_SCRIPT_URL}?${params.toString()}`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data.found ? data : null;
+    } catch (err) {
+        console.warn('checkDuplicate error:', err);
+        return null; // Si falla la consulta, no bloqueamos el envío
+    }
+}
+
+function showDuplicateModal(duplicateData, onProceed) {
+    const esVen = MOTIVOS_VENCIMIENTO.includes(duplicateData.tipoRegistro);
+    const tipoLabel = esVen ? 'CONTROL DE VENCIMIENTO' : 'CONTROL DE ACCIÓN';
+    const sucursal = duplicateData.sucursal || '';
+    const cantidad = duplicateData.cantidad ?? '?';
+    const descripcion = duplicateData.descripcion || '';
+    const unidad = duplicateData.esPesable ? 'kg' : 'unidades';
+
+    els.dupBody.innerHTML = `
+        El registro de <strong>${tipoLabel}</strong> que querés ingresar en sucursal
+        <strong>${sucursal}</strong> corresponde a un producto que <strong>ya está cargado</strong>
+        con un stock igual a:<br><br>
+        <strong style="font-size:18px;">${cantidad} ${unidad}</strong>
+        ${descripcion ? `<br><span style="font-size:12px;color:#737373;">${descripcion}</span>` : ''}
+    `;
+
+    els.dupOverlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    const cleanup = () => {
+        els.dupOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+        els.dupBtnCancel.removeEventListener('click', onCancel);
+        els.dupBtnProceed.removeEventListener('click', onProceedClick);
+    };
+
+    const onCancel = () => cleanup();
+    const onProceedClick = () => { cleanup(); onProceed(); };
+
+    els.dupBtnCancel.addEventListener('click', onCancel);
+    els.dupBtnProceed.addEventListener('click', onProceedClick);
 }
 
 function updateSubmitButtonLabel(motivo) {
@@ -879,6 +947,9 @@ function buildPayload() {
 // ─────────────────────────────────────────────
 // ENVÍO DIRECTO — un producto por vez
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// ENVÍO DIRECTO — un producto por vez
+// ─────────────────────────────────────────────
 async function submitSingle() {
     if (state.submitting) return;
 
@@ -894,6 +965,37 @@ async function submitSingle() {
         return;
     }
 
+    const tipoRegistro = els.fEvent.value;
+    const ean = els.fBarcode.value.trim();
+    const fechaVenc = els.fExp.value;
+    const sucursal = els.fBranch.value;
+
+    // ── Verificar duplicados antes de enviar ──
+    if (ean && fechaVenc && sucursal && tipoRegistro) {
+        setLoading(true);
+        const duplicate = await checkDuplicateActivo(ean, fechaVenc, sucursal, tipoRegistro);
+        setLoading(false);
+
+        if (duplicate) {
+            // Hay un registro activo — mostrar modal de advertencia
+            duplicate.sucursal = sucursal;
+            duplicate.tipoRegistro = tipoRegistro;
+            duplicate.descripcion = els.fDesc.value.trim();
+            duplicate.esPesable = state.isPesable;
+
+            showDuplicateModal(duplicate, () => {
+                // El usuario eligió "Registrar de todas formas"
+                doSubmit();
+            });
+            return; // Esperamos la decisión del usuario en el modal
+        }
+    }
+
+    doSubmit();
+}
+
+async function doSubmit() {
+    if (state.submitting) return;
     const payload = buildPayload();
     setLoading(true);
 

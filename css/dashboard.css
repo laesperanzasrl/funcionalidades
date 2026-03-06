@@ -175,6 +175,38 @@ body {
   border-color: var(--green)
 }
 
+/* ── VENDIDO badge ── */
+.b-vendido {
+  background: rgba(71, 85, 105, .2);
+  color: #94a3b8;
+  border: 1px solid rgba(71, 85, 105, .35);
+}
+
+/* ── Botón vendido ── */
+.btn-vender {
+  background: rgba(71, 85, 105, .15);
+  color: #94a3b8;
+  border: 1px solid rgba(71, 85, 105, .35);
+}
+.btn-vender:hover {
+  background: rgba(71, 85, 105, .35);
+  color: var(--text);
+}
+
+/* ── Badge de origen en transferencias ── */
+.transfer-origin-badge {
+  display: inline-block;
+  font-size: 9px;
+  color: var(--cyan);
+  font-family: 'IBM Plex Mono', monospace;
+  background: rgba(34, 212, 232, .08);
+  border: 1px solid rgba(34, 212, 232, .18);
+  padding: 2px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+  margin-top: 3px;
+}
+
 .sb-item .badge-count.amber {
   background: var(--amber-d);
   color: var(--amber);
