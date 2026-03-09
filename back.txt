@@ -1,62 +1,69 @@
 // ══════════════════════════════════════════════════════════════════
 //  NEXUS · Apps Script — Control Operativo
-//  v4.0 — con auto-vencimiento diario
+//  v4.3 — logs completos en VEN + botón "Registrar Vencimiento"
 // ══════════════════════════════════════════════════════════════════
 
 // ─── IDs de las hojas de cálculo ───────────────────────────────
-// Reemplazá estos valores con los IDs reales de tus Google Sheets
-const SS_DEVOLUCIONES  = '109tFyqY7lBJWv3jvCRTQpvq63CaaVAhiI_3tdFNd8mA';   // ← cambiá esto
-const SS_VENCIMIENTOS  = '1ExC1XJtS0P73vZCfAvww1C5QZ9OXHEF7kHhmeekOc6A';   // ← cambiá esto
-const SHEET_NAME       = 'completo';
+const SS_DEVOLUCIONES = '109tFyqY7lBJWv3jvCRTQpvq63CaaVAhiI_3tdFNd8mA';
+const SS_VENCIMIENTOS = '1ExC1XJtS0P73vZCfAvww1C5QZ9OXHEF7kHhmeekOc6A';
+const SHEET_NAME = 'completo';
 
 // Columnas de BD_DEVOLUCIONES (1-based index)
 const DEV_COLS = {
-  ID:          1,   // A
-  FECHA:       2,   // B
-  SUCURSAL:    3,   // C
-  USUARIO:     4,   // D
-  EAN:         5,   // E
+  ID: 1,   // A
+  FECHA: 2,   // B
+  SUCURSAL: 3,   // C
+  USUARIO: 4,   // D
+  EAN: 5,   // E
   COD_INTERNO: 6,   // F
   DESCRIPCION: 7,   // G
-  GRAMAJE:     8,   // H
-  UNID_BULTO:  9,   // I
-  CANTIDAD:    10,  // J
-  FECHA_VENC:  11,  // K
-  SECTOR:      12,  // L
-  SECCION:     13,  // M
-  PROVEEDOR:   14,  // N
-  COD_PROV:    15,  // O
-  MOTIVO:      16,  // P
-  LOTE:        17,  // Q
-  ACLARACION:  18,  // R
+  GRAMAJE: 8,   // H
+  UNID_BULTO: 9,   // I
+  CANTIDAD: 10,  // J
+  FECHA_VENC: 11,  // K
+  SECTOR: 12,  // L
+  SECCION: 13,  // M
+  PROVEEDOR: 14,  // N
+  COD_PROV: 15,  // O
+  MOTIVO: 16,  // P
+  LOTE: 17,  // Q
+  ACLARACION: 18,  // R
   COMENTARIOS: 19,  // S
-  ARCHIVO:     20,  // T
-  ESTADO:      21,  // U
-  OBS_NC:      22   // V
+  ARCHIVO: 20,  // T
+  ESTADO: 21,  // U
+  OBS_NC: 22,  // V
+  CANT_DISPONIBLE: 23,  // W
+  ID_ORIGEN: 24,  // X
+  SUC_ORIGEN: 25,  // Y
+  CANT_VENDIDA: 26,  // Z  ← NUEVA
+  CANT_VENCIDA_GONDOLA: 27  // AA ← NUEVA
 };
 
 // Columnas de BD_CONTROL_VENCIMIENTOS (1-based index)
 const VEN_COLS = {
-  ID:          1,   // A
-  FECHA_REG:   2,   // B
-  SUCURSAL:    3,   // C
-  USUARIO:     4,   // D
-  EAN:         5,   // E
+  ID: 1,   // A
+  FECHA_REG: 2,   // B
+  SUCURSAL: 3,   // C
+  USUARIO: 4,   // D
+  EAN: 5,   // E
   COD_INTERNO: 6,   // F
   DESCRIPCION: 7,   // G
-  GRAMAJE:     8,   // H
-  CANTIDAD:    9,   // I
-  FECHA_VENC:  10,  // J
-  SECTOR:      11,  // K
-  SECCION:     12,  // L
-  PROVEEDOR:   13,  // M
-  LOTE:        14,  // N
-  ACLARACION:  15,  // O
-  ARCHIVO:     16,  // P
-  DIAS_VENC:   17,  // Q
-  URGENCIA:    18,  // R
+  GRAMAJE: 8,   // H
+  CANTIDAD: 9,   // I
+  FECHA_VENC: 10,  // J
+  SECTOR: 11,  // K
+  SECCION: 12,  // L
+  PROVEEDOR: 13,  // M
+  LOTE: 14,  // N
+  ACLARACION: 15,  // O
+  ARCHIVO: 16,  // P
+  DIAS_VENC: 17,  // Q
+  URGENCIA: 18,  // R
   ESTADO_GEST: 19,  // S
-  ID_ACCION:   20   // T
+  ID_ACCION: 20,   // T
+  ORIGEN: 21,  // U
+  FECHA_TRANSFER: 22,  // V
+  SUC_ORIGEN: 23   // W
 };
 
 // ══════════════════════════════════════════════════════════════════
@@ -66,13 +73,53 @@ const VEN_COLS = {
 function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
   const action = params.action || 'getHistorial';
-  const bd     = params.bd     || 'devoluciones';
+  const bd = params.bd || 'devoluciones';
 
   try {
     if (action === 'getHistorial') {
       const data = bd === 'vencimientos' ? getHistorialVencimientos() : getHistorialDevoluciones();
       return jsonResponse({ success: true, data: data });
     }
+    if (action === 'getStockActual') {
+      const ean = params.ean || '';
+      const sucursal = params.sucursal || '';
+      if (!ean || !sucursal) return jsonResponse({ success: false, message: 'ean y sucursal requeridos' });
+
+      const ss = SpreadsheetApp.openById(SS_VENCIMIENTOS);
+      const sheet = ss.getSheetByName(SHEET_NAME);
+      const data = sheet.getDataRange().getValues();
+      const eanStr = String(ean).trim();
+      const sucUpper = String(sucursal).trim().toUpperCase();
+
+      for (let i = 1; i < data.length; i++) {
+        const rowEan = String(data[i][VEN_COLS.EAN - 1] || '').trim();
+        const rowSuc = String(data[i][VEN_COLS.SUCURSAL - 1] || '').trim().toUpperCase();
+        const rowEstado = String(data[i][VEN_COLS.ESTADO_GEST - 1] || '').toUpperCase().trim();
+        if (rowEan !== eanStr || rowSuc !== sucUpper) continue;
+        if (rowEstado !== 'ACTIVO' && rowEstado !== 'ACCIONADO PARCIAL') continue;
+
+        const origen = String(data[i][VEN_COLS.ORIGEN - 1] || '');
+        const fechaTransf = data[i][VEN_COLS.FECHA_TRANSFER - 1];
+        const sucOrigen = String(data[i][VEN_COLS.SUC_ORIGEN - 1] || '');
+
+        return jsonResponse({
+          success: true,
+          data: {
+            cantidad: Number(data[i][VEN_COLS.CANTIDAD - 1]) || 0,
+            descripcion: String(data[i][VEN_COLS.DESCRIPCION - 1] || ''),
+            esTransferencia: origen === 'TRANSFERENCIA',
+            ultimaTransferencia: fechaTransf ? dateToStr(new Date(fechaTransf)) : '',
+            sucursalOrigen: sucOrigen
+          }
+        });
+      }
+
+      return jsonResponse({ success: true, data: null }); // sin registro activo
+    }
+    if (action === 'checkDuplicate') {
+      return jsonResponse(checkDuplicate(params));
+    }
+
     return jsonResponse({ success: false, message: 'Acción no reconocida' });
   } catch (err) {
     return jsonResponse({ success: false, message: err.message });
@@ -81,29 +128,18 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    const body    = JSON.parse(e.postData.contents);
-    const action  = body.action;
+    const body = JSON.parse(e.postData.contents);
+    const action = body.action;
 
-    // --- Acciones existentes ---
-    if (action === 'updateRecord') {
-      const result = updateRecord(body.id, body.estado, body.observacionNC);
-      return jsonResponse(result);
-    }
-
-    if (action === 'submitForm') {
-      const result = submitForm(body);
-      return jsonResponse(result);
-    }
-
-    // --- NUEVAS ACCIONES PARA CONTROL DE STOCK ---
-    if (action === 'updateStock') {
-      return jsonResponse(updateStockVEN(body.id, body.nuevaCant));
-    }
-
-    if (action === 'transferStock') {
-      return jsonResponse(transferStockVEN(body));
-    }
-
+    if (action === 'updateRecord') return jsonResponse(updateRecord(body.id, body.estado, body.observacionNC));
+    if (action === 'submitForm') return jsonResponse(submitForm(body));
+    if (action === 'updateStock') return jsonResponse(updateStockVEN(body.id, body.nuevaCant));
+    if (action === 'transferStock') return jsonResponse(transferStockVEN(body));
+    if (action === 'registrarVencimientoManual') return jsonResponse(registrarVencimientoManual(body));
+    if (action === 'transferirAccion') return jsonResponse(transferirAccion(body));
+    if (action === 'marcarVendidoAccion') return jsonResponse(marcarVendidoAccion(body));
+    if (action === 'updateStockAcc') return jsonResponse(updateStockDEV(body.id, body.nuevaCant));
+    if (action === 'transferStockAcc') return jsonResponse(transferStockDEV(body));
     return jsonResponse({ success: false, message: 'Acción no reconocida' });
   } catch (err) {
     return jsonResponse({ success: false, message: err.message });
@@ -117,19 +153,683 @@ function jsonResponse(obj) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  LECTURA DE DATOS
+//  LOG DE OPERACIONES COMPLETO
+//  Guarda cada operación relevante en la hoja LOG_OPERACIONES
+//  con todos los datos disponibles para auditoría completa.
 // ══════════════════════════════════════════════════════════════════
 
 /**
- * Mueve stock de una sucursal a otra de forma inteligente:
- * Resta en origen y suma en destino (si ya existe) o crea registro nuevo.
+ * logOperacion — registra en LOG_OPERACIONES (en SS_VENCIMIENTOS)
+ *
+ * @param {string} tipo  — Ej: 'AJUSTE_POSITIVO', 'TRANSFERENCIA', 'REGISTRO_VENCIMIENTO_MANUAL', etc.
+ * @param {object} datos — Objeto con los campos disponibles (ver columnas abajo)
  */
+function logOperacion(tipo, datos) {
+  // 1. Log rápido en Logger de Apps Script (visible en ejecuciones)
+  const resumen = [
+    tipo,
+    datos.idVen ? 'VEN=' + datos.idVen : '',
+    datos.devId ? 'DEV=' + datos.devId : '',
+    datos.ean ? 'EAN=' + datos.ean : '',
+    datos.sucursal ? 'SUC=' + datos.sucursal : '',
+    datos.cantAnterior !== undefined ? 'ANTES=' + datos.cantAnterior : '',
+    datos.cantNueva !== undefined ? 'AHORA=' + datos.cantNueva : '',
+    datos.destino ? '→' + datos.destino : '',
+    datos.notas ? '|' + datos.notas : ''
+  ].filter(Boolean).join(' · ');
+  logAuto(resumen);
+
+  // 2. Log estructurado en hoja LOG_OPERACIONES
+  try {
+    const ss = SpreadsheetApp.openById(SS_VENCIMIENTOS);
+    let sheet = ss.getSheetByName('LOG_OPERACIONES');
+
+    if (!sheet) {
+      sheet = ss.insertSheet('LOG_OPERACIONES');
+      const headers = [
+        'TIMESTAMP', 'TIPO', 'ID_VEN', 'ID_DEV',
+        'DESCRIPCION', 'EAN', 'SUCURSAL', 'LOTE',
+        'CANT_ANTERIOR', 'CANT_NUEVA', 'DELTA',
+        'DESTINO', 'USUARIO', 'NOTAS'
+      ];
+      sheet.appendRow(headers);
+      sheet.getRange(1, 1, 1, headers.length)
+        .setFontWeight('bold')
+        .setBackground('#0d111f')
+        .setFontColor('#ffffff');
+      sheet.setFrozenRows(1);
+    }
+
+    const delta = (datos.cantAnterior !== undefined && datos.cantNueva !== undefined)
+      ? (Number(datos.cantNueva) - Number(datos.cantAnterior))
+      : '';
+
+    sheet.appendRow([
+      new Date(),                            // TIMESTAMP
+      tipo,                                  // TIPO
+      datos.idVen || '',               // ID_VEN
+      datos.devId || '',               // ID_DEV
+      datos.descripcion || '',               // DESCRIPCION
+      datos.ean || '',               // EAN
+      datos.sucursal || '',               // SUCURSAL
+      datos.lote || '',               // LOTE
+      datos.cantAnterior !== undefined ? datos.cantAnterior : '',  // CANT_ANTERIOR
+      datos.cantNueva !== undefined ? datos.cantNueva : '',  // CANT_NUEVA
+      delta,                                 // DELTA
+      datos.destino || '',               // DESTINO (para transferencias)
+      datos.usuario || '',               // USUARIO
+      datos.notas || ''                // NOTAS
+    ]);
+  } catch (e) {
+    Logger.log('logOperacion ERROR al escribir hoja: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  HELPERS DE FECHA — FIX TIMEZONE ARGENTINA
+// ══════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════
+//  CHECK DUPLICATE — Validación de duplicados desde el formulario
+//  Recibe: ean, fechaVenc, sucursal, tipoRegistro (via doGet params)
+//  Devuelve: { found: true, cantidad, descripcion } o { found: false }
+// ══════════════════════════════════════════════════════════════════
+function checkDuplicate(params) {
+  const ean = String(params.ean || '').trim();
+  const fechaVenc = String(params.fechaVenc || '').trim().slice(0, 10);
+  const sucursal = String(params.sucursal || '').trim().toUpperCase();
+  const tipo = String(params.tipoRegistro || '').toUpperCase().trim();
+
+  if (!ean || !fechaVenc || !sucursal) {
+    return { found: false };
+  }
+
+  try {
+    if (tipo === 'CONTROL DE VENCIMIENTO') {
+      // Buscar en hoja de Vencimientos: estado ACTIVO, mismo EAN+fecha+sucursal
+      const ss = SpreadsheetApp.openById(SS_VENCIMIENTOS);
+      const sheet = ss.getSheetByName(SHEET_NAME);
+      const data = sheet.getDataRange().getValues();
+
+      for (let i = 1; i < data.length; i++) {
+        const rowEstado = String(data[i][VEN_COLS.ESTADO_GEST - 1] || '').toUpperCase().trim();
+        if (rowEstado !== 'ACTIVO') continue;
+
+        const rowEan = String(data[i][VEN_COLS.EAN - 1] || '').trim();
+        const rowSuc = String(data[i][VEN_COLS.SUCURSAL - 1] || '').trim().toUpperCase();
+        const rawFv = data[i][VEN_COLS.FECHA_VENC - 1];
+        const rowFv = rawFv ? dateToStr(new Date(rawFv)) : '';
+
+        if (rowEan === ean && rowFv === fechaVenc && rowSuc === sucursal) {
+          return {
+            found: true,
+            cantidad: Number(data[i][VEN_COLS.CANTIDAD - 1]) || 0,
+            descripcion: String(data[i][VEN_COLS.DESCRIPCION - 1] || ''),
+            esPesable: false   // el formulario ya sabe esto; lo pasamos por las dudas
+          };
+        }
+      }
+      return { found: false };
+
+    } else {
+      // Buscar en hoja de Devoluciones: estado PENDIENTE o EN GESTION,
+      // mismo EAN + fechaVenc + sucursal (registro de acción activa)
+      const ss = SpreadsheetApp.openById(SS_DEVOLUCIONES);
+      const sheet = ss.getSheetByName(SHEET_NAME);
+      const data = sheet.getDataRange().getValues();
+
+      const estadosActivos = ['PENDIENTE', 'EN GESTION'];
+
+      for (let i = 1; i < data.length; i++) {
+        const rowEstado = String(data[i][DEV_COLS.ESTADO - 1] || '').toUpperCase().trim();
+        if (!estadosActivos.includes(rowEstado)) continue;
+
+        const rowEan = String(data[i][DEV_COLS.EAN - 1] || '').trim();
+        const rowSuc = String(data[i][DEV_COLS.SUCURSAL - 1] || '').trim().toUpperCase();
+        const rawFv = data[i][DEV_COLS.FECHA_VENC - 1];
+        const rowFv = rawFv ? dateToStr(new Date(rawFv)) : '';
+
+        if (rowEan === ean && rowFv === fechaVenc && rowSuc === sucursal) {
+          return {
+            found: true,
+            cantidad: Number(data[i][DEV_COLS.CANTIDAD - 1]) || 0,
+            descripcion: String(data[i][DEV_COLS.DESCRIPCION - 1] || ''),
+            motivo: String(data[i][DEV_COLS.MOTIVO - 1] || '')
+          };
+        }
+      }
+      return { found: false };
+    }
+
+  } catch (err) {
+    logAuto('checkDuplicate ERROR: ' + err.message);
+    return { found: false }; // En caso de error no bloqueamos el envío
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  ACTUALIZAR STOCK EN DEVOLUCIONES (desde panel Acciones)
+//  Equivalente a updateStockVEN pero sobre SS_DEVOLUCIONES
+// ══════════════════════════════════════════════════════════════════
+function updateStockDEV(id, nuevaCant) {
+  if (!id) return { success: false, message: 'ID requerido' };
+  if (nuevaCant === undefined || nuevaCant === null) return { success: false, message: 'Cantidad requerida' };
+
+  try {
+    const ss = SpreadsheetApp.openById(SS_DEVOLUCIONES);
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const data = sheet.getDataRange().getValues();
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][DEV_COLS.ID - 1]).trim() !== String(id).trim()) continue;
+
+      const cantAnterior = Number(data[i][DEV_COLS.CANTIDAD - 1]) || 0;
+      const descripcion = data[i][DEV_COLS.DESCRIPCION - 1] || '';
+      const ean = String(data[i][DEV_COLS.EAN - 1] || '');
+      const sucursal = data[i][DEV_COLS.SUCURSAL - 1] || '';
+      const lote = String(data[i][DEV_COLS.LOTE - 1] || '');
+      const cantNueva = Number(nuevaCant);
+      const delta = cantNueva - cantAnterior;
+
+      sheet.getRange(i + 1, DEV_COLS.CANTIDAD).setValue(cantNueva);
+
+      const tipoLog = cantNueva === 0 ? 'ACC_AJUSTE_A_CERO'
+        : delta > 0 ? 'ACC_AJUSTE_POSITIVO'
+          : delta < 0 ? 'ACC_AJUSTE_NEGATIVO'
+            : 'ACC_AJUSTE_SIN_CAMBIO';
+
+      logOperacion(tipoLog, {
+        devId: id,
+        descripcion,
+        ean,
+        sucursal,
+        lote,
+        cantAnterior,
+        cantNueva,
+        notas: 'Delta: ' + (delta >= 0 ? '+' : '') + delta
+      });
+
+      return { success: true, id, nuevaCant: cantNueva };
+    }
+
+    return { success: false, message: 'Registro DEV no encontrado: ' + id };
+
+  } catch (err) {
+    logAuto('updateStockDEV ERROR: ' + err.message);
+    return { success: false, message: 'Error: ' + err.message };
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  TRANSFERIR STOCK EN DEVOLUCIONES (desde panel Acciones)
+//  Lógica:
+//    1. Busca el registro DEV origen por ID
+//    2. Resta la cantidad del origen
+//    3. Busca si ya existe un DEV activo (PENDIENTE/EN GESTION)
+//       con mismo EAN + fechaVenc + sucursal destino → suma cantidad
+//    4. Si no existe → clona la fila con la sucursal destino
+// ══════════════════════════════════════════════════════════════════
+function transferStockDEV(body) {
+  const idOrigen = String(body.idOrigen || '').trim();
+  const sucursalDestino = String(body.sucursalDestino || '').trim().toUpperCase();
+  const cantidadAMover = Number(body.cantidad);
+
+  if (!idOrigen || !sucursalDestino || !cantidadAMover) {
+    return { success: false, message: 'Parámetros incompletos' };
+  }
+
+  try {
+    const ss = SpreadsheetApp.openById(SS_DEVOLUCIONES);
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const data = sheet.getDataRange().getValues();
+
+    // ── 1. Buscar origen ─────────────────────────────────────────
+    let filaOrigenIndex = -1;
+    let datosOrigen = null;
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][DEV_COLS.ID - 1]).trim() === idOrigen) {
+        filaOrigenIndex = i + 1;
+        datosOrigen = data[i];
+        break;
+      }
+    }
+
+    if (filaOrigenIndex === -1) return { success: false, message: 'Registro origen no encontrado' };
+
+    const cantActualOrigen = Number(datosOrigen[DEV_COLS.CANTIDAD - 1]) || 0;
+    if (cantActualOrigen < cantidadAMover) return { success: false, message: 'Stock insuficiente en origen' };
+
+    const sucursalOrigen = String(datosOrigen[DEV_COLS.SUCURSAL - 1] || '');
+    const descripcion = datosOrigen[DEV_COLS.DESCRIPCION - 1] || '';
+    const ean = String(datosOrigen[DEV_COLS.EAN - 1] || '');
+    const lote = String(datosOrigen[DEV_COLS.LOTE - 1] || '');
+    const rawFv = datosOrigen[DEV_COLS.FECHA_VENC - 1];
+    const fechaVencStr = rawFv ? dateToStr(new Date(rawFv)) : '';
+
+    // ── 2. Restar del origen ──────────────────────────────────────
+    const cantNuevaOrigen = cantActualOrigen - cantidadAMover;
+    sheet.getRange(filaOrigenIndex, DEV_COLS.CANTIDAD).setValue(cantNuevaOrigen);
+
+    logOperacion('ACC_TRANSFERENCIA_SALIDA', {
+      devId: idOrigen,
+      descripcion,
+      ean,
+      sucursal: sucursalOrigen,
+      lote,
+      cantAnterior: cantActualOrigen,
+      cantNueva: cantNuevaOrigen,
+      destino: sucursalDestino,
+      notas: 'Transferencia de ' + cantidadAMover + ' u. → ' + sucursalDestino
+    });
+
+    // ── 3. Buscar destino activo (mismo EAN + fechaVenc + sucDest) ─
+    const estadosActivos = ['PENDIENTE', 'EN GESTION'];
+    let filaDestinoIndex = -1;
+    let cantAnteriorDest = 0;
+    let idDestino = '';
+
+    for (let j = 1; j < data.length; j++) {
+      const rowEstado = String(data[j][DEV_COLS.ESTADO - 1] || '').toUpperCase().trim();
+      const rowEan = String(data[j][DEV_COLS.EAN - 1] || '').trim();
+      const rowSuc = String(data[j][DEV_COLS.SUCURSAL - 1] || '').trim().toUpperCase();
+      const rawFvRow = data[j][DEV_COLS.FECHA_VENC - 1];
+      const rowFv = rawFvRow ? dateToStr(new Date(rawFvRow)) : '';
+
+      if (
+        estadosActivos.includes(rowEstado) &&
+        rowEan === ean &&
+        rowFv === fechaVencStr &&
+        rowSuc === sucursalDestino
+      ) {
+        filaDestinoIndex = j + 1;
+        cantAnteriorDest = Number(data[j][DEV_COLS.CANTIDAD - 1]) || 0;
+        idDestino = String(data[j][DEV_COLS.ID - 1] || '');
+        break;
+      }
+    }
+
+    if (filaDestinoIndex !== -1) {
+      // ── 4a. Sumar a registro existente en destino ──────────────
+      const cantNuevaDest = cantAnteriorDest + cantidadAMover;
+      sheet.getRange(filaDestinoIndex, DEV_COLS.CANTIDAD).setValue(cantNuevaDest);
+
+      logOperacion('ACC_TRANSFERENCIA_ENTRADA', {
+        devId: idDestino,
+        descripcion,
+        ean,
+        sucursal: sucursalDestino,
+        lote,
+        cantAnterior: cantAnteriorDest,
+        cantNueva: cantNuevaDest,
+        destino: sucursalDestino,
+        notas: 'Recepción desde ' + sucursalOrigen + ' · +' + cantidadAMover + ' sumadas a stock existente'
+      });
+
+      SpreadsheetApp.flush();
+      return { success: true, message: 'Stock sumado a registro existente en ' + sucursalDestino };
+
+    } else {
+      // ── 4b. Crear nuevo registro en destino clonando el origen ──
+      const now = new Date();
+      const newId = generateId('DEV', now);
+      const newRow = [...datosOrigen];
+
+      newRow[DEV_COLS.ID - 1] = newId;
+      newRow[DEV_COLS.FECHA - 1] = now;
+      newRow[DEV_COLS.SUCURSAL - 1] = sucursalDestino;
+      newRow[DEV_COLS.CANTIDAD - 1] = cantidadAMover;
+      newRow[DEV_COLS.ESTADO - 1] = 'PENDIENTE';
+      newRow[DEV_COLS.OBS_NC - 1] = '';
+      newRow[DEV_COLS.ARCHIVO - 1] = '';
+      newRow[DEV_COLS.ACLARACION - 1] =
+        'Transferido desde ' + sucursalOrigen + ' · Ref. origen: ' + idOrigen;
+
+      sheet.appendRow(newRow);
+
+      logOperacion('ACC_TRANSFERENCIA_NUEVA_SUC', {
+        devId: newId,
+        descripcion,
+        ean,
+        sucursal: sucursalDestino,
+        lote,
+        cantAnterior: 0,
+        cantNueva: cantidadAMover,
+        destino: sucursalDestino,
+        notas: 'Nuevo registro creado por transferencia desde ' + sucursalOrigen + ' · Ref: ' + idOrigen
+      });
+
+      SpreadsheetApp.flush();
+      return { success: true, message: 'Nuevo registro creado en ' + sucursalDestino, newId };
+    }
+
+  } catch (err) {
+    logAuto('transferStockDEV ERROR: ' + err.message);
+    return { success: false, message: 'Error: ' + err.message };
+  }
+}
+
+function parseLocalDate(dateStr) {
+  if (!dateStr) return null;
+  const m = String(dateStr).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+}
+
+function dateToStr(date) {
+  if (!date) return '';
+  const d = new Date(date);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  UPLOAD DE IMAGEN A GOOGLE DRIVE
+// ══════════════════════════════════════════════════════════════════
+
+function uploadImageToDrive(base64, mimeType, filename, subfolder) {
+  if (!base64 || !mimeType) return '';
+  try {
+    const ROOT_FOLDER_NAME = 'NEXUS - Fotos Formulario';
+    let rootIter = DriveApp.getFoldersByName(ROOT_FOLDER_NAME);
+    let rootFolder = rootIter.hasNext() ? rootIter.next() : DriveApp.createFolder(ROOT_FOLDER_NAME);
+    const mesStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM');
+    let mesIter = rootFolder.getFoldersByName(mesStr);
+    let mesFolder = mesIter.hasNext() ? mesIter.next() : rootFolder.createFolder(mesStr);
+    if (subfolder) {
+      let typeIter = mesFolder.getFoldersByName(subfolder);
+      mesFolder = typeIter.hasNext() ? typeIter.next() : mesFolder.createFolder(subfolder);
+    }
+    const blob = Utilities.newBlob(
+      Utilities.base64Decode(base64),
+      mimeType,
+      filename || ('foto_' + new Date().getTime() + '.jpg')
+    );
+    const file = mesFolder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return '=HYPERLINK("' + file.getUrl() + '","📷 Ver foto")';
+  } catch (err) {
+    logAuto('uploadImageToDrive ERROR: ' + err.message);
+    return '';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  ID COMPUESTO DETERMINÍSTICO
+// ══════════════════════════════════════════════════════════════════
+
+function generateCompositeId(ean, fechaVencStr, sucursal) {
+  const eanClean = String(ean || '').trim().replace(/\D/g, '');
+  const datePart = String(fechaVencStr || '').replace(/-/g, '').slice(0, 8);
+  const sucClean = String(sucursal || '').trim().toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Z0-9]/g, '').slice(0, 10);
+  return 'VEN-' + eanClean + '-' + datePart + '-' + sucClean;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  BUSCAR STOCK — versión estricta (solo ACTIVO/ACCIONADO PARCIAL)
+// ══════════════════════════════════════════════════════════════════
+
+function getStockVencimiento(ean, fechaVencStr, sucursal) {
+  const ss = SpreadsheetApp.openById(SS_VENCIMIENTOS);
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  const data = sheet.getDataRange().getValues();
+
+  const targetId = generateCompositeId(ean, fechaVencStr, sucursal);
+  const fechaNorm = String(fechaVencStr || '').slice(0, 10);
+  const eanStr = String(ean || '').trim();
+  const sucUpper = String(sucursal || '').trim().toUpperCase();
+
+  for (let i = 1; i < data.length; i++) {
+    const rowId = String(data[i][VEN_COLS.ID - 1] || '').trim();
+    const rowEstado = String(data[i][VEN_COLS.ESTADO_GEST - 1] || '').toUpperCase().trim();
+    const estadosConStock = ['ACTIVO', 'ACCIONADO PARCIAL'];
+    if (!estadosConStock.includes(rowEstado)) continue;
+
+    if (rowId === targetId) {
+      return {
+        rowIndex: i + 1,
+        cantidad: Number(data[i][VEN_COLS.CANTIDAD - 1]) || 0,
+        id: rowId,
+        descripcion: data[i][VEN_COLS.DESCRIPCION - 1] || '',
+        ean: data[i][VEN_COLS.EAN - 1] || '',
+        sucursal: data[i][VEN_COLS.SUCURSAL - 1] || '',
+        lote: data[i][VEN_COLS.LOTE - 1] || ''
+      };
+    }
+
+    const rowEan = String(data[i][VEN_COLS.EAN - 1] || '').trim();
+    const rowSuc = String(data[i][VEN_COLS.SUCURSAL - 1] || '').trim().toUpperCase();
+    const rowFecha = dateToStr(new Date(data[i][VEN_COLS.FECHA_VENC - 1] || ''));
+
+    if (rowEan === eanStr && rowFecha === fechaNorm && rowSuc === sucUpper) {
+      return {
+        rowIndex: i + 1,
+        cantidad: Number(data[i][VEN_COLS.CANTIDAD - 1]) || 0,
+        id: rowId,
+        descripcion: data[i][VEN_COLS.DESCRIPCION - 1] || '',
+        ean: data[i][VEN_COLS.EAN - 1] || '',
+        sucursal: data[i][VEN_COLS.SUCURSAL - 1] || '',
+        lote: data[i][VEN_COLS.LOTE - 1] || ''
+      };
+    }
+  }
+
+  return null;
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  LECTURA DE DATOS
+// ══════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════
+//  LECTURA DE DATOS — REEMPLAZAR función getHistorialDevoluciones
+//  Fix: mapea CANT_DISPONIBLE, ID_ORIGEN, SUC_ORIGEN por índice
+//  de columna (no por header), porque esos headers pueden no
+//  existir todavía en la hoja.
+// ══════════════════════════════════════════════════════════════════
+function getHistorialDevoluciones() {
+  const ss = SpreadsheetApp.openById(SS_DEVOLUCIONES);
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+
+  const headerRow = data[0];
+  let headersUpdated = false;
+
+  // Headers existentes (columnas 23-25)
+  if (!String(headerRow[DEV_COLS.CANT_DISPONIBLE - 1] || '').trim()) {
+    sheet.getRange(1, DEV_COLS.CANT_DISPONIBLE).setValue('CANT_DISPONIBLE');
+    headersUpdated = true;
+  }
+  if (!String(headerRow[DEV_COLS.ID_ORIGEN - 1] || '').trim()) {
+    sheet.getRange(1, DEV_COLS.ID_ORIGEN).setValue('ID_ORIGEN');
+    headersUpdated = true;
+  }
+  if (!String(headerRow[DEV_COLS.SUC_ORIGEN - 1] || '').trim()) {
+    sheet.getRange(1, DEV_COLS.SUC_ORIGEN).setValue('SUC_ORIGEN');
+    headersUpdated = true;
+  }
+  // Nuevos headers (columnas 26-27)
+  if (!String(headerRow[DEV_COLS.CANT_VENDIDA - 1] || '').trim()) {
+    sheet.getRange(1, DEV_COLS.CANT_VENDIDA).setValue('CANT_VENDIDA');
+    headersUpdated = true;
+  }
+  if (!String(headerRow[DEV_COLS.CANT_VENCIDA_GONDOLA - 1] || '').trim()) {
+    sheet.getRange(1, DEV_COLS.CANT_VENCIDA_GONDOLA).setValue('CANT_VENCIDA_GONDOLA');
+    headersUpdated = true;
+  }
+  if (headersUpdated) SpreadsheetApp.flush();
+
+  const headers = data[0].map(h => String(h).trim());
+
+  return data.slice(1).filter(row => row[0]).map(row => {
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = row[i]; });
+
+    // Mapeo explícito por índice para garantizar consistencia
+    obj['CANT_DISPONIBLE'] = row[DEV_COLS.CANT_DISPONIBLE - 1];
+    obj['ID_ORIGEN'] = row[DEV_COLS.ID_ORIGEN - 1];
+    obj['SUC_ORIGEN'] = row[DEV_COLS.SUC_ORIGEN - 1];
+    obj['CANT_VENDIDA'] = row[DEV_COLS.CANT_VENDIDA - 1];
+    obj['CANT_VENCIDA_GONDOLA'] = row[DEV_COLS.CANT_VENCIDA_GONDOLA - 1];
+
+    return obj;
+  });
+}
+
+function getHistorialVencimientos() {
+  const ss = SpreadsheetApp.openById(SS_VENCIMIENTOS);
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+  const headers = data[0].map(h => String(h).trim());
+  return data.slice(1).filter(row => row[0]).map(row => {
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = row[i]; });
+    return obj;
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  REGISTRAR VENCIMIENTO MANUAL — nuevo endpoint
+//  Llamado desde el botón "🚨 Registrar Vencimiento" del dashboard.
+//  Acciones:
+//    1. Busca el registro VEN por ID
+//    2. Crea un DEV con motivo=VENCIDO y cantidad=stock actual
+//    3. Pone CANTIDAD=0 en VEN
+//    4. Cambia ESTADO_GEST a ACCIONADO TOTAL
+//    5. Vincula DEV al VEN
+//    6. Loguea la operación completa
+// ══════════════════════════════════════════════════════════════════
+
+function registrarVencimientoManual(body) {
+  const idVen = body.idVen;
+  if (!idVen) return { success: false, message: 'idVen es requerido' };
+
+  try {
+    // ── Buscar el registro en VEN ────────────────────────────────
+    const ssVen = SpreadsheetApp.openById(SS_VENCIMIENTOS);
+    const shVen = ssVen.getSheetByName(SHEET_NAME);
+    const venArr = shVen.getDataRange().getValues();
+
+    let rowIndex = -1;
+    let venRow = null;
+
+    for (let i = 1; i < venArr.length; i++) {
+      if (String(venArr[i][VEN_COLS.ID - 1]).trim() === String(idVen).trim()) {
+        rowIndex = i + 1;
+        venRow = venArr[i];
+        break;
+      }
+    }
+
+    if (!venRow) return { success: false, message: 'Registro VEN no encontrado: ' + idVen };
+
+    const cantActual = Number(venRow[VEN_COLS.CANTIDAD - 1]) || 0;
+    const descripcion = venRow[VEN_COLS.DESCRIPCION - 1] || '';
+    const ean = venRow[VEN_COLS.EAN - 1] || '';
+    const sucursal = venRow[VEN_COLS.SUCURSAL - 1] || '';
+    const lote = venRow[VEN_COLS.LOTE - 1] || '';
+    const estadoActual = String(venRow[VEN_COLS.ESTADO_GEST - 1] || '').toUpperCase().trim();
+
+    const estadosRegistrables = ['ACTIVO', 'ACCIONADO PARCIAL', 'ACCIONADO TOTAL'];
+    if (!estadosRegistrables.includes(estadoActual)) {
+      return {
+        success: false,
+        message: `El registro tiene estado "${estadoActual}" y no admite más acciones.`
+      };
+    }
+
+    // El chequeo de cantidad ya existía y sigue siendo el guardián real:
+    if (cantActual <= 0) {
+      return {
+        success: false,
+        message: 'El stock ya es 0. No hay unidades para registrar como vencidas.'
+      };
+    }
+
+    // ── Crear registro en BD_DEVOLUCIONES ───────────────────────
+    const ssDev = SpreadsheetApp.openById(SS_DEVOLUCIONES);
+    const shDev = ssDev.getSheetByName(SHEET_NAME);
+    const now = new Date();
+    const devId = generateId('DEV', now);
+
+    const newDevRow = new Array(Object.keys(DEV_COLS).length).fill('');
+    newDevRow[DEV_COLS.ID - 1] = devId;
+    newDevRow[DEV_COLS.FECHA - 1] = now;
+    newDevRow[DEV_COLS.SUCURSAL - 1] = sucursal;
+    newDevRow[DEV_COLS.USUARIO - 1] = body.usuario || 'MANUAL-WEB';
+    newDevRow[DEV_COLS.EAN - 1] = ean;
+    newDevRow[DEV_COLS.COD_INTERNO - 1] = venRow[VEN_COLS.COD_INTERNO - 1] || '';
+    newDevRow[DEV_COLS.DESCRIPCION - 1] = descripcion;
+    newDevRow[DEV_COLS.GRAMAJE - 1] = venRow[VEN_COLS.GRAMAJE - 1] || '';
+    newDevRow[DEV_COLS.UNID_BULTO - 1] = '';
+    newDevRow[DEV_COLS.CANTIDAD - 1] = cantActual;
+    newDevRow[DEV_COLS.FECHA_VENC - 1] = venRow[VEN_COLS.FECHA_VENC - 1] || '';
+    newDevRow[DEV_COLS.SECTOR - 1] = venRow[VEN_COLS.SECTOR - 1] || '';
+    newDevRow[DEV_COLS.SECCION - 1] = venRow[VEN_COLS.SECCION - 1] || '';
+    newDevRow[DEV_COLS.PROVEEDOR - 1] = venRow[VEN_COLS.PROVEEDOR - 1] || '';
+    newDevRow[DEV_COLS.COD_PROV - 1] = '';
+    newDevRow[DEV_COLS.MOTIVO - 1] = 'VENCIDO';
+    newDevRow[DEV_COLS.LOTE - 1] = lote;
+    newDevRow[DEV_COLS.ACLARACION - 1] = 'Registrado manualmente como vencido desde el dashboard NEXUS';
+    newDevRow[DEV_COLS.COMENTARIOS - 1] = 'Ref. VEN: ' + idVen + ' · Estado anterior: ' + estadoActual + ' · Stock registrado: ' + cantActual + ' u.';
+    newDevRow[DEV_COLS.ARCHIVO - 1] = '';
+    newDevRow[DEV_COLS.ESTADO - 1] = 'PENDIENTE';
+    newDevRow[DEV_COLS.OBS_NC - 1] = '';
+
+    shDev.appendRow(newDevRow);
+
+    // ── Actualizar VEN: stock = 0, estado = ACCIONADO TOTAL ──────
+    shVen.getRange(rowIndex, VEN_COLS.CANTIDAD).setValue(0);
+    shVen.getRange(rowIndex, VEN_COLS.ESTADO_GEST).setValue('ACCIONADO TOTAL');
+    shVen.getRange(rowIndex, VEN_COLS.ID_ACCION).setValue(devId);
+    shVen.getRange(rowIndex, VEN_COLS.URGENCIA).setValue('VENCIDO');
+
+    SpreadsheetApp.flush();
+
+    // ── Loguear la operación ─────────────────────────────────────
+    logOperacion('REGISTRO_VENCIMIENTO_MANUAL', {
+      idVen,
+      devId,
+      descripcion,
+      ean: String(ean),
+      sucursal,
+      lote: String(lote),
+      cantAnterior: cantActual,
+      cantNueva: 0,
+      usuario: body.usuario || 'MANUAL-WEB',
+      notas: 'Stock llevado a 0 · Estado anterior: ' + estadoActual
+    });
+
+    return {
+      success: true,
+      devId,
+      idVen,
+      cantidadRegistrada: cantActual,
+      message: `Vencimiento registrado: DEV ${devId} · ${cantActual} u. de "${descripcion}" [${sucursal}]`
+    };
+
+  } catch (err) {
+    logAuto('registrarVencimientoManual ERROR: ' + err.message);
+    return { success: false, message: 'Error: ' + err.message };
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  TRANSFER DE STOCK ENTRE SUCURSALES — con log completo
+// ══════════════════════════════════════════════════════════════════
+
 function transferStockVEN(body) {
   try {
     const ss = SpreadsheetApp.openById(SS_VENCIMIENTOS);
     const sheet = ss.getSheetByName(SHEET_NAME);
     const data = sheet.getDataRange().getValues();
-    
+
     const idOrigen = body.idOrigen;
     const sucursalDestino = body.sucursalDestino;
     const cantidadAMover = Number(body.cantidad);
@@ -137,7 +837,6 @@ function transferStockVEN(body) {
     let filaOrigenIndex = -1;
     let datosProducto = null;
 
-    // 1. Localizar la fila de origen y obtener los datos del producto
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][VEN_COLS.ID - 1]).trim() === String(idOrigen).trim()) {
         filaOrigenIndex = i + 1;
@@ -149,90 +848,116 @@ function transferStockVEN(body) {
     if (filaOrigenIndex === -1) return { success: false, message: 'Registro origen no encontrado' };
 
     const cantActualOrigen = Number(datosProducto[VEN_COLS.CANTIDAD - 1]);
-    if (cantActualOrigen < cantidadAMover) {
-      return { success: false, message: 'Stock insuficiente en origen' };
-    }
+    if (cantActualOrigen < cantidadAMover) return { success: false, message: 'Stock insuficiente en origen' };
 
-    // 2. Buscar si ya existe el mismo EAN + Fecha Vencimiento en la sucursal DESTINO
+    const sucursalOrigen = datosProducto[VEN_COLS.SUCURSAL - 1] || '';
+    const descripcion = datosProducto[VEN_COLS.DESCRIPCION - 1] || '';
+    const ean = datosProducto[VEN_COLS.EAN - 1] || '';
+    const lote = datosProducto[VEN_COLS.LOTE - 1] || '';
     const eanBuscado = datosProducto[VEN_COLS.EAN - 1];
-    const vencimientoBuscado = datosProducto[VEN_COLS.FECHA_VENC - 1].toString();
+    const fechaVencSrc = datosProducto[VEN_COLS.FECHA_VENC - 1];
+    const fechaVencStr = dateToStr(new Date(fechaVencSrc));
+
+    const compositeIdDestino = generateCompositeId(eanBuscado, fechaVencStr, sucursalDestino);
     let filaDestinoIndex = -1;
+    let cantAnteriorDestino = 0;
 
+    // ── Buscar destino — REEMPLAZAR el bloque de búsqueda ──────────────
     for (let j = 1; j < data.length; j++) {
-      const eanDest = data[j][VEN_COLS.EAN - 1];
-      const sucDest = data[j][VEN_COLS.SUCURSAL - 1];
-      const vencDest = data[j][VEN_COLS.FECHA_VENC - 1].toString();
-      const estadoDest = data[j][VEN_COLS.ESTADO_GEST - 1];
+      const rowId = String(data[j][VEN_COLS.ID - 1] || '').trim();
+      const rowEstado = String(data[j][VEN_COLS.ESTADO_GEST - 1] || '').toUpperCase().trim();
 
-      if (eanDest === eanBuscado && sucDest === sucursalDestino && vencDest === vencimientoBuscado && estadoDest === 'ACTIVO') {
+      // CAMBIO: aceptar ACTIVO, ACCIONADO PARCIAL y ACCIONADO TOTAL
+      const estadosAceptados = ['ACTIVO', 'ACCIONADO PARCIAL', 'ACCIONADO TOTAL'];
+      if (rowId === compositeIdDestino && estadosAceptados.includes(rowEstado)) {
         filaDestinoIndex = j + 1;
+        cantAnteriorDestino = Number(data[j][VEN_COLS.CANTIDAD - 1]) || 0;
         break;
       }
     }
 
-    // 3. EJECUTAR LOS CAMBIOS
-    
-    // A) Restar en origen
-    const nuevaCantOrigen = cantActualOrigen - cantidadAMover;
-    sheet.getRange(filaOrigenIndex, VEN_COLS.CANTIDAD).setValue(nuevaCantOrigen);
-    // Si la cantidad llega a 0, podrías marcarlo como "TRANSFERIDO TOTAL" o dejarlo en 0. 
-    // Aquí lo dejamos en 0 para mantener el historial de que existió ahí.
+    const cantNuevaOrigen = cantActualOrigen - cantidadAMover;
+    sheet.getRange(filaOrigenIndex, VEN_COLS.CANTIDAD).setValue(cantNuevaOrigen);
 
-    // B) Sumar en destino o Crear nuevo
+    // Log de la salida en origen
+    logOperacion('TRANSFERENCIA_SALIDA', {
+      idVen: idOrigen,
+      descripcion,
+      ean: String(ean),
+      sucursal: sucursalOrigen,
+      lote: String(lote),
+      cantAnterior: cantActualOrigen,
+      cantNueva: cantNuevaOrigen,
+      destino: sucursalDestino,
+      notas: 'Transferencia de ' + cantidadAMover + ' u. → ' + sucursalDestino
+    });
+
     if (filaDestinoIndex !== -1) {
-      // YA EXISTE: Sumamos a la cantidad actual
-      const cantActualDestino = Number(data[filaDestinoIndex - 1][VEN_COLS.CANTIDAD - 1]);
-      sheet.getRange(filaDestinoIndex, VEN_COLS.CANTIDAD).setValue(cantActualDestino + cantidadAMover);
+      const cantNuevaDestino = cantAnteriorDestino + cantidadAMover;
+      sheet.getRange(filaDestinoIndex, VEN_COLS.CANTIDAD).setValue(cantNuevaDestino);
+
+      // NUEVO: si estaba accionado total, reactivar el registro
+      const estadoDestActual = String(
+        data.find(r => String(r[VEN_COLS.ID - 1]).trim() === compositeIdDestino)?.[VEN_COLS.ESTADO_GEST - 1] || ''
+      ).toUpperCase().trim();
+
+      if (estadoDestActual === 'ACCIONADO TOTAL') {
+        sheet.getRange(filaDestinoIndex, VEN_COLS.ESTADO_GEST).setValue('ACTIVO');
+        sheet.getRange(filaDestinoIndex, VEN_COLS.ID_ACCION).setValue(''); // limpiar vinculación vieja
+      }
+
+      sheet.getRange(filaDestinoIndex, VEN_COLS.ORIGEN).setValue('TRANSFERENCIA');
+      sheet.getRange(filaDestinoIndex, VEN_COLS.FECHA_TRANSFER).setValue(new Date());
+      sheet.getRange(filaDestinoIndex, VEN_COLS.SUC_ORIGEN).setValue(sucursalOrigen);
+
+      // Log de la entrada en destino
+      logOperacion('TRANSFERENCIA_ENTRADA', {
+        idVen: compositeIdDestino,
+        descripcion,
+        ean: String(ean),
+        sucursal: sucursalDestino,
+        lote: String(lote),
+        cantAnterior: cantAnteriorDestino,
+        cantNueva: cantNuevaDestino,
+        destino: sucursalDestino,
+        notas: 'Recepción desde ' + sucursalOrigen + ' · ' + cantidadAMover + ' u. sumadas a stock existente'
+      });
+
+      SpreadsheetApp.flush();
       return { success: true, message: 'Stock sumado a registro existente en destino' };
     } else {
-      // NO EXISTE: Creamos fila nueva
       const nuevaFila = [...datosProducto];
-      nuevaFila[VEN_COLS.ID - 1] = generateId('VEN', new Date());
+      nuevaFila[VEN_COLS.ID - 1] = compositeIdDestino;
       nuevaFila[VEN_COLS.FECHA_REG - 1] = new Date();
       nuevaFila[VEN_COLS.SUCURSAL - 1] = sucursalDestino;
       nuevaFila[VEN_COLS.CANTIDAD - 1] = cantidadAMover;
       nuevaFila[VEN_COLS.ESTADO_GEST - 1] = 'ACTIVO';
       nuevaFila[VEN_COLS.ID_ACCION - 1] = '';
-      
+      nuevaFila[VEN_COLS.ORIGEN - 1] = 'TRANSFERENCIA';
+      nuevaFila[VEN_COLS.FECHA_TRANSFER - 1] = new Date();
+      nuevaFila[VEN_COLS.SUC_ORIGEN - 1] = sucursalOrigen;
       sheet.appendRow(nuevaFila);
+
+      // Log de la creación en destino
+      logOperacion('TRANSFERENCIA_NUEVA_SUCURSAL', {
+        idVen: compositeIdDestino,
+        descripcion,
+        ean: String(ean),
+        sucursal: sucursalDestino,
+        lote: String(lote),
+        cantAnterior: 0,
+        cantNueva: cantidadAMover,
+        destino: sucursalDestino,
+        notas: 'Nuevo registro creado por transferencia desde ' + sucursalOrigen
+      });
+
+      SpreadsheetApp.flush();
       return { success: true, message: 'Nueva sucursal registrada con el stock movido' };
     }
-
-  } catch (e) {
-    return { success: false, message: 'Error: ' + e.message };
+  } catch (err) {
+    logAuto('transferStockVEN ERROR: ' + err.message);
+    return { success: false, message: 'Error: ' + err.message };
   }
-}
-
-function getHistorialDevoluciones() {
-  const ss    = SpreadsheetApp.openById(SS_DEVOLUCIONES);
-  const sheet = ss.getSheetByName(SHEET_NAME);
-  const data  = sheet.getDataRange().getValues();
-  if (data.length < 2) return [];
-
-  const headers = data[0].map(h => String(h).trim());
-  return data.slice(1)
-    .filter(row => row[0])
-    .map(row => {
-      const obj = {};
-      headers.forEach((h, i) => { obj[h] = row[i]; });
-      return obj;
-    });
-}
-
-function getHistorialVencimientos() {
-  const ss    = SpreadsheetApp.openById(SS_VENCIMIENTOS);
-  const sheet = ss.getSheetByName(SHEET_NAME);
-  const data  = sheet.getDataRange().getValues();
-  if (data.length < 2) return [];
-
-  const headers = data[0].map(h => String(h).trim());
-  return data.slice(1)
-    .filter(row => row[0])
-    .map(row => {
-      const obj = {};
-      headers.forEach((h, i) => { obj[h] = row[i]; });
-      return obj;
-    });
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -241,15 +966,16 @@ function getHistorialVencimientos() {
 
 function updateRecord(id, newEstado, newObsNC) {
   if (!id) return { success: false, message: 'ID requerido' };
-
-  const ss    = SpreadsheetApp.openById(SS_DEVOLUCIONES);
+  const ss = SpreadsheetApp.openById(SS_DEVOLUCIONES);
   const sheet = ss.getSheetByName(SHEET_NAME);
-  const data  = sheet.getDataRange().getValues();
+  const data = sheet.getDataRange().getValues();
 
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][DEV_COLS.ID - 1]).trim() === String(id).trim()) {
-      if (newEstado)  sheet.getRange(i + 1, DEV_COLS.ESTADO).setValue(newEstado);
-      if (newObsNC)   sheet.getRange(i + 1, DEV_COLS.OBS_NC).setValue(newObsNC);
+      const estadoAnterior = data[i][DEV_COLS.ESTADO - 1] || '';
+      if (newEstado) sheet.getRange(i + 1, DEV_COLS.ESTADO).setValue(newEstado);
+      if (newObsNC) sheet.getRange(i + 1, DEV_COLS.OBS_NC).setValue(newObsNC);
+      logAuto('updateRecord DEV: ' + id + ' · Estado: ' + estadoAnterior + ' → ' + (newEstado || 'sin cambio') + (newObsNC ? ' · ObsNC: ' + newObsNC : ''));
       return { success: true, id: id };
     }
   }
@@ -257,280 +983,424 @@ function updateRecord(id, newEstado, newObsNC) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  ENVÍO DEL FORMULARIO
+//  ACTUALIZAR STOCK INDIVIDUAL — con log completo
 // ══════════════════════════════════════════════════════════════════
 
-/**
- * Actualiza la cantidad (stock) de un registro de vencimientos por ID.
- */
 function updateStockVEN(id, nuevaCant) {
   if (!id && id !== 0) return { success: false, message: 'ID requerido' };
   if (nuevaCant === undefined || nuevaCant === null) return { success: false, message: 'Cantidad requerida' };
 
   try {
-    const ss    = SpreadsheetApp.openById(SS_VENCIMIENTOS);
+    const ss = SpreadsheetApp.openById(SS_VENCIMIENTOS);
     const sheet = ss.getSheetByName(SHEET_NAME);
-    const data  = sheet.getDataRange().getValues();
+    const data = sheet.getDataRange().getValues();
 
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][VEN_COLS.ID - 1]).trim() === String(id).trim()) {
-        sheet.getRange(i + 1, VEN_COLS.CANTIDAD).setValue(Number(nuevaCant));
-        return { success: true, id: id, nuevaCant: Number(nuevaCant) };
+        const cantAnterior = Number(data[i][VEN_COLS.CANTIDAD - 1]) || 0;
+        const descripcion = data[i][VEN_COLS.DESCRIPCION - 1] || '';
+        const ean = data[i][VEN_COLS.EAN - 1] || '';
+        const sucursal = data[i][VEN_COLS.SUCURSAL - 1] || '';
+        const lote = data[i][VEN_COLS.LOTE - 1] || '';
+        const cantNueva = Number(nuevaCant);
+        const delta = cantNueva - cantAnterior;
+
+        sheet.getRange(i + 1, VEN_COLS.CANTIDAD).setValue(cantNueva);
+
+        // Determinar el tipo de ajuste
+        let tipoLog;
+        if (cantNueva === 0) {
+          tipoLog = 'AJUSTE_STOCK_A_CERO';
+        } else if (delta > 0) {
+          tipoLog = 'AJUSTE_POSITIVO';
+        } else if (delta < 0) {
+          tipoLog = 'AJUSTE_NEGATIVO';
+        } else {
+          tipoLog = 'AJUSTE_SIN_CAMBIO';
+        }
+
+        logOperacion(tipoLog, {
+          idVen: id,
+          descripcion,
+          ean: String(ean),
+          sucursal,
+          lote: String(lote),
+          cantAnterior,
+          cantNueva,
+          notas: 'Delta: ' + (delta >= 0 ? '+' : '') + delta + ' u.'
+        });
+
+        return { success: true, id, nuevaCant: cantNueva };
       }
     }
     return { success: false, message: 'Registro no encontrado: ' + id };
-  } catch (e) {
-    return { success: false, message: 'Error: ' + e.message };
+  } catch (err) {
+    logAuto('updateStockVEN ERROR: ' + err.message);
+    return { success: false, message: 'Error: ' + err.message };
   }
 }
+
+// ══════════════════════════════════════════════════════════════════
+//  DISPATCHER DE FORMULARIO
+// ══════════════════════════════════════════════════════════════════
 
 function submitForm(body) {
-  const tipoRegistro = String(body.tipoRegistro || body.event || '').toUpperCase();
-  const isVencimiento = tipoRegistro === 'CONTROL DE VENCIMIENTO';
-
-  if (isVencimiento) {
-    return submitControlVencimiento(body);
-  } else {
-    return submitDevolucion(body);
-  }
+  const tipo = String(body.tipoRegistro || body.event || '').toUpperCase();
+  return (tipo === 'CONTROL DE VENCIMIENTO')
+    ? submitControlVencimiento(body)
+    : submitDevolucion(body);
 }
+
+// ══════════════════════════════════════════════════════════════════
+//  CONTROL DE VENCIMIENTO — UPSERT con log
+// ══════════════════════════════════════════════════════════════════
 
 function submitControlVencimiento(body) {
-  const ss    = SpreadsheetApp.openById(SS_VENCIMIENTOS);
+  const ss = SpreadsheetApp.openById(SS_VENCIMIENTOS);
   const sheet = ss.getSheetByName(SHEET_NAME);
-  const now   = new Date();
-  const id    = generateId('VEN', now);
-  const dias  = calcDiasHastaVencimiento(body.fechaVenc);
-  const urg   = getUrgencia(dias);
+  const data = sheet.getDataRange().getValues();
+  const now = new Date();
 
-  const row = new Array(Object.keys(VEN_COLS).length).fill('');
-  row[VEN_COLS.ID          - 1] = id;
-  row[VEN_COLS.FECHA_REG   - 1] = now;
-  row[VEN_COLS.SUCURSAL    - 1] = body.sucursal   || '';
-  row[VEN_COLS.USUARIO     - 1] = body.usuario    || '';
-  row[VEN_COLS.EAN         - 1] = body.ean        || '';
-  row[VEN_COLS.COD_INTERNO - 1] = body.codInterno || '';
-  row[VEN_COLS.DESCRIPCION - 1] = body.descripcion|| '';
-  row[VEN_COLS.GRAMAJE     - 1] = body.gramaje    || '';
-  row[VEN_COLS.CANTIDAD    - 1] = body.cantidad   || '';
-  row[VEN_COLS.FECHA_VENC  - 1] = body.fechaVenc  ? new Date(body.fechaVenc) : '';
-  row[VEN_COLS.SECTOR      - 1] = body.sector     || '';
-  row[VEN_COLS.SECCION     - 1] = body.seccion    || '';
-  row[VEN_COLS.PROVEEDOR   - 1] = body.proveedor  || '';
-  row[VEN_COLS.LOTE        - 1] = body.lote       || '';
-  row[VEN_COLS.ACLARACION  - 1] = body.aclaracion || '';
-  row[VEN_COLS.ARCHIVO     - 1] = body.archivo    || '';
-  row[VEN_COLS.DIAS_VENC   - 1] = dias;
-  row[VEN_COLS.URGENCIA    - 1] = urg;
-  row[VEN_COLS.ESTADO_GEST - 1] = 'ACTIVO';
-  row[VEN_COLS.ID_ACCION   - 1] = '';
+  const compositeId = generateCompositeId(body.ean, body.fechaVenc, body.sucursal);
+  const dias = calcDiasHastaVencimiento(body.fechaVenc);
+  const urg = getUrgencia(dias);
+  const cantNueva = Number(body.cantidad) || 0;
+  const fechaVencDate = parseLocalDate(body.fechaVenc);
 
-  sheet.appendRow(row);
-  return { success: true, id: id, bd: 'vencimientos' };
-}
+  const archivoFormula = uploadImageToDrive(
+    body.photoBase64, body.photoMime, body.photoName, 'VEN'
+  );
 
-function submitDevolucion(body) {
-  const ss    = SpreadsheetApp.openById(SS_DEVOLUCIONES);
-  const sheet = ss.getSheetByName(SHEET_NAME);
-  const now   = new Date();
-  const id    = generateId('DEV', now);
+  for (let i = 1; i < data.length; i++) {
+    const rowId = String(data[i][VEN_COLS.ID - 1] || '').trim();
+    const rowEstado = String(data[i][VEN_COLS.ESTADO_GEST - 1] || '').toUpperCase().trim();
 
-  const row = new Array(Object.keys(DEV_COLS).length).fill('');
-  row[DEV_COLS.ID          - 1] = id;
-  row[DEV_COLS.FECHA       - 1] = now;
-  row[DEV_COLS.SUCURSAL    - 1] = body.sucursal    || '';
-  row[DEV_COLS.USUARIO     - 1] = body.usuario     || '';
-  row[DEV_COLS.EAN         - 1] = body.ean         || '';
-  row[DEV_COLS.COD_INTERNO - 1] = body.codInterno  || '';
-  row[DEV_COLS.DESCRIPCION - 1] = body.descripcion || '';
-  row[DEV_COLS.GRAMAJE     - 1] = body.gramaje     || '';
-  row[DEV_COLS.UNID_BULTO  - 1] = body.unidBulto   || '';
-  row[DEV_COLS.CANTIDAD    - 1] = body.cantidad    || '';
-  row[DEV_COLS.FECHA_VENC  - 1] = body.fechaVenc   ? new Date(body.fechaVenc) : '';
-  row[DEV_COLS.SECTOR      - 1] = body.sector      || '';
-  row[DEV_COLS.SECCION     - 1] = body.seccion     || '';
-  row[DEV_COLS.PROVEEDOR   - 1] = body.proveedor   || '';
-  row[DEV_COLS.COD_PROV    - 1] = body.codProv     || '';
-  row[DEV_COLS.MOTIVO      - 1] = body.motivo      || '';
-  row[DEV_COLS.LOTE        - 1] = body.lote        || '';
-  row[DEV_COLS.ACLARACION  - 1] = body.aclaracion  || '';
-  row[DEV_COLS.COMENTARIOS - 1] = body.comentarios || '';
-  row[DEV_COLS.ARCHIVO     - 1] = body.archivo     || '';
-  row[DEV_COLS.ESTADO      - 1] = 'PENDIENTE';
-  row[DEV_COLS.OBS_NC      - 1] = '';
+    if (rowId === compositeId && rowEstado === 'ACTIVO') {
+      const cantAnterior = Number(data[i][VEN_COLS.CANTIDAD - 1]) || 0;
+      const cantTotal = cantAnterior + cantNueva;
 
-  sheet.appendRow(row);
+      sheet.getRange(i + 1, VEN_COLS.CANTIDAD).setValue(cantTotal);
+      sheet.getRange(i + 1, VEN_COLS.DIAS_VENC).setValue(dias);
+      sheet.getRange(i + 1, VEN_COLS.URGENCIA).setValue(urg);
+      if (body.lote) sheet.getRange(i + 1, VEN_COLS.LOTE).setValue(body.lote);
+      if (body.aclaracion) sheet.getRange(i + 1, VEN_COLS.ACLARACION).setValue(body.aclaracion);
+      if (archivoFormula) sheet.getRange(i + 1, VEN_COLS.ARCHIVO).setFormula(archivoFormula);
 
-  // Si viene con idVencimiento, vinculamos el registro de vencimientos
-  if (body.idVencimiento) {
-    linkVencimientoToDevolucion(body.idVencimiento, id, 'ACCION TOMADA');
+      logOperacion('CONTROL_VEN_UPSERT', {
+        idVen: compositeId,
+        descripcion: body.descripcion || '',
+        ean: String(body.ean || ''),
+        sucursal: body.sucursal || '',
+        lote: body.lote || '',
+        cantAnterior,
+        cantNueva: cantTotal,
+        usuario: body.usuario || '',
+        notas: 'Control sumado: +' + cantNueva + ' u. · Urgencia: ' + urg
+      });
+
+      return {
+        success: true,
+        id: compositeId,
+        bd: 'vencimientos',
+        action: 'updated',
+        cantidadAnterior: cantAnterior,
+        cantidadNueva: cantTotal
+      };
+    }
   }
 
-  return { success: true, id: id, bd: 'devoluciones' };
+  // INSERT: no existe → crear
+  const row = new Array(Object.keys(VEN_COLS).length).fill('');
+  row[VEN_COLS.ID - 1] = compositeId;
+  row[VEN_COLS.FECHA_REG - 1] = now;
+  row[VEN_COLS.SUCURSAL - 1] = body.sucursal || '';
+  row[VEN_COLS.USUARIO - 1] = body.usuario || '';
+  row[VEN_COLS.EAN - 1] = body.ean || '';
+  row[VEN_COLS.COD_INTERNO - 1] = body.codInterno || '';
+  row[VEN_COLS.DESCRIPCION - 1] = body.descripcion || '';
+  row[VEN_COLS.GRAMAJE - 1] = body.gramaje || '';
+  row[VEN_COLS.CANTIDAD - 1] = cantNueva;
+  row[VEN_COLS.FECHA_VENC - 1] = fechaVencDate;
+  row[VEN_COLS.SECTOR - 1] = body.sector || '';
+  row[VEN_COLS.SECCION - 1] = body.seccion || '';
+  row[VEN_COLS.PROVEEDOR - 1] = body.proveedor || '';
+  row[VEN_COLS.LOTE - 1] = body.lote || '';
+  row[VEN_COLS.ACLARACION - 1] = body.aclaracion || '';
+  row[VEN_COLS.ARCHIVO - 1] = archivoFormula;
+  row[VEN_COLS.DIAS_VENC - 1] = dias;
+  row[VEN_COLS.URGENCIA - 1] = urg;
+  row[VEN_COLS.ESTADO_GEST - 1] = 'ACTIVO';
+  row[VEN_COLS.ID_ACCION - 1] = '';
+
+  sheet.appendRow(row);
+
+  if (archivoFormula) {
+    const newRowIndex = sheet.getLastRow();
+    sheet.getRange(newRowIndex, VEN_COLS.ARCHIVO).setFormula(archivoFormula);
+  }
+
+  logOperacion('CONTROL_VEN_INSERT', {
+    idVen: compositeId,
+    descripcion: body.descripcion || '',
+    ean: String(body.ean || ''),
+    sucursal: body.sucursal || '',
+    lote: body.lote || '',
+    cantAnterior: 0,
+    cantNueva: cantNueva,
+    usuario: body.usuario || '',
+    notas: 'Nuevo registro · Urgencia: ' + urg + ' · Vence en ' + dias + 'd'
+  });
+
+  return {
+    success: true,
+    id: compositeId,
+    bd: 'vencimientos',
+    action: 'created'
+  };
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  AUTO-VENCIMIENTO — función principal (se ejecuta con trigger diario)
+//  DEVOLUCIÓN / ACCIÓN — SIN BLOQUEO POR STOCK
+//
+//  CAMBIO v4.2: Se eliminó la validación bloqueante de stock.
+//  v4.3: Se agregó logging completo de la operación.
 // ══════════════════════════════════════════════════════════════════
 
-/**
- * Detecta automáticamente productos VENCIDOS en BD_CONTROL_VENCIMIENTOS
- * que siguen en estado ACTIVO y no tienen acción vinculada.
- *
- * Por cada grupo único (EAN + FECHA_VENCIMIENTO + SUCURSAL):
- *   1. Crea un registro nuevo en BD_DEVOLUCIONES con MOTIVO="VENCIDO"
- *   2. Actualiza TODOS los controles de ese grupo: ESTADO_GESTION="ACCION TOMADA", ID_ACCION=nuevo DEV id
- *   3. Actualiza DIAS_HASTA_VENCIMIENTO y URGENCIA de cada fila
- *
- * También actualiza la columna DIAS_HASTA_VENCIMIENTO y URGENCIA en
- * todos los registros activos aunque no estén vencidos todavía.
- */
-function checkAndAutoExpireProducts() {
-  const ssVen  = SpreadsheetApp.openById(SS_VENCIMIENTOS);
-  const shVen  = ssVen.getSheetByName(SHEET_NAME);
-  const ssDev  = SpreadsheetApp.openById(SS_DEVOLUCIONES);
-  const shDev  = ssDev.getSheetByName(SHEET_NAME);
+function submitDevolucion(body) {
+  const cantSolicitada = Number(body.cantidad) || 0;
 
+  // ── Crear el registro en BD_DEVOLUCIONES (siempre) ──────────
+  const ss = SpreadsheetApp.openById(SS_DEVOLUCIONES);
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  const now = new Date();
+  const id = generateId('DEV', now);
+  const fechaVencDate = parseLocalDate(body.fechaVenc);
+  const archivoFormula = uploadImageToDrive(
+    body.photoBase64, body.photoMime, body.photoName, 'DEV'
+  );
+
+  const row = new Array(Object.keys(DEV_COLS).length).fill('');
+  row[DEV_COLS.ID - 1] = id;
+  row[DEV_COLS.FECHA - 1] = now;
+  row[DEV_COLS.SUCURSAL - 1] = body.sucursal || '';
+  row[DEV_COLS.USUARIO - 1] = body.usuario || '';
+  row[DEV_COLS.EAN - 1] = body.ean || '';
+  row[DEV_COLS.COD_INTERNO - 1] = body.codInterno || '';
+  row[DEV_COLS.DESCRIPCION - 1] = body.descripcion || '';
+  row[DEV_COLS.GRAMAJE - 1] = body.gramaje || '';
+  row[DEV_COLS.UNID_BULTO - 1] = body.unidBulto || '';
+  row[DEV_COLS.CANTIDAD - 1] = cantSolicitada;
+  row[DEV_COLS.FECHA_VENC - 1] = fechaVencDate;
+  row[DEV_COLS.SECTOR - 1] = body.sector || '';
+  row[DEV_COLS.SECCION - 1] = body.seccion || '';
+  row[DEV_COLS.PROVEEDOR - 1] = body.proveedor || '';
+  row[DEV_COLS.COD_PROV - 1] = body.codProv || '';
+  row[DEV_COLS.MOTIVO - 1] = body.event || body.motivo || '';
+  row[DEV_COLS.LOTE - 1] = body.lote || '';
+  row[DEV_COLS.ACLARACION - 1] = body.aclaracion || '';
+  row[DEV_COLS.COMENTARIOS - 1] = body.comentarios || '';
+  row[DEV_COLS.ARCHIVO - 1] = archivoFormula;
+  row[DEV_COLS.ESTADO - 1] = 'PENDIENTE';
+  row[DEV_COLS.OBS_NC - 1] = '';
+  row[DEV_COLS.CANT_DISPONIBLE - 1] = cantSolicitada;  // Inicia igual a CANTIDAD
+  row[DEV_COLS.ID_ORIGEN - 1] = '';
+  row[DEV_COLS.SUC_ORIGEN - 1] = '';
+
+  sheet.appendRow(row);
+
+  if (archivoFormula) {
+    const newRowIndex = sheet.getLastRow();
+    sheet.getRange(newRowIndex, DEV_COLS.ARCHIVO).setFormula(archivoFormula);
+  }
+
+  // ── Descuento y vinculación best-effort ─────────────────────
+  let idVen = body.idVencimiento || null;
+
+  if (body.ean && body.fechaVenc && body.sucursal) {
+    const stock = getStockVencimiento(body.ean, body.fechaVenc, body.sucursal);
+
+    if (stock) {
+      idVen = stock.id;
+      const stockRestante = stock.cantidad - cantSolicitada;
+      const cantNuevaStock = Math.max(0, stockRestante);
+
+      const ssVen = SpreadsheetApp.openById(SS_VENCIMIENTOS);
+      const shVen = ssVen.getSheetByName(SHEET_NAME);
+      shVen.getRange(stock.rowIndex, VEN_COLS.CANTIDAD).setValue(cantNuevaStock);
+
+      const nuevoEstadoVen = stockRestante <= 0 ? 'ACCIONADO TOTAL' : 'ACCIONADO PARCIAL';
+      linkVencimientoToDevolucion(idVen, id, nuevoEstadoVen);
+
+      logOperacion('DEVOLUCION_CON_DESCUENTO_VEN', {
+        idVen,
+        devId: id,
+        descripcion: stock.descripcion || body.descripcion || '',
+        ean: String(body.ean || ''),
+        sucursal: body.sucursal || '',
+        lote: body.lote || stock.lote || '',
+        cantAnterior: stock.cantidad,
+        cantNueva: cantNuevaStock,
+        usuario: body.usuario || '',
+        notas: 'Motivo: ' + (body.event || body.motivo || '—') + ' · Solicitado: ' + cantSolicitada + ' u. · Estado VEN → ' + nuevoEstadoVen
+      });
+
+    } else {
+      logAuto('submitDevolucion: ' + id + ' sin VEN vinculable para EAN=' + body.ean + ' VENC=' + body.fechaVenc + ' SUC=' + body.sucursal + '. DEV creado sin descuento.');
+    }
+  } else if (idVen) {
+    linkVencimientoToDevolucion(idVen, id, 'ACCIONADO TOTAL');
+    logOperacion('DEVOLUCION_VINCULACION_MANUAL', {
+      idVen,
+      devId: id,
+      ean: String(body.ean || ''),
+      sucursal: body.sucursal || '',
+      notas: 'Vinculación manual · Motivo: ' + (body.event || body.motivo || '—')
+    });
+  }
+
+  return {
+    success: true,
+    id,
+    bd: 'devoluciones',
+    idVen,
+    action: 'created'
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  AUTO-VENCIMIENTO (trigger diario)
+// ══════════════════════════════════════════════════════════════════
+
+function checkAndAutoExpireProducts() {
+  const ssVen = SpreadsheetApp.openById(SS_VENCIMIENTOS);
+  const shVen = ssVen.getSheetByName(SHEET_NAME);
+  const ssDev = SpreadsheetApp.openById(SS_DEVOLUCIONES);
+  const shDev = ssDev.getSheetByName(SHEET_NAME);
   const venData = shVen.getDataRange().getValues();
   if (venData.length < 2) return;
 
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
-
-  // Agrupamos por EAN + FECHA_VENC + SUCURSAL
-  // clave → array de {rowIndex (1-based), rowData}
   const grupos = {};
 
   for (let i = 1; i < venData.length; i++) {
-    const row       = venData[i];
-    const id        = row[VEN_COLS.ID         - 1];
-    const estadoG   = String(row[VEN_COLS.ESTADO_GEST - 1] || '').toUpperCase().trim();
-    const idAccion  = row[VEN_COLS.ID_ACCION  - 1];
+    const row = venData[i];
+    const id = row[VEN_COLS.ID - 1];
+    const estadoG = String(row[VEN_COLS.ESTADO_GEST - 1] || '').toUpperCase().trim();
     const fechaVenc = row[VEN_COLS.FECHA_VENC - 1];
-    const ean       = row[VEN_COLS.EAN        - 1];
-    const sucursal  = row[VEN_COLS.SUCURSAL   - 1];
+    const ean = row[VEN_COLS.EAN - 1];
+    const sucursal = row[VEN_COLS.SUCURSAL - 1];
 
     if (!id || !fechaVenc) continue;
 
-    // Actualizar DIAS_HASTA_VENCIMIENTO y URGENCIA en todos los registros
     const dias = calcDiasHastaVencimiento(fechaVenc);
-    const urg  = getUrgencia(dias);
+    const urg = getUrgencia(dias);
     shVen.getRange(i + 1, VEN_COLS.DIAS_VENC).setValue(dias);
-    shVen.getRange(i + 1, VEN_COLS.URGENCIA ).setValue(urg);
+    shVen.getRange(i + 1, VEN_COLS.URGENCIA).setValue(urg);
 
-    // Solo nos interesan los ACTIVOS sin acción vinculada Y vencidos
-    if (estadoG !== 'ACTIVO' || idAccion) continue;
+    if (estadoG !== 'ACTIVO' && estadoG !== 'ACCIONADO PARCIAL') continue;
 
     const fv = new Date(fechaVenc);
     fv.setHours(0, 0, 0, 0);
-    if (fv > hoy) continue; // aún no vencido
+    if (fv > hoy) continue;
 
     const key = String(ean) + '||' + Utilities.formatDate(fv, Session.getScriptTimeZone(), 'yyyy-MM-dd') + '||' + String(sucursal);
     if (!grupos[key]) grupos[key] = { rows: [], sample: null };
-    grupos[key].rows.push(i + 1); // índice de fila (1-based)
-    // Guardamos la fila con más datos como "muestra" (la más reciente)
+    grupos[key].rows.push(i + 1);
     if (!grupos[key].sample || id > grupos[key].sample.id) {
       grupos[key].sample = {
-        id:          id,
-        rowIndex:    i + 1,
-        sucursal:    sucursal,
-        ean:         ean,
-        codInterno:  row[VEN_COLS.COD_INTERNO - 1],
-        descripcion: row[VEN_COLS.DESCRIPCION - 1],
-        gramaje:     row[VEN_COLS.GRAMAJE     - 1],
-        cantidad:    row[VEN_COLS.CANTIDAD    - 1],
-        fechaVenc:   fechaVenc,
-        sector:      row[VEN_COLS.SECTOR      - 1],
-        seccion:     row[VEN_COLS.SECCION     - 1],
-        proveedor:   row[VEN_COLS.PROVEEDOR   - 1],
-        lote:        row[VEN_COLS.LOTE        - 1],
-        usuario:     row[VEN_COLS.USUARIO     - 1],
+        id, rowIndex: i + 1, sucursal, ean,
+        codInterno: row[VEN_COLS.COD_INTERNO - 1], descripcion: row[VEN_COLS.DESCRIPCION - 1],
+        gramaje: row[VEN_COLS.GRAMAJE - 1], cantidad: row[VEN_COLS.CANTIDAD - 1],
+        fechaVenc, sector: row[VEN_COLS.SECTOR - 1], seccion: row[VEN_COLS.SECCION - 1],
+        proveedor: row[VEN_COLS.PROVEEDOR - 1], lote: row[VEN_COLS.LOTE - 1],
+        usuario: row[VEN_COLS.USUARIO - 1],
       };
     }
   }
 
-  // Procesar cada grupo vencido sin acción
   const claves = Object.keys(grupos);
-  if (claves.length === 0) {
-    logAuto('checkAndAutoExpireProducts: no hay productos vencidos sin acción.');
-    return;
-  }
-
-  logAuto('checkAndAutoExpireProducts: procesando ' + claves.length + ' grupo(s) vencidos.');
+  if (claves.length === 0) { logAuto('checkAndAutoExpireProducts: sin vencidos sin acción.'); return; }
+  logAuto('checkAndAutoExpireProducts: procesando ' + claves.length + ' grupo(s).');
 
   const devLastRow = shDev.getLastRow();
-  const devData    = devLastRow >= 1 ? shDev.getRange(1, DEV_COLS.ID, devLastRow, 1).getValues() : [];
+  const devData = devLastRow >= 1 ? shDev.getRange(1, DEV_COLS.ID, devLastRow, 1).getValues() : [];
 
-  claves.forEach(function(key) {
-    const grupo  = grupos[key];
-    const s      = grupo.sample;
+  claves.forEach(function (key) {
+    const grupo = grupos[key];
+    const s = grupo.sample;
     const nowDev = new Date();
-    const devId  = generateId('DEV', nowDev, devData);
+    const devId = generateId('DEV', nowDev, devData);
 
-    // 1. Crear registro en BD_DEVOLUCIONES
     const newRow = new Array(Object.keys(DEV_COLS).length).fill('');
-    newRow[DEV_COLS.ID          - 1] = devId;
-    newRow[DEV_COLS.FECHA       - 1] = nowDev;
-    newRow[DEV_COLS.SUCURSAL    - 1] = s.sucursal;
-    newRow[DEV_COLS.USUARIO     - 1] = 'SISTEMA AUTO';
-    newRow[DEV_COLS.EAN         - 1] = s.ean;
+    newRow[DEV_COLS.ID - 1] = devId;
+    newRow[DEV_COLS.FECHA - 1] = nowDev;
+    newRow[DEV_COLS.SUCURSAL - 1] = s.sucursal;
+    newRow[DEV_COLS.USUARIO - 1] = 'SISTEMA AUTO';
+    newRow[DEV_COLS.EAN - 1] = s.ean;
     newRow[DEV_COLS.COD_INTERNO - 1] = s.codInterno || '';
     newRow[DEV_COLS.DESCRIPCION - 1] = s.descripcion || '';
-    newRow[DEV_COLS.GRAMAJE     - 1] = s.gramaje || '';
-    newRow[DEV_COLS.UNID_BULTO  - 1] = '';
-    newRow[DEV_COLS.CANTIDAD    - 1] = s.cantidad || '';
-    newRow[DEV_COLS.FECHA_VENC  - 1] = s.fechaVenc ? new Date(s.fechaVenc) : '';
-    newRow[DEV_COLS.SECTOR      - 1] = s.sector || '';
-    newRow[DEV_COLS.SECCION     - 1] = s.seccion || '';
-    newRow[DEV_COLS.PROVEEDOR   - 1] = s.proveedor || '';
-    newRow[DEV_COLS.COD_PROV    - 1] = '';
-    newRow[DEV_COLS.MOTIVO      - 1] = 'VENCIDO';
-    newRow[DEV_COLS.LOTE        - 1] = s.lote || '';
-    newRow[DEV_COLS.ACLARACION  - 1] = 'Generado automáticamente por el sistema al detectarse vencimiento';
+    newRow[DEV_COLS.GRAMAJE - 1] = s.gramaje || '';
+    newRow[DEV_COLS.UNID_BULTO - 1] = '';
+    newRow[DEV_COLS.CANTIDAD - 1] = s.cantidad || '';
+    newRow[DEV_COLS.FECHA_VENC - 1] = s.fechaVenc ? new Date(s.fechaVenc) : '';
+    newRow[DEV_COLS.SECTOR - 1] = s.sector || '';
+    newRow[DEV_COLS.SECCION - 1] = s.seccion || '';
+    newRow[DEV_COLS.PROVEEDOR - 1] = s.proveedor || '';
+    newRow[DEV_COLS.COD_PROV - 1] = '';
+    newRow[DEV_COLS.MOTIVO - 1] = 'VENCIDO';
+    newRow[DEV_COLS.LOTE - 1] = s.lote || '';
+    newRow[DEV_COLS.ACLARACION - 1] = 'Generado automáticamente por el sistema al detectarse vencimiento';
     newRow[DEV_COLS.COMENTARIOS - 1] = 'Ref. VEN: ' + s.id + ' · Control original: ' + (s.usuario || '—');
-    newRow[DEV_COLS.ARCHIVO     - 1] = '';
-    newRow[DEV_COLS.ESTADO      - 1] = 'PENDIENTE';
-    newRow[DEV_COLS.OBS_NC      - 1] = '';
+    newRow[DEV_COLS.ARCHIVO - 1] = '';
+    newRow[DEV_COLS.ESTADO - 1] = 'PENDIENTE';
+    newRow[DEV_COLS.OBS_NC - 1] = '';
 
     shDev.appendRow(newRow);
-    // Agregar al array local para que generateId no repita
     devData.push([devId]);
 
-    // 2. Actualizar TODOS los registros vencimientos del grupo
-    grupo.rows.forEach(function(rowIdx) {
-      shVen.getRange(rowIdx, VEN_COLS.ESTADO_GEST).setValue('ACCION TOMADA');
-      shVen.getRange(rowIdx, VEN_COLS.ID_ACCION  ).setValue(devId);
-      shVen.getRange(rowIdx, VEN_COLS.URGENCIA   ).setValue('VENCIDO');
-      shVen.getRange(rowIdx, VEN_COLS.DIAS_VENC  ).setValue(
-        calcDiasHastaVencimiento(venData[rowIdx - 1][VEN_COLS.FECHA_VENC - 1])
-      );
+    grupo.rows.forEach(function (rowIdx) {
+      shVen.getRange(rowIdx, VEN_COLS.ESTADO_GEST).setValue('ACCIONADO TOTAL');
+      shVen.getRange(rowIdx, VEN_COLS.ID_ACCION).setValue(devId);
+      shVen.getRange(rowIdx, VEN_COLS.URGENCIA).setValue('VENCIDO');
+      shVen.getRange(rowIdx, VEN_COLS.DIAS_VENC).setValue(calcDiasHastaVencimiento(venData[rowIdx - 1][VEN_COLS.FECHA_VENC - 1]));
+    });
+
+    // Log del auto-vencimiento
+    logOperacion('AUTO_VENCIMIENTO_DIARIO', {
+      idVen: s.id,
+      devId,
+      descripcion: s.descripcion || '',
+      ean: String(s.ean || ''),
+      sucursal: s.sucursal || '',
+      lote: String(s.lote || ''),
+      cantAnterior: Number(s.cantidad) || 0,
+      cantNueva: 0,
+      usuario: 'SISTEMA AUTO',
+      notas: 'Vencimiento automático detectado · ' + grupo.rows.length + ' fila(s) actualizadas'
     });
 
     logAuto('AUTO-VENCIDO: ' + (s.descripcion || s.ean) + ' [' + s.sucursal + '] → ' + devId);
   });
 
-  // Forzar flush
   SpreadsheetApp.flush();
-  logAuto('checkAndAutoExpireProducts: finalizado OK. Grupos procesados: ' + claves.length);
+  logAuto('checkAndAutoExpireProducts: OK. Grupos: ' + claves.length);
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  VINCULACIÓN MANUAL (desde formulario de acción)
+//  VINCULACIÓN — con log
 // ══════════════════════════════════════════════════════════════════
 
-/**
- * Cuando alguien registra una acción (2x1, 50% off, etc.) desde el formulario
- * y quiere vincularla a un control de vencimientos existente.
- */
 function linkVencimientoToDevolucion(idVen, idDev, nuevoEstado) {
-  const ss    = SpreadsheetApp.openById(SS_VENCIMIENTOS);
+  const ss = SpreadsheetApp.openById(SS_VENCIMIENTOS);
   const sheet = ss.getSheetByName(SHEET_NAME);
-  const data  = sheet.getDataRange().getValues();
-
+  const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][VEN_COLS.ID - 1]).trim() === String(idVen).trim()) {
-      sheet.getRange(i + 1, VEN_COLS.ESTADO_GEST).setValue(nuevoEstado || 'ACCION TOMADA');
-      sheet.getRange(i + 1, VEN_COLS.ID_ACCION  ).setValue(idDev);
+      const estadoAnterior = String(data[i][VEN_COLS.ESTADO_GEST - 1] || '');
+      sheet.getRange(i + 1, VEN_COLS.ESTADO_GEST).setValue(nuevoEstado || 'ACCIONADO TOTAL');
+      sheet.getRange(i + 1, VEN_COLS.ID_ACCION).setValue(idDev);
+      logAuto('linkVencTodev: ' + idVen + ' → ' + idDev + ' · Estado: ' + estadoAnterior + ' → ' + (nuevoEstado || 'ACCIONADO TOTAL'));
       return { success: true };
     }
   }
@@ -538,53 +1408,25 @@ function linkVencimientoToDevolucion(idVen, idDev, nuevoEstado) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  SETUP DEL TRIGGER DIARIO
+//  SETUP TRIGGER DIARIO
 // ══════════════════════════════════════════════════════════════════
 
-/**
- * Ejecutá esta función UNA SOLA VEZ desde el editor de Apps Script
- * para instalar el trigger automático diario.
- *
- * Menú: Ejecutar → setupDailyTrigger
- */
 function setupDailyTrigger() {
-  // Borrar triggers anteriores para evitar duplicados
-  const triggers = ScriptApp.getProjectTriggers();
-  triggers.forEach(function(t) {
-    if (t.getHandlerFunction() === 'checkAndAutoExpireProducts') {
-      ScriptApp.deleteTrigger(t);
-    }
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'checkAndAutoExpireProducts') ScriptApp.deleteTrigger(t);
   });
-
-  // Crear trigger diario a las 06:00 (hora del script)
-  ScriptApp.newTrigger('checkAndAutoExpireProducts')
-    .timeBased()
-    .everyDays(1)
-    .atHour(6)
-    .create();
-
-  Logger.log('✅ Trigger diario instalado: checkAndAutoExpireProducts se ejecutará todos los días a las 06:00');
+  ScriptApp.newTrigger('checkAndAutoExpireProducts').timeBased().everyDays(1).atHour(6).create();
+  Logger.log('✅ Trigger diario instalado: checkAndAutoExpireProducts a las 06:00');
 }
 
-/**
- * Ejecutá esto para ELIMINAR el trigger si necesitás deshabilitarlo.
- */
 function removeDailyTrigger() {
-  const triggers = ScriptApp.getProjectTriggers();
   let removed = 0;
-  triggers.forEach(function(t) {
-    if (t.getHandlerFunction() === 'checkAndAutoExpireProducts') {
-      ScriptApp.deleteTrigger(t);
-      removed++;
-    }
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'checkAndAutoExpireProducts') { ScriptApp.deleteTrigger(t); removed++; }
   });
   Logger.log('Triggers eliminados: ' + removed);
 }
 
-/**
- * Ejecutá esto para probar el auto-vencimiento manualmente
- * sin esperar al trigger diario.
- */
 function testAutoExpire() {
   Logger.log('=== TEST AUTO-EXPIRE ===');
   checkAndAutoExpireProducts();
@@ -592,44 +1434,38 @@ function testAutoExpire() {
 }
 
 // ══════════════════════════════════════════════════════════════════
-//  HELPERS
+//  HELPERS GENERALES
 // ══════════════════════════════════════════════════════════════════
 
 function calcDiasHastaVencimiento(fechaVenc) {
   if (!fechaVenc) return null;
   try {
-    const fv   = new Date(fechaVenc);
-    const hoy  = new Date();
+    const fv = new Date(fechaVenc);
+    const hoy = new Date();
     fv.setHours(0, 0, 0, 0);
     hoy.setHours(0, 0, 0, 0);
     return Math.round((fv - hoy) / 86400000);
-  } catch (e) {
-    return null;
-  }
+  } catch (e) { return null; }
 }
 
 function getUrgencia(dias) {
   if (dias === null || dias === undefined) return 'NORMAL';
-  if (dias <= 0)  return 'VENCIDO';
-  if (dias <= 6)  return 'CRITICO';
+  if (dias <= 0) return 'VENCIDO';
+  if (dias <= 6) return 'CRITICO';
   if (dias <= 14) return 'URGENTE';
   if (dias <= 21) return 'PROXIMO';
   if (dias <= 45) return 'ATENCION';
   return 'NORMAL';
 }
 
-/**
- * Genera un ID único estilo DEV-YYYYMMDD-NNNNN / VEN-YYYYMMDD-NNNNN
- * Recibe un array opcional de IDs existentes para evitar colisiones.
- */
 function generateId(prefix, date, existingIdsMatrix) {
-  const tz     = Session.getScriptTimeZone();
-  const fecha  = Utilities.formatDate(date || new Date(), tz, 'yyyyMMdd');
-  const base   = prefix + '-' + fecha + '-';
-
+  const tz = Session.getScriptTimeZone();
+  const fecha = Utilities.formatDate(date || new Date(), tz, 'yyyyMMdd');
+  const base = prefix + '-' + fecha + '-';
   let max = 0;
+
   if (existingIdsMatrix) {
-    existingIdsMatrix.forEach(function(row) {
+    existingIdsMatrix.forEach(function (row) {
       const id = String(row[0] || '');
       if (id.startsWith(base)) {
         const num = parseInt(id.replace(base, ''), 10);
@@ -637,16 +1473,14 @@ function generateId(prefix, date, existingIdsMatrix) {
       }
     });
   } else {
-    // Buscar en la hoja correspondiente
     try {
-      const ss    = prefix === 'DEV'
+      const ss = prefix === 'DEV'
         ? SpreadsheetApp.openById(SS_DEVOLUCIONES)
         : SpreadsheetApp.openById(SS_VENCIMIENTOS);
       const sheet = ss.getSheetByName(SHEET_NAME);
       const lastR = sheet.getLastRow();
       if (lastR > 1) {
-        const ids = sheet.getRange(1, 1, lastR, 1).getValues();
-        ids.forEach(function(row) {
+        sheet.getRange(1, 1, lastR, 1).getValues().forEach(function (row) {
           const id = String(row[0] || '');
           if (id.startsWith(base)) {
             const num = parseInt(id.replace(base, ''), 10);
@@ -656,1695 +1490,288 @@ function generateId(prefix, date, existingIdsMatrix) {
       }
     } catch (e) { /* ignorar */ }
   }
-
   return base + String(max + 1).padStart(5, '0');
 }
 
-/**
- * Logger centralizado para los procesos automáticos.
- * Escribe en la hoja "LOG_AUTO" de la spreadsheet de vencimientos (la crea si no existe).
- */
+// ══════════════════════════════════════════════════════════════════
+//  TRANSFERIR ACCIÓN ENTRE SUCURSALES  ·  v2  (usa CANT_DISPONIBLE)
+//
+//  REGLAS:
+//    — CANTIDAD  nunca se toca (integridad N/C)
+//    — Solo baja/sube CANT_DISPONIBLE
+//    — Registro hijo: CANTIDAD = cantAMover, CANT_DISPONIBLE = cantAMover
+//    — ID_ORIGEN y SUC_ORIGEN se setean en el hijo
+//    — Suma a registro existente en destino si cumple EAN+fechaVenc+suc
+// ══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+//  TRANSFERIR ACCIÓN ENTRE SUCURSALES  ·  v3
+//
+//  REGLAS:
+//    — CANTIDAD  nunca se toca (integridad N/C)
+//    — Solo baja/sube CANT_DISPONIBLE
+//    — Registro hijo: CANTIDAD = cantAMover, CANT_DISPONIBLE = cantAMover
+//    — ID_ORIGEN y SUC_ORIGEN se setean en el hijo
+//    — Al buscar destino existente: EAN + fechaVenc + sucursal + MOTIVO
+//      → evita pisar acciones de distinto tipo (2x1 vs 50% off, etc.)
+// ══════════════════════════════════════════════════════════════════
+function transferirAccion(body) {
+  const idOrigen = String(body.idOrigen || '').trim();
+  const sucDest = String(body.sucursalDestino || '').trim().toUpperCase();
+  const cantAMover = Number(body.cantidad);
+
+  if (!idOrigen || !sucDest || !cantAMover || cantAMover <= 0) {
+    return { success: false, message: 'Parámetros incompletos' };
+  }
+
+  try {
+    const ss = SpreadsheetApp.openById(SS_DEVOLUCIONES);
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const data = sheet.getDataRange().getValues();
+
+    // ── 1. Buscar origen ─────────────────────────────────────────
+    let filaOrigen = -1;
+    let datosOrigen = null;
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][DEV_COLS.ID - 1]).trim() === idOrigen) {
+        filaOrigen = i + 1;
+        datosOrigen = data[i];
+        break;
+      }
+    }
+    if (filaOrigen === -1) return { success: false, message: 'Registro origen no encontrado' };
+
+    // ── CANT_DISPONIBLE como fuente de verdad ─────────────────────
+    const cdRaw = datosOrigen[DEV_COLS.CANT_DISPONIBLE - 1];
+    const cantDispOrigen = (cdRaw !== undefined && cdRaw !== '' && cdRaw !== null)
+      ? (Number(cdRaw) || 0)
+      : (Number(datosOrigen[DEV_COLS.CANTIDAD - 1]) || 0);
+
+    if (cantAMover > cantDispOrigen) {
+      return { success: false, message: `No podés transferir más de ${cantDispOrigen} u.` };
+    }
+
+    const sucOrigen = String(datosOrigen[DEV_COLS.SUCURSAL - 1] || '').toUpperCase();
+    const descripcion = datosOrigen[DEV_COLS.DESCRIPCION - 1] || '';
+    const ean = String(datosOrigen[DEV_COLS.EAN - 1] || '');
+    const lote = String(datosOrigen[DEV_COLS.LOTE - 1] || '');
+    const motivo = String(datosOrigen[DEV_COLS.MOTIVO - 1] || '').trim().toUpperCase();
+    const rawFv = datosOrigen[DEV_COLS.FECHA_VENC - 1];
+    const fechaVencStr = rawFv ? dateToStr(new Date(rawFv)) : '';
+
+    if (sucOrigen === sucDest) {
+      return { success: false, message: 'La sucursal destino es igual a la de origen' };
+    }
+
+    // ── 2. Restar CANT_DISPONIBLE del origen (CANTIDAD no se toca) ─
+    const cantDispNuevaOrigen = cantDispOrigen - cantAMover;
+    sheet.getRange(filaOrigen, DEV_COLS.CANT_DISPONIBLE).setValue(cantDispNuevaOrigen);
+
+    logOperacion('ACC_TRANSFER_SALIDA', {
+      devId: idOrigen, descripcion, ean, sucursal: sucOrigen, lote,
+      cantAnterior: cantDispOrigen, cantNueva: cantDispNuevaOrigen,
+      destino: sucDest,
+      notas: 'Transferencia de ' + cantAMover + ' u. → ' + sucDest + ' · Motivo: ' + motivo
+    });
+
+    // ── 3. Buscar registro en destino que coincida en
+    //       EAN + fechaVenc + sucursal + MOTIVO
+    //       (NO mezclar distintos tipos de acción) ────────────────
+    const estadosActivos = ['PENDIENTE', 'EN GESTION'];
+    let filaDestino = -1;
+    let cantDispDestActual = 0;
+    let idDestino = '';
+
+    for (let j = 1; j < data.length; j++) {
+      const rowEan = String(data[j][DEV_COLS.EAN - 1] || '').trim();
+      const rowSuc = String(data[j][DEV_COLS.SUCURSAL - 1] || '').trim().toUpperCase();
+      const rawFvRow = data[j][DEV_COLS.FECHA_VENC - 1];
+      const rowFv = rawFvRow ? dateToStr(new Date(rawFvRow)) : '';
+      const rowEstado = String(data[j][DEV_COLS.ESTADO - 1] || '').toUpperCase().trim();
+      const rowMotivo = String(data[j][DEV_COLS.MOTIVO - 1] || '').trim().toUpperCase();
+
+      const cdDest = data[j][DEV_COLS.CANT_DISPONIBLE - 1];
+      const rowCantDisp = (cdDest !== undefined && cdDest !== '' && cdDest !== null)
+        ? (Number(cdDest) || 0)
+        : (Number(data[j][DEV_COLS.CANTIDAD - 1]) || 0);
+
+      if (
+        rowEan === ean &&
+        rowFv === fechaVencStr &&
+        rowSuc === sucDest &&
+        rowMotivo === motivo &&   // ← clave: mismo tipo de acción
+        estadosActivos.includes(rowEstado) &&
+        rowCantDisp > 0
+      ) {
+        filaDestino = j + 1;
+        cantDispDestActual = rowCantDisp;
+        idDestino = String(data[j][DEV_COLS.ID - 1]);
+        break;
+      }
+    }
+
+    if (filaDestino !== -1) {
+      // ── 4a. Sumar a registro existente del MISMO motivo ──────────
+      const cantDispNuevaDest = cantDispDestActual + cantAMover;
+      sheet.getRange(filaDestino, DEV_COLS.CANT_DISPONIBLE).setValue(cantDispNuevaDest);
+
+      logOperacion('ACC_TRANSFER_ENTRADA_EXISTENTE', {
+        devId: idDestino, descripcion, ean, sucursal: sucDest, lote,
+        cantAnterior: cantDispDestActual, cantNueva: cantDispNuevaDest,
+        notas: 'Recepción desde ' + sucOrigen + ' · +' + cantAMover + ' · Motivo: ' + motivo
+      });
+
+      SpreadsheetApp.flush();
+      return {
+        success: true, tipo: 'existente',
+        message: cantAMover + ' u. (' + motivo + ') sumadas al registro existente en ' + sucDest
+      };
+
+    } else {
+      // ── 4b. Crear nuevo registro hijo (distinto motivo o nueva suc) ─
+      const now = new Date();
+      const newId = generateId('DEV', now);
+      const cols = Object.keys(DEV_COLS).length;
+      const newRow = new Array(cols).fill('');
+
+      for (let c = 0; c < datosOrigen.length && c < cols; c++) newRow[c] = datosOrigen[c];
+
+      newRow[DEV_COLS.ID - 1] = newId;
+      newRow[DEV_COLS.FECHA - 1] = now;
+      newRow[DEV_COLS.SUCURSAL - 1] = sucDest;
+      newRow[DEV_COLS.CANTIDAD - 1] = cantAMover;
+      newRow[DEV_COLS.CANT_DISPONIBLE - 1] = cantAMover;
+      newRow[DEV_COLS.ESTADO - 1] = datosOrigen[DEV_COLS.ESTADO - 1] || 'PENDIENTE';
+      newRow[DEV_COLS.OBS_NC - 1] = '';
+      newRow[DEV_COLS.ARCHIVO - 1] = '';
+      newRow[DEV_COLS.ACLARACION - 1] = 'Transferido desde ' + sucOrigen + ' · Ref: ' + idOrigen + ' · Motivo: ' + motivo;
+      newRow[DEV_COLS.COMENTARIOS - 1] = 'Creado por transferencia desde ' + sucOrigen + ' · Ref: ' + idOrigen;
+      newRow[DEV_COLS.ID_ORIGEN - 1] = idOrigen;
+      newRow[DEV_COLS.SUC_ORIGEN - 1] = sucOrigen;
+      // MOTIVO se hereda del origen via la copia de datosOrigen
+
+      sheet.appendRow(newRow);
+
+      logOperacion('ACC_TRANSFER_NUEVO_REGISTRO', {
+        devId: newId, descripcion, ean, sucursal: sucDest, lote,
+        cantAnterior: 0, cantNueva: cantAMover,
+        notas: 'Nuevo registro en ' + sucDest + ' · Motivo: ' + motivo + ' · Ref: ' + idOrigen
+      });
+
+      SpreadsheetApp.flush();
+      return {
+        success: true, tipo: 'nuevo', newId,
+        message: 'Nuevo registro (' + motivo + ') en ' + sucDest + ' con ' + cantAMover + ' u.'
+      };
+    }
+
+  } catch (err) {
+    logAuto('transferirAccion ERROR: ' + err.message);
+    return { success: false, message: 'Error: ' + err.message };
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  MARCAR ACCIÓN COMO VENDIDO
+//  — Cambia estado a VENDIDO
+//  — Pone CANT_DISPONIBLE en 0 (oculta del dashboard activo)
+//  — CANTIDAD no se toca (integridad N/C)
+// ══════════════════════════════════════════════════════════════════
+function marcarVendidoAccion(body) {
+  const id = String(body.id || '').trim();
+  if (!id) return { success: false, message: 'ID requerido' };
+
+  // cantidadVendida: lo que el usuario ingresó en el modal (puede ser 0)
+  const cantVendidaParam = (body.cantidadVendida !== undefined && body.cantidadVendida !== null)
+    ? Number(body.cantidadVendida)
+    : null;
+
+  try {
+    const ss = SpreadsheetApp.openById(SS_DEVOLUCIONES);
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const data = sheet.getDataRange().getValues();
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][DEV_COLS.ID - 1]).trim() !== id) continue;
+
+      const estadoAnterior = String(data[i][DEV_COLS.ESTADO - 1] || '');
+      const descripcion = data[i][DEV_COLS.DESCRIPCION - 1] || '';
+      const ean = String(data[i][DEV_COLS.EAN - 1] || '');
+      const sucursal = data[i][DEV_COLS.SUCURSAL - 1] || '';
+      const motivo = String(data[i][DEV_COLS.MOTIVO - 1] || '');
+
+      // ── BASE DE CÁLCULO: CANT_DISPONIBLE, no CANTIDAD ──────────
+      // CANTIDAD = total registrado originalmente en esa acción
+      // CANT_DISPONIBLE = lo que quedó en esta sucursal DESPUÉS de transferencias
+      // → el usuario solo puede vender lo que tiene disponible en su sucursal
+      const cdRaw = data[i][DEV_COLS.CANT_DISPONIBLE - 1];
+      const cantBase = (cdRaw !== undefined && cdRaw !== '' && cdRaw !== null)
+        ? (Number(cdRaw) || 0)
+        : (Number(data[i][DEV_COLS.CANTIDAD - 1]) || 0);
+
+      // Si no se pasó cantidadVendida → asumir todo vendido (retrocompatibilidad)
+      const cantVendida = cantVendidaParam !== null
+        ? Math.max(0, Math.min(cantVendidaParam, cantBase))
+        : cantBase;
+      const cantVencidaGondola = Math.max(0, cantBase - cantVendida);
+
+      // Auto-crear headers si no existen
+      const headerRow = data[0];
+      if (!String(headerRow[DEV_COLS.CANT_VENDIDA - 1] || '').trim()) {
+        sheet.getRange(1, DEV_COLS.CANT_VENDIDA).setValue('CANT_VENDIDA');
+      }
+      if (!String(headerRow[DEV_COLS.CANT_VENCIDA_GONDOLA - 1] || '').trim()) {
+        sheet.getRange(1, DEV_COLS.CANT_VENCIDA_GONDOLA).setValue('CANT_VENCIDA_GONDOLA');
+      }
+
+      sheet.getRange(i + 1, DEV_COLS.ESTADO).setValue('VENDIDO');
+      sheet.getRange(i + 1, DEV_COLS.CANT_DISPONIBLE).setValue(0);
+      sheet.getRange(i + 1, DEV_COLS.CANT_VENDIDA).setValue(cantVendida);
+      sheet.getRange(i + 1, DEV_COLS.CANT_VENCIDA_GONDOLA).setValue(cantVencidaGondola);
+
+      logOperacion('ACC_MARCADO_VENDIDO', {
+        devId: id,
+        descripcion,
+        ean,
+        sucursal,
+        cantAnterior: cantBase,
+        cantNueva: cantVendida,
+        notas: [
+          'Estado anterior: ' + estadoAnterior + ' → VENDIDO',
+          'Motivo: ' + motivo,
+          'Base (cant. disp. en sucursal): ' + cantBase,
+          'Vendidas: ' + cantVendida,
+          'Vencidas en gondola: ' + cantVencidaGondola
+        ].join(' | ')
+      });
+
+      SpreadsheetApp.flush();
+      return {
+        success: true,
+        id,
+        estadoAnterior,
+        cantVendida,
+        cantVencidaGondola,
+        cantBase   // cantidad base usada (lo disponible en la sucursal)
+      };
+    }
+
+    return { success: false, message: 'Registro no encontrado: ' + id };
+  } catch (err) {
+    logAuto('marcarVendidoAccion ERROR: ' + err.message);
+    return { success: false, message: 'Error: ' + err.message };
+  }
+}
+
 function logAuto(mensaje) {
   Logger.log(mensaje);
   try {
-    const ss    = SpreadsheetApp.openById(SS_VENCIMIENTOS);
-    let sheet   = ss.getSheetByName('LOG_AUTO');
+    const ss = SpreadsheetApp.openById(SS_VENCIMIENTOS);
+    let sheet = ss.getSheetByName('LOG_AUTO');
     if (!sheet) {
       sheet = ss.insertSheet('LOG_AUTO');
       sheet.appendRow(['TIMESTAMP', 'MENSAJE']);
       sheet.getRange(1, 1, 1, 2).setFontWeight('bold');
     }
     sheet.appendRow([new Date(), mensaje]);
-  } catch (e) {
-    Logger.log('logAuto error: ' + e.message);
-  }
+  } catch (e) { Logger.log('logAuto error: ' + e.message); }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#0d0d0d" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <title>FORMULARIO DE ACCIONES Y VENCIDOS</title>
-    <link
-        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
-        rel="stylesheet" />
-    <link rel="stylesheet" href="../css/tcd-devoluciones.css" />
-    <link rel="icon" type="image/x-icon" href="../favicon.ico">
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
-
-    <!-- ══ ESTILOS: overlay de envío ══ -->
-    <style>
-        #sendingOverlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            z-index: 9999;
-            background: rgba(0, 0, 0, 0.65);
-            backdrop-filter: blur(3px);
-            -webkit-backdrop-filter: blur(3px);
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        #sendingOverlay.active {
-            display: flex;
-        }
-
-        .sending-spinner {
-            width: 48px;
-            height: 48px;
-            border: 4px solid rgba(255, 255, 255, 0.15);
-            border-top-color: #fff;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        .sending-label {
-            color: #fff;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 15px;
-            font-weight: 600;
-            letter-spacing: 0.02em;
-        }
-    </style>
-</head>
-
-<body>
-
-    <!-- ══════════ OVERLAY DE ENVÍO ══════════ -->
-    <div id="sendingOverlay" role="status" aria-live="assertive" aria-label="Enviando formulario...">
-        <div class="sending-spinner"></div>
-        <span class="sending-label">Enviando… por favor esperá</span>
-    </div>
-
-    <!-- ══════════ TOP BAR ══════════ -->
-    <header class="topbar">
-        <div class="topbar-brand">
-            <div class="topbar-icon">📦</div>
-            <div>
-                <div class="topbar-title">Formulario de acciones y vencidos</div>
-                <div class="topbar-sub">SISTEMA INTERNO</div>
-            </div>
-        </div>
-        <div class="counter-badge" id="counterBadge">0 enviados</div>
-    </header>
-
-    <!-- ══════════ BARCODE SCANNER MODAL ══════════ -->
-    <div class="s-overlay" id="scanOverlay" role="dialog" aria-modal="true" aria-label="Escáner de código de barras">
-        <div class="s-modal">
-            <div class="s-head">
-                <div class="s-head-left">
-                    <div class="s-dot"></div>
-                    <span class="s-title">Escaneá el código de barras</span>
-                </div>
-                <button class="s-close" id="btnCloseScanner" aria-label="Cerrar">✕</button>
-            </div>
-            <div class="s-viewport">
-                <div id="reader"></div>
-                <div class="s-frame">
-                    <div class="s-box">
-                        <em></em>
-                        <div class="s-laser"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="cam-err" id="camErr">
-                <div class="cam-err-icon">📷</div>
-                <p>No se pudo acceder a la cámara.</p>
-                <p>Verificá los permisos del navegador o buscá el producto manualmente.</p>
-            </div>
-            <p class="s-hint" id="sHint">Apuntá la cámara al código de barras del producto</p>
-            <button class="s-manual-btn" id="btnManualEntry">↩ &nbsp;Cerrar escáner</button>
-        </div>
-    </div>
-
-    <!-- ══════════ SEARCH MODAL ══════════ -->
-    <div class="s-overlay s-overlay--dialog" id="searchOverlay" role="dialog" aria-modal="true"
-        aria-label="Buscar producto">
-        <div class="s-modal search-modal">
-
-            <div class="s-head">
-                <div class="s-head-left">
-                    <div class="s-dot s-dot--search"></div>
-                    <span class="s-title">Buscar producto</span>
-                </div>
-                <button class="s-close" id="btnCloseSearch" aria-label="Cerrar">✕</button>
-            </div>
-
-            <div class="search-modal-body">
-
-                <div class="search-input-wrap">
-                    <svg class="search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="11" cy="11" r="8" />
-                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                    <input type="text" id="searchInput" class="search-input" placeholder="Descripción, proveedor, EAN…"
-                        autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search" />
-                    <button class="search-clear-btn" id="btnClearSearch" aria-label="Limpiar"
-                        style="display:none">✕</button>
-                </div>
-
-                <div class="search-filters">
-                    <button class="sf-chip sf-chip--active" data-field="all">Todo</button>
-                    <button class="sf-chip" data-field="DESCRIPCION">Descripción</button>
-                    <button class="sf-chip" data-field="PROVEEDOR">Proveedor</button>
-                    <button class="sf-chip" data-field="EAN">EAN / Código</button>
-                    <button class="sf-chip" data-field="SECTOR">Sector</button>
-                    <button class="sf-chip" data-field="SECCION">Sección</button>
-                </div>
-
-                <div class="search-results-wrap">
-                    <div class="search-state" id="searchStateEmpty">
-                        <div class="search-state-icon">🔍</div>
-                        <p>Escribí al menos 2 caracteres para buscar.</p>
-                    </div>
-                    <div class="search-state" id="searchStateNone" style="display:none">
-                        <div class="search-state-icon">😶</div>
-                        <p>Sin resultados para <strong id="searchTermDisplay"></strong>.</p>
-                    </div>
-                    <ul class="search-results" id="searchResults" style="display:none" role="listbox"></ul>
-                </div>
-
-                <div class="search-footer">
-                    <span class="search-count" id="searchCount"></span>
-                </div>
-
-            </div>
-        </div>
-    </div>
-
-    <!-- ══════════ MAIN FORM ══════════ -->
-    <main class="page">
-
-        <!-- ─── SECCIÓN 01: CONTACTO ─── -->
-        <div class="sec">
-            <span class="sec-num">01</span>
-            <span class="sec-label">Contacto</span>
-            <span class="sec-line"></span>
-        </div>
-        <div class="card">
-            <div class="field">
-                <label for="fEmail">Correo electrónico o Nombre y Apellido <span class="req">*</span></label>
-                <input type="text" id="fEmail" placeholder="correo@empresa.com o Juan Pérez" autocomplete="name" />
-                <div class="ferr" id="eEmail">Ingresá tu correo o nombre completo.</div>
-            </div>
-        </div>
-
-        <!-- ─── SECCIÓN 02: PRODUCTO ─── -->
-        <div class="sec">
-            <span class="sec-num">02</span>
-            <span class="sec-label">Datos del producto</span>
-            <span class="sec-line"></span>
-        </div>
-        <div class="card">
-
-            <input type="hidden" id="fBarcode" />
-            <input type="hidden" id="fDesc" />
-
-            <div class="field">
-                <label>Buscar producto <span class="req">*</span></label>
-
-                <div class="mode-switcher">
-                    <button class="mode-tab mode-tab--active" id="modeTabCam">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-                            stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-                            <path
-                                d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
-                        </svg>
-                        Cámara / Búsqueda
-                    </button>
-                    <button class="mode-tab" id="modeTabExt">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-                            stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-                            <rect x="2" y="7" width="20" height="10" rx="2" />
-                            <line x1="6" y1="11" x2="6" y2="13" />
-                            <line x1="10" y1="11" x2="10" y2="13" />
-                            <line x1="14" y1="11" x2="14" y2="13" />
-                            <line x1="18" y1="10" x2="18" y2="14" />
-                        </svg>
-                        Lector Externo
-                    </button>
-                </div>
-
-                <div id="panelCam">
-                    <div class="action-btns">
-                        <button class="action-btn action-btn--scan" id="btnOpenScanner" type="button">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <path
-                                    d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
-                                <line x1="7" y1="8" x2="7" y2="16" />
-                                <line x1="10" y1="8" x2="10" y2="16" />
-                                <line x1="13" y1="8" x2="13" y2="16" />
-                                <line x1="16.5" y1="8" x2="16.5" y2="16" />
-                            </svg>
-                            <span>Escanear código</span>
-                        </button>
-                        <button class="action-btn action-btn--search" id="btnOpenSearch" type="button">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="11" cy="11" r="8" />
-                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                            </svg>
-                            <span>Buscar manualmente</span>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="ext-panel" id="panelExt" style="display:none">
-                    <div class="ext-status ext-status--ready" id="extStatus">
-                        <div class="ext-status-dot"></div>
-                        <span id="extStatusText">Listo — esperando lectura</span>
-                    </div>
-                    <div class="ext-input-wrap">
-                        <svg class="ext-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="2" y="7" width="20" height="10" rx="2" />
-                            <line x1="6" y1="11" x2="6" y2="13" />
-                            <line x1="10" y1="11" x2="10" y2="13" />
-                            <line x1="14" y1="11" x2="14" y2="13" />
-                            <line x1="18" y1="10" x2="18" y2="14" />
-                        </svg>
-                        <input type="text" id="extInput" class="ext-input" placeholder="Apuntá el lector acá..."
-                            autocomplete="off" autocorrect="off" spellcheck="false" inputmode="none" />
-                        <button class="ext-clear-btn" id="btnExtClear" aria-label="Limpiar"
-                            style="display:none">✕</button>
-                    </div>
-                    <p class="ext-hint">El lector escribe el código y presiona Enter automáticamente.<br>
-                        También podés ingresar el código manualmente y presionar <kbd>Enter</kbd>.</p>
-                </div>
-
-                <div class="scanned-ok" id="scannedOk">Código escaneado / encontrado correctamente</div>
-                <div class="ferr" id="eBarcode">Escaneá o buscá un producto antes de continuar.</div>
-            </div>
-
-            <!-- ── TARJETA DE PRODUCTO ── -->
-            <div class="product-card" id="productCard">
-                <div class="pc-header">
-                    <div class="pc-header-dot"></div>
-                    <span id="pcState">Buscando producto...</span>
-                </div>
-                <div class="pc-loading">
-                    <div class="pc-spinner"></div>
-                    <span>Consultando base de datos...</span>
-                </div>
-                <div class="pc-body">
-                    <div class="pc-grid">
-                        <div class="pc-field pc-field--full">
-                            <div class="pc-field-label">Descripción</div>
-                            <div class="pc-field-value" id="pcDescripcion">—</div>
-                        </div>
-                        <div class="pc-field pc-field--full">
-                            <div class="pc-field-label">Proveedor</div>
-                            <div class="pc-field-value" id="pcProveedor">—</div>
-                        </div>
-                        <div class="pc-field">
-                            <div class="pc-field-label">Gramaje</div>
-                            <div class="pc-field-value" id="pcGramaje">—</div>
-                        </div>
-                        <div class="pc-field">
-                            <div class="pc-field-label">Unidades x bulto</div>
-                            <div class="pc-field-value" id="pcUxb">—</div>
-                        </div>
-                        <div class="pc-field">
-                            <div class="pc-field-label">Sector / Sección</div>
-                            <div class="pc-field-value" id="pcSector">—</div>
-                        </div>
-                        <div class="pc-field">
-                            <div class="pc-field-label">EAN / Código</div>
-                            <div class="pc-field-value pc-field-value--mono" id="pcEan">—</div>
-                        </div>
-                        <div class="pc-field">
-                            <div class="pc-field-label">PVP</div>
-                            <div class="pc-field-value" id="pcPvp">—</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="pc-notfound">
-                    <span>⚠️</span>
-                    <span>Producto no encontrado en la base de datos.</span>
-                </div>
-            </div>
-
-            <div class="field-row">
-                <div class="field">
-                    <label for="fQty" id="fQtyLabel">Cantidad <span class="req">*</span>
-                        <span class="label-hint" id="fQtyHint">(enteros)</span>
-                    </label>
-                    <input type="number" id="fQty" placeholder="0" min="1" step="1" inputmode="numeric" />
-                    <div class="qty-pesable-hint" id="qtyPesableHint" style="display:none"></div>
-                    <div class="ferr" id="eQty">Número ≥ 1</div>
-                </div>
-                <div class="field">
-                    <label for="fExp">Vencimiento <span class="req">*</span></label>
-                    <input type="date" id="fExp" />
-                    <div class="ferr" id="eExp">Seleccioná la fecha.</div>
-                </div>
-            </div>
-
-        </div>
-
-        <!-- ─── SECCIÓN 03: UBICACIÓN ─── -->
-        <div class="sec">
-            <span class="sec-num">03</span>
-            <span class="sec-label">Ubicación y motivo</span>
-            <span class="sec-line"></span>
-        </div>
-        <div class="card">
-            <div class="field">
-                <label for="fBranch">Sucursal <span class="req">*</span></label>
-                <select id="fBranch">
-                    <option value="">Elegir...</option>
-                    <option value="HIPER">Hiper</option>
-                    <option value="CENTRO">Centro</option>
-                    <option value="RIBERA">Ribera</option>
-                    <option value="MAYORISTA">Mayorista</option>
-                </select>
-                <div class="ferr" id="eBranch">Seleccioná una sucursal.</div>
-            </div>
-
-            <div class="field">
-                <label for="fEvent">Tipo de registro <span class="req">*</span></label>
-                <select id="fEvent">
-                    <option value="">Elegir...</option>
-
-                    <!-- ══ CONTROL DE VENCIMIENTO — DESHABILITADO ══ -->
-                    <optgroup label="── Control de vencimiento ──" style="color: aqua;">
-                        <option value="CONTROL DE VENCIMIENTO">
-                            Control de vencimiento
-                        </option>
-                    </optgroup>
-
-                    <!-- ══ ACCIONES / DEVOLUCIONES ══ -->
-                    <optgroup label="── Acciones sobre producto ──" style="color:chartreuse;">
-                        <option value="ACCION 2X1">Acción 2x1</option>
-                        <option value="VENCIDO ACCION 2x1">Vencido de acción 2x1</option>
-                        <option value="ACCION 50% OFF">Acción 50% OFF</option>
-                        <option value="VENCIDO ACCION 50% OFF">Vencido acción 50% OFF</option>
-                        <option value="OTRO DESCUENTO">Otro descuento</option>
-                        <option value="VENCIDO">Vencimiento sin acción</option>
-                    </optgroup>
-                    <optgroup label="── Merma / Decomiso ──">
-                        <option value="ROTO/DAÑADO">Roto / Dañado</option>
-                        <option value="MAL ESTADO">Mal estado / No apto para consumo</option>
-                        <option value="DECOMISO FRUTA Y VERDURA">Decomiso fruta y verdura</option>
-                        <option value="DECOMISO CARNICERIA">Decomiso carnicería</option>
-                        <option value="DECOMISO FIAMBRERIA">Decomiso fiambería</option>
-                        <option value="OTRO">Otro (realizar aclaración)</option>
-                    </optgroup>
-                </select>
-
-                <div class="discount-wrap" id="discountWrap" style="display:none">
-                    <div class="discount-inner">
-                        <input type="number" id="fDiscount" placeholder="0" min="1" max="99" step="1"
-                            inputmode="numeric" />
-                        <span class="discount-pct-label">%</span>
-                    </div>
-                    <div class="ferr" id="eDiscount">Ingresá un porcentaje entre 1 y 99.</div>
-                </div>
-
-                <div class="bd-badge" id="bdBadge" style="display:none"></div>
-                <div class="ferr" id="eEvent">Seleccioná un tipo de registro.</div>
-            </div>
-        </div>
-
-        <!-- ─── SECCIÓN 04: FOTO ─── -->
-        <div class="sec">
-            <span class="sec-num">04</span>
-            <span class="sec-label">Foto del producto</span>
-            <span class="sec-line"></span>
-        </div>
-        <div class="card">
-            <div class="field">
-                <label>Adjuntar foto <span class="label-hint">(opcional, máx. 5 MB)</span></label>
-                <input type="file" id="fPhoto" accept="image/*" capture="environment" style="display:none" />
-                <div class="photo-zone" id="photoZone">
-                    <div class="photo-placeholder" id="photoPlaceholder">
-                        <div class="photo-icon">📸</div>
-                        <p class="photo-label">Tocá para sacar o elegir una foto</p>
-                        <p class="photo-sub">JPG, PNG, WEBP — máx. 5 MB</p>
-                        <div class="photo-btns">
-                            <button class="photo-btn-cam" id="btnCamera" type="button">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                    stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-                                    <path
-                                        d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                                    <circle cx="12" cy="13" r="4" />
-                                </svg>
-                                Cámara
-                            </button>
-                            <button class="photo-btn-gal" id="btnGallery" type="button">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                    stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-                                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                                    <circle cx="8.5" cy="8.5" r="1.5" />
-                                    <polyline points="21 15 16 10 5 21" />
-                                </svg>
-                                Galería
-                            </button>
-                        </div>
-                    </div>
-                    <div class="photo-preview" id="photoPreview">
-                        <img id="photoImg" src="" alt="Preview" />
-                        <div class="photo-preview-actions">
-                            <span class="photo-name" id="photoName"></span>
-                            <button class="photo-remove" id="btnRemovePhoto" type="button"
-                                aria-label="Quitar foto">✕</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="ferr" id="ePhoto">El archivo es demasiado grande (máx. 5 MB).</div>
-            </div>
-        </div>
-
-        <!-- ─── SECCIÓN 05: ADICIONAL ─── -->
-        <div class="sec">
-            <span class="sec-num">05</span>
-            <span class="sec-label">Información adicional</span>
-            <span class="sec-line"></span>
-        </div>
-        <div class="card">
-            <div class="field">
-                <label for="fNote">Aclaraciones / situación</label>
-                <textarea id="fNote" placeholder="Describí detalles adicionales si los hay..."></textarea>
-            </div>
-            <div class="field">
-                <label for="fLot">Lote del producto en mal estado</label>
-                <textarea id="fLot" placeholder="Número de lote o descripción del estado..."></textarea>
-            </div>
-            <div class="field">
-                <label for="fComment">Ideas para mejorar — dejá tu comentario y nombre</label>
-                <textarea id="fComment" placeholder="Tu sugerencia y nombre..."></textarea>
-            </div>
-        </div>
-
-        <!-- ─── SUBMIT ─── -->
-        <div class="submit-wrap">
-            <button class="btn-submit" id="btnSubmit" type="button">
-                <span id="btnText">Enviar formulario</span>
-            </button>
-            <button class="btn-clear" id="btnClear" type="button">Borrar formulario</button>
-        </div>
-
-    </main>
-
-    <!-- ══════════ TOAST ══════════ -->
-    <div class="toast" id="toast" role="status" aria-live="polite">
-        <div class="toast-dot" id="toastDot"></div>
-        <span id="toastMsg"></span>
-    </div>
-
-    <script src="../js/tcd-devoluciones.js" defer></script>
-
-    <!-- ══════════ OVERLAY DE ENVÍO — lógica ══════════
-         Expone window.showSendingOverlay() y window.hideSendingOverlay()
-         para que tcd-devoluciones.js los llame antes/después del fetch.
-         Si el JS externo ya llama a esos helpers, este bloque no interfiere.
-    ══════════ -->
-    <script>
-        (function () {
-            var overlay = document.getElementById('sendingOverlay');
-
-            window.showSendingOverlay = function () {
-                overlay.classList.add('active');
-                // Bloquea todo el documento menos el overlay
-                document.body.style.pointerEvents = 'none';
-                overlay.style.pointerEvents = 'auto';
-            };
-
-            window.hideSendingOverlay = function () {
-                overlay.classList.remove('active');
-                document.body.style.pointerEvents = '';
-            };
-
-            // Seguridad: si el JS externo nunca llama a hideSendingOverlay
-            // (p.ej. por un error no capturado), lo ocultamos tras 60 s.
-            window.showSendingOverlay = (function (orig) {
-                return function () {
-                    orig();
-                    clearTimeout(window._sendingTimeout);
-                    window._sendingTimeout = setTimeout(function () {
-                        window.hideSendingOverlay();
-                    }, 60000);
-                };
-            })(window.showSendingOverlay);
-        })();
-    </script>
-
-</body>
-
-</html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwj0qEOm9THbYxw0TYek2Oot3dlL1wn7YmPLtYknFzrGBQJXFnd-kh7yxXtFgYFyC-B/exec';
-
-// ─────────────────────────────────────────────
-// Estado global
-// ─────────────────────────────────────────────
-const state = {
-    photoBase64: null,
-    photoMime: null,
-    photoName: null,
-    scannerActive: false,
-    html5QrCode: null,
-    submitting: false,
-    sentCount: parseInt(localStorage.getItem('devCount') || '0'),
-    productData: null,
-    productos: [],
-    inputMode: 'cam',       // 'cam' | 'ext'
-    extDebounce: null,
-    searchTimer: null,
-    searchField: 'all',
-    isPesable: false,        // true cuando el EAN escaneado es de balanza
-    pesoKg: null,            // peso parseado del EAN de balanza
-};
-
-// ─────────────────────────────────────────────
-// Elementos del DOM
-// ─────────────────────────────────────────────
-const $ = (id) => document.getElementById(id);
-
-const els = {
-    // scanner
-    scanOverlay: $('scanOverlay'),
-    btnOpenScanner: $('btnOpenScanner'),
-    btnCloseScanner: $('btnCloseScanner'),
-    btnManualEntry: $('btnManualEntry'),
-    camErr: $('camErr'),
-    sHint: $('sHint'),
-    // search modal
-    searchOverlay: $('searchOverlay'),
-    btnOpenSearch: $('btnOpenSearch'),
-    btnCloseSearch: $('btnCloseSearch'),
-    searchInput: $('searchInput'),
-    btnClearSearch: $('btnClearSearch'),
-    searchResults: $('searchResults'),
-    searchStateEmpty: $('searchStateEmpty'),
-    searchStateNone: $('searchStateNone'),
-    searchTermDisplay: $('searchTermDisplay'),
-    searchCount: $('searchCount'),
-    // barcode (hidden)
-    fBarcode: $('fBarcode'),
-    scannedOk: $('scannedOk'),
-    // mode switcher
-    modeTabCam: $('modeTabCam'),
-    modeTabExt: $('modeTabExt'),
-    panelCam: $('panelCam'),
-    panelExt: $('panelExt'),
-    extInput: $('extInput'),
-    btnExtClear: $('btnExtClear'),
-    extStatus: $('extStatus'),
-    extStatusText: $('extStatusText'),
-    // product card
-    productCard: $('productCard'),
-    pcState: $('pcState'),
-    pcDescripcion: $('pcDescripcion'),
-    pcProveedor: $('pcProveedor'),
-    pcGramaje: $('pcGramaje'),
-    pcUxb: $('pcUxb'),
-    pcSector: $('pcSector'),
-    pcEan: $('pcEan'),
-    // photo
-    fPhoto: $('fPhoto'),
-    photoZone: $('photoZone'),
-    photoPlaceholder: $('photoPlaceholder'),
-    photoPreview: $('photoPreview'),
-    photoImg: $('photoImg'),
-    photoName: $('photoName'),
-    btnCamera: $('btnCamera'),
-    btnGallery: $('btnGallery'),
-    btnRemovePhoto: $('btnRemovePhoto'),
-    // form
-    fEmail: $('fEmail'),
-    fDesc: $('fDesc'),  // hidden
-    fQty: $('fQty'),
-    qtyPesableHint: $('qtyPesableHint'),
-    fExp: $('fExp'),
-    fBranch: $('fBranch'),
-    fEvent: $('fEvent'),
-    fDiscount: $('fDiscount'),
-    discountWrap: $('discountWrap'),
-    fNote: $('fNote'),
-    fLot: $('fLot'),
-    fComment: $('fComment'),
-    // actions
-    btnSubmit: $('btnSubmit'),
-    btnText: $('btnText'),
-    btnClear: $('btnClear'),
-    // feedback
-    toast: $('toast'),
-    toastMsg: $('toastMsg'),
-    toastDot: $('toastDot'),
-    counterBadge: $('counterBadge'),
-    cfgBanner: $('cfgBanner'),
-};
-
-// ─────────────────────────────────────────────
-// INIT
-// ─────────────────────────────────────────────
-async function init() {
-    await cargarProductos();
-
-    if (APPS_SCRIPT_URL !== 'PEGA_AQUI_TU_URL_DE_APPS_SCRIPT') {
-        if (els.cfgBanner) els.cfgBanner.style.display = 'none';
-    }
-
-    updateCounter();
-
-    // ── Mode switcher ──
-    function setInputMode(mode) {
-        state.inputMode = mode;
-        localStorage.setItem('devInputMode', mode);
-        const isCam = mode === 'cam';
-        els.modeTabCam.classList.toggle('mode-tab--active', isCam);
-        els.modeTabExt.classList.toggle('mode-tab--active', !isCam);
-        els.panelCam.style.display = isCam ? '' : 'none';
-        els.panelExt.style.display = isCam ? 'none' : '';
-        if (!isCam) {
-            hideProductCard();
-            els.fBarcode.value = '';
-            els.scannedOk.classList.remove('show');
-            setTimeout(() => els.extInput.focus(), 80);
-            setExtStatus('ready', 'Listo — esperando lectura');
-        }
-    }
-    const savedMode = localStorage.getItem('devInputMode') || 'cam';
-    setInputMode(savedMode);
-    els.modeTabCam.addEventListener('click', () => setInputMode('cam'));
-    els.modeTabExt.addEventListener('click', () => setInputMode('ext'));
-
-    // ── Scanner events ──
-    els.btnOpenScanner.addEventListener('click', openScanner);
-    els.btnCloseScanner.addEventListener('click', closeScanner);
-    els.btnManualEntry.addEventListener('click', closeScanner);
-
-    // ── Search modal events ──
-    els.btnOpenSearch.addEventListener('click', openSearchModal);
-    els.btnCloseSearch.addEventListener('click', closeSearchModal);
-    els.searchOverlay.addEventListener('click', (e) => {
-        if (e.target === els.searchOverlay) closeSearchModal();
-    });
-    els.searchInput.addEventListener('input', onSearchInput);
-    els.btnClearSearch.addEventListener('click', () => {
-        els.searchInput.value = '';
-        els.btnClearSearch.style.display = 'none';
-        renderSearchResults('');
-        els.searchInput.focus();
-    });
-    document.querySelectorAll('.sf-chip').forEach(chip => {
-        chip.addEventListener('click', () => {
-            document.querySelectorAll('.sf-chip').forEach(c => c.classList.remove('sf-chip--active'));
-            chip.classList.add('sf-chip--active');
-            state.searchField = chip.dataset.field;
-            onSearchInput();
-        });
-    });
-
-    // ── External scanner input ──
-    els.extInput.addEventListener('input', () => {
-        const val = els.extInput.value.trim();
-        els.btnExtClear.style.display = val ? 'flex' : 'none';
-        if (!val) { setExtStatus('ready', 'Listo — esperando lectura'); return; }
-        setExtStatus('reading', 'Leyendo código...');
-        els.extInput.classList.add('ext-input--reading');
-        els.extInput.classList.remove('ext-input--found');
-        clearTimeout(state.extDebounce);
-        state.extDebounce = setTimeout(() => triggerExtLookup(val), 120);
-    });
-    els.extInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            clearTimeout(state.extDebounce);
-            const val = els.extInput.value.trim();
-            if (val) triggerExtLookup(val);
-        }
-    });
-    els.btnExtClear.addEventListener('click', () => {
-        els.extInput.value = '';
-        els.btnExtClear.style.display = 'none';
-        els.extInput.classList.remove('ext-input--reading', 'ext-input--found');
-        els.fBarcode.value = '';
-        els.scannedOk.classList.remove('show');
-        hideProductCard();
-        setExtStatus('ready', 'Listo — esperando lectura');
-        els.extInput.focus();
-    });
-
-    // Auto-redirect keystrokes to ext input
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            if (els.searchOverlay.classList.contains('open')) closeSearchModal();
-            if (els.scanOverlay.classList.contains('open')) closeScanner();
-        }
-        const active = document.activeElement;
-        const isTypingElsewhere = active && (
-            active.tagName === 'INPUT' ||
-            active.tagName === 'SELECT' ||
-            active.tagName === 'TEXTAREA'
-        );
-        if (state.inputMode === 'ext'
-            && !els.searchOverlay.classList.contains('open')
-            && !els.scanOverlay.classList.contains('open')
-            && !isTypingElsewhere
-            && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-            els.extInput.focus();
-        }
-    });
-
-    // ── Photo events ──
-    els.btnCamera.addEventListener('click', () => triggerFileInput(true));
-    els.btnGallery.addEventListener('click', () => triggerFileInput(false));
-    els.btnRemovePhoto.addEventListener('click', removePhoto);
-    els.photoZone.addEventListener('click', onPhotoZoneClick);
-    els.fPhoto.addEventListener('change', onPhotoSelected);
-
-    // Drag & drop
-    els.photoZone.addEventListener('dragover', (e) => { e.preventDefault(); els.photoZone.classList.add('drag-over'); });
-    els.photoZone.addEventListener('dragleave', () => els.photoZone.classList.remove('drag-over'));
-    els.photoZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        els.photoZone.classList.remove('drag-over');
-        const file = e.dataTransfer.files[0];
-        if (file) processPhoto(file);
-    });
-
-    // ── Date restriction + discount toggle ──
-    const MOTIVOS_VENCIMIENTO = ['CONTROL DE VENCIMIENTO'];
-
-    els.fEvent.addEventListener('change', () => {
-        const val = els.fEvent.value;
-        applyDateRestriction(val);
-        toggleDiscountInput(val);
-        toggleBdBadge(val);        // ← AGREGAR ESTA LÍNEA
-        clearFieldError('fEvent');
-    });
-
-    // Nueva función: muestra en qué BD va a caer el registro
-    function toggleBdBadge(motivo) {
-        const badge = $('bdBadge');
-        if (!badge || !motivo) {
-            badge && (badge.style.display = 'none');
-            return;
-        }
-        const esVencimiento = MOTIVOS_VENCIMIENTO.includes(motivo);
-        badge.className = `bd-badge ${esVencimiento ? 'bd-badge--ven' : 'bd-badge--dev'}`;
-        badge.textContent = esVencimiento
-            ? '📋 Se guardará en: Control de Vencimientos'
-            : '📦 Se guardará en: Devoluciones / Acciones';
-        badge.style.display = 'flex';
-    }
-
-    // Actualizar el texto del botón submit según el tipo de registro
-    function updateSubmitLabel(motivo) {
-        const esVencimiento = MOTIVOS_VENCIMIENTO.includes(motivo);
-        const btnText = $('btnText');
-        if (btnText) {
-            btnText.textContent = esVencimiento ? 'Registrar control de vencimiento' : 'Enviar devolución';
-        }
-    }
-
-    // ── Submit & clear ──
-    els.btnSubmit.addEventListener('click', submitForm);
-    els.btnClear.addEventListener('click', clearForm);
-
-    // Live validation on visible fields only
-    const requiredFields = ['fEmail', 'fQty', 'fExp', 'fBranch', 'fEvent'];
-    requiredFields.forEach((id) => {
-        const el = $(id);
-        if (!el) return;
-        el.addEventListener('blur', () => validateField(id));
-        el.addEventListener('input', () => clearFieldError(id));
-    });
-    // fBranch y fEvent son selects, escuchar 'change'
-    ['fBranch', 'fEvent'].forEach((id) => {
-        const el = $(id);
-        if (!el) return;
-        el.addEventListener('change', () => clearFieldError(id));
-    });
-}
-
-document.addEventListener('DOMContentLoaded', init);
-
-// ─────────────────────────────────────────────
-// PRODUCTOS
-// ─────────────────────────────────────────────
-async function cargarProductos() {
-    try {
-        const res = await fetch('../data/productos.json');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        state.productos = json.data || [];
-    } catch (err) {
-        console.error('Error al cargar productos.json:', err);
-        showToast('err', 'No se pudo cargar la base de productos.');
-    }
-}
-
-// Strips leading zeros for safe comparison
-function normalizeCode(val) {
-    if (val == null || val === '') return '';
-    return String(val).trim().replace(/^0+(?=\d)/, '');
-}
-
-async function fetchProducto(code) {
-    const normCode = normalizeCode(code);
-    return state.productos.find(p => {
-        return normalizeCode(p.EAN) === normCode || normalizeCode(p.INTERNO) === normCode;
-    }) || null;
-}
-
-// ─────────────────────────────────────────────
-// DETECCIÓN DE PRODUCTOS PESABLES
-// ─────────────────────────────────────────────
-//
-//  EAN de balanza: 13 dígitos que empiezan con "2"
-//  Formato:  2 P IIIII WWWWW C
-//    P     = prefijo adicional (1 dígito, ej: 3)
-//    IIIII = código interno del producto (5 dígitos, zero-padded)
-//    WWWWW = peso en gramos (5 dígitos, zero-padded)
-//    C     = dígito verificador
-//
-//  Ejemplo: 2301144015348
-//    23 → prefijo pesable
-//    01144 → interno 1144
-//    01534 → 1534 g = 1.534 kg
-//    8 → check digit
-//
-function parsePesableEAN(ean) {
-    const s = String(ean).trim().replace(/\s/g, '');
-    if (s.length !== 13) return null;
-    if (!s.startsWith('2')) return null;          // todos los EAN pesables empiezan con 2
-    const internoRaw = s.slice(2, 7);             // 5 dígitos del interno
-    const pesoRaw = s.slice(7, 12);            // 5 dígitos del peso en gramos
-    const interno = String(parseInt(internoRaw, 10));
-    const pesoGr = parseInt(pesoRaw, 10);
-    if (isNaN(pesoGr) || pesoGr <= 0) return null;
-    const pesoKg = pesoGr / 1000;
-    return { interno, pesoGr, pesoKg };
-}
-
-
-async function triggerLookup(code) {
-    showProductCardLoading();
-    const pesable = parsePesableEAN(code);
-    const lookupCode = pesable ? pesable.interno : code;
-    const data = await fetchProducto(lookupCode);
-    if (data) {
-        fillProductData(data, pesable);
-    } else {
-        showProductCardNotFound();
-    }
-}
-
-async function triggerExtLookup(code) {
-    els.extInput.classList.remove('ext-input--reading', 'ext-input--found');
-    setExtStatus('reading', `Buscando: ${code}`);
-    showProductCardLoading();
-    const pesable = parsePesableEAN(code);
-    const lookupCode = pesable ? pesable.interno : code;
-    const data = await fetchProducto(lookupCode);
-    if (data) {
-        els.fBarcode.value = code;
-        clearFieldError('fBarcode');
-        els.scannedOk.classList.add('show');
-        els.extInput.classList.add('ext-input--found');
-        setExtStatus('found', `✓ ${data.DESCRIPCION ? data.DESCRIPCION.slice(0, 40) : 'Producto encontrado'}`);
-        fillProductData(data, pesable);
-        if (navigator.vibrate) navigator.vibrate([60, 20, 60]);
-        // Si es pesable la cantidad ya se autocompleta — ir al siguiente campo
-        setTimeout(() => pesable ? els.fExp.focus() : els.fQty.focus(), 150);
-    } else {
-        els.fBarcode.value = '';
-        state.productData = null;
-        showProductCardNotFound();
-        setExtStatus('notfound', '⚠ Código no encontrado — intentá la búsqueda manual');
-        showToast('wrn', 'Código no encontrado — intentá buscarlo manualmente.');
-    }
-}
-
-function fillProductData(data, pesable = null) {
-    state.productData = data;
-
-    // ── Estado pesable ──────────────────────────────────────
-    state.isPesable = !!pesable;
-    state.pesoKg = pesable ? pesable.pesoKg : null;
-
-    // ── Inputs ocultos para el payload ──────────────────────
-    // En pesable guardamos el EAN base del producto (no el de balanza)
-    els.fBarcode.value = String(data.EAN || data.INTERNO || '');
-    els.fDesc.value = data.DESCRIPCION || '';
-    clearFieldError('fBarcode');
-
-    // ── Campo cantidad ──────────────────────────────────────
-    if (pesable) {
-        // Autocompletar con el peso en kg y bloquear el campo
-        els.fQty.value = pesable.pesoKg.toFixed(3);
-        els.fQty.readOnly = true;
-        els.fQty.classList.add('qty--pesable');
-        clearFieldError('fQty');
-        // Mostrar hint con el peso
-        if (els.qtyPesableHint) {
-            els.qtyPesableHint.textContent =
-                `⚖ Pesable · ${pesable.pesoGr.toLocaleString('es-AR')} g = ${pesable.pesoKg.toFixed(3)} kg`;
-            els.qtyPesableHint.style.display = 'flex';
-        }
-    } else {
-        // Modo normal: campo editable, sin hint
-        els.fQty.readOnly = false;
-        els.fQty.classList.remove('qty--pesable');
-        if (els.qtyPesableHint) els.qtyPesableHint.style.display = 'none';
-    }
-
-    // ── Product card ────────────────────────────────────────
-    els.pcDescripcion.textContent = data.DESCRIPCION || '-';
-    els.pcProveedor.textContent = data.PROVEEDOR || '-';
-    els.pcGramaje.textContent = data.GRAMAJE || '-';
-    els.pcUxb.textContent = data.UXB != null ? `${data.UXB} u.` : '-';
-    const sector = data.SECTOR || '';
-    const seccion = data.SECCION || '';
-    els.pcSector.textContent = sector && seccion
-        ? `${sector} › ${seccion}`
-        : (sector || seccion || '-');
-    const eanParts = [];
-    if (data.EAN) eanParts.push(`EAN ${data.EAN}`);
-    if (data.INTERNO && String(data.INTERNO) !== String(data.EAN))
-        eanParts.push(`INT ${data.INTERNO}`);
-    els.pcEan.textContent = eanParts.length ? eanParts.join('  ·  ') : '-';
-
-    const pvpEl = $('pcPvp');
-    if (pvpEl) {
-        const pvp = data['PVP SUPER'];
-        pvpEl.textContent = pvp != null
-            ? `$${Number(pvp).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-            : '-';
-    }
-
-    // Estado visual de la card
-    if (pesable) {
-        showProductCardFound();
-        els.pcState.textContent = `Pesable · ${pesable.pesoKg.toFixed(3)} kg`;
-    } else {
-        showProductCardFound();
-    }
-    showToast('ok', pesable
-        ? `Pesable encontrado · ${pesable.pesoKg.toFixed(3)} kg`
-        : 'Producto encontrado'
-    );
-}
-
-// ── Product card states ──
-function showProductCardLoading() {
-    els.productCard.classList.add('visible');
-    els.productCard.dataset.state = 'loading';
-    els.pcState.textContent = 'Buscando producto...';
-}
-function showProductCardFound() {
-    els.productCard.classList.add('visible');
-    els.productCard.dataset.state = 'found';
-    els.pcState.textContent = 'Producto encontrado';
-}
-function showProductCardNotFound() {
-    els.productCard.classList.add('visible');
-    els.productCard.dataset.state = 'notfound';
-    els.pcState.textContent = 'No encontrado';
-    ['pcDescripcion', 'pcProveedor', 'pcGramaje', 'pcUxb', 'pcEan'].forEach(k => { els[k].textContent = '-'; });
-    showToast('wrn', 'Producto no encontrado en la base de datos.');
-}
-function hideProductCard() {
-    els.productCard.classList.remove('visible');
-    els.productCard.dataset.state = '';
-    state.productData = null;
-}
-
-// ─────────────────────────────────────────────
-// EXT STATUS
-// ─────────────────────────────────────────────
-function setExtStatus(type, text) {
-    els.extStatus.className = 'ext-status';
-    if (type) els.extStatus.classList.add(`ext-status--${type}`);
-    els.extStatusText.textContent = text;
-}
-
-// ─────────────────────────────────────────────
-// SEARCH MODAL
-// ─────────────────────────────────────────────
-function openSearchModal() {
-    els.searchOverlay.classList.add('open');
-    document.body.style.overflow = 'hidden';
-    els.searchInput.value = '';
-    els.btnClearSearch.style.display = 'none';
-    els.searchCount.textContent = '';
-    renderSearchResults('');
-    setTimeout(() => els.searchInput.focus(), 120);
-}
-
-function closeSearchModal() {
-    els.searchOverlay.classList.remove('open');
-    document.body.style.overflow = '';
-}
-
-function onSearchInput() {
-    const query = els.searchInput.value;
-    els.btnClearSearch.style.display = query.length ? 'flex' : 'none';
-    clearTimeout(state.searchTimer);
-    state.searchTimer = setTimeout(() => renderSearchResults(query), 150);
-}
-
-function renderSearchResults(query) {
-    const q = normalize(query);
-    const field = state.searchField;
-
-    if (q.length < 2) {
-        els.searchStateEmpty.style.display = 'flex';
-        els.searchStateNone.style.display = 'none';
-        els.searchResults.style.display = 'none';
-        els.searchCount.textContent = '';
-        return;
-    }
-
-    const matches = state.productos.filter(p => {
-        if (field === 'all') {
-            return (
-                normalize(p.DESCRIPCION).includes(q) ||
-                normalize(p.PROVEEDOR).includes(q) ||
-                normalize(p.SECTOR).includes(q) ||
-                normalize(p.SECCION).includes(q) ||
-                normalize(String(p.EAN ?? '')).includes(q) ||
-                normalize(String(p.INTERNO ?? '')).includes(q)
-            );
-        }
-        if (field === 'EAN') {
-            return (
-                normalize(String(p.EAN ?? '')).includes(q) ||
-                normalize(String(p.INTERNO ?? '')).includes(q)
-            );
-        }
-        return normalize(String(p[field] ?? '')).includes(q);
-    });
-
-    els.searchStateEmpty.style.display = 'none';
-
-    if (matches.length === 0) {
-        els.searchStateNone.style.display = 'flex';
-        els.searchTermDisplay.textContent = `"${query}"`;
-        els.searchResults.style.display = 'none';
-        els.searchCount.textContent = 'Sin resultados';
-        return;
-    }
-
-    els.searchStateNone.style.display = 'none';
-    els.searchResults.style.display = 'block';
-
-    const shown = matches.slice(0, 80);
-    const total = matches.length;
-    els.searchCount.textContent = total > 80
-        ? `${total} resultados — mostrando los primeros 80`
-        : `${total} resultado${total !== 1 ? 's' : ''}`;
-
-    els.searchResults.innerHTML = shown.map((p, i) => {
-        const desc = highlight(p.DESCRIPCION || '—', q);
-        const prov = highlight(p.PROVEEDOR || '—', q);
-        const eanRaw = String(p.EAN ?? '');
-        const intRaw = String(p.INTERNO ?? '');
-        const eanHL = highlight(eanRaw, q);
-        const intHL = highlight(intRaw, q);
-        const eanBadge = eanRaw ? `<span class="sr-ean">EAN ${eanHL}</span>` : '';
-        const intBadge = intRaw && intRaw !== eanRaw ? `<span class="sr-ean sr-ean--int">INT ${intHL}</span>` : '';
-        const sect = p.SECTOR ? `<span class="sr-tag">${esc(p.SECTOR)}</span>` : '';
-        const secc = p.SECCION ? `<span class="sr-tag">${esc(p.SECCION)}</span>` : '';
-        const gramaje = p.GRAMAJE ? `<span class="sr-tag sr-tag--gramaje">${esc(p.GRAMAJE)}</span>` : '';
-        const pvp = p['PVP SUPER'] != null
-            ? `<span class="sr-tag sr-tag--pvp">$${Number(p['PVP SUPER']).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>`
-            : '';
-
-        return `
-        <li class="sr-item" role="option" tabindex="0" data-idx="${i}">
-            <div class="sr-main">
-                <div class="sr-desc">${desc}</div>
-                <div class="sr-meta">
-                    <span class="sr-prov">${prov}</span>
-                    ${eanBadge}${intBadge}
-                </div>
-            </div>
-            <div class="sr-right">
-                <div class="sr-tags">${gramaje}${sect}${secc}${pvp}</div>
-                <svg class="sr-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                     stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"/>
-                </svg>
-            </div>
-        </li>`;
-    }).join('');
-
-    els.searchResults.querySelectorAll('.sr-item').forEach((li, i) => {
-        const p = shown[i];
-        li.addEventListener('click', () => selectSearchProduct(p));
-        li.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectSearchProduct(p); }
-            if (e.key === 'ArrowDown') { e.preventDefault(); (li.nextElementSibling || li).focus(); }
-            if (e.key === 'ArrowUp') { e.preventDefault(); (li.previousElementSibling || li).focus(); }
-        });
-    });
-}
-
-function selectSearchProduct(p) {
-    els.scannedOk.classList.add('show');
-    if (navigator.vibrate) navigator.vibrate([60, 20, 60]);
-    fillProductData(p);
-    closeSearchModal();
-    // Foco al siguiente campo requerido vacío
-    setTimeout(() => {
-        if (!els.fQty.value) els.fQty.focus();
-        else if (!els.fExp.value) els.fExp.focus();
-    }, 200);
-}
-
-// ─────────────────────────────────────────────
-// BARCODE SCANNER (cámara)
-// ─────────────────────────────────────────────
-function openScanner() {
-    if (state.scannerActive) return;
-    els.scanOverlay.classList.add('open');
-    els.camErr.classList.remove('show');
-    document.body.style.overflow = 'hidden';
-    setTimeout(startScanner, 250);
-}
-
-async function startScanner() {
-    try {
-        state.html5QrCode = new Html5Qrcode('reader');
-        const config = {
-            fps: 10,
-            qrbox: { width: 260, height: 120 },
-            formatsToSupport: [
-                Html5QrcodeSupportedFormats.EAN_13,
-                Html5QrcodeSupportedFormats.EAN_8,
-                Html5QrcodeSupportedFormats.UPC_A,
-                Html5QrcodeSupportedFormats.UPC_E,
-                Html5QrcodeSupportedFormats.CODE_128,
-                Html5QrcodeSupportedFormats.CODE_39,
-                Html5QrcodeSupportedFormats.QR_CODE,
-                Html5QrcodeSupportedFormats.ITF,
-            ],
-            aspectRatio: 4 / 3,
-            disableFlip: false,
-        };
-        await state.html5QrCode.start({ facingMode: 'environment' }, config, onBarcodeScanned, null);
-        state.scannerActive = true;
-    } catch (err) {
-        console.warn('Scanner error:', err);
-        if (els.sHint) els.sHint.style.display = 'none';
-        els.camErr.classList.add('show');
-    }
-}
-
-function onBarcodeScanned(decodedText) {
-    clearFieldError('fBarcode');
-    els.scannedOk.classList.add('show');
-    if (navigator.vibrate) navigator.vibrate([80, 30, 80]);
-    closeScanner();
-    showToast('ok', '¡Código escaneado!');
-    triggerLookup(decodedText);
-}
-
-async function closeScanner() {
-    if (state.html5QrCode) {
-        try {
-            if (state.scannerActive) await state.html5QrCode.stop();
-            state.html5QrCode.clear();
-        } catch (_) { }
-        state.html5QrCode = null;
-    }
-    state.scannerActive = false;
-    els.scanOverlay.classList.remove('open');
-    document.body.style.overflow = '';
-}
-
-// ─────────────────────────────────────────────
-// PHOTO HANDLING
-// ─────────────────────────────────────────────
-function triggerFileInput(camera) {
-    if (camera) els.fPhoto.setAttribute('capture', 'environment');
-    else els.fPhoto.removeAttribute('capture');
-    els.fPhoto.value = '';
-    els.fPhoto.click();
-}
-
-function onPhotoZoneClick(e) {
-    if (e.target.closest('.photo-preview')) return;
-    if (e.target.closest('.photo-btns')) return;
-    if (!state.photoBase64) triggerFileInput(false);
-}
-
-function onPhotoSelected(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    processPhoto(file);
-}
-
-function processPhoto(file) {
-    if (!file.type.startsWith('image/')) {
-        showToast('err', 'El archivo debe ser una imagen.');
-        return;
-    }
-    const MAX_MB = 5;
-    if (file.size > MAX_MB * 1024 * 1024) {
-        $('ePhoto').classList.add('show');
-        showToast('err', 'La imagen supera los 5 MB.');
-        return;
-    }
-    $('ePhoto').classList.remove('show');
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-        compressImage(ev.target.result, file.type, (compressedBase64, mime) => {
-            state.photoBase64 = compressedBase64;
-            state.photoMime = mime;
-            state.photoName = file.name;
-            els.photoImg.src = `data:${mime};base64,${compressedBase64}`;
-            els.photoName.textContent = file.name;
-            els.photoPreview.classList.add('show');
-            els.photoPlaceholder.classList.add('hide');
-        });
-    };
-    reader.readAsDataURL(file);
-}
-
-function compressImage(dataUrl, originalMime, callback) {
-    const img = new Image();
-    img.onload = () => {
-        const MAX_DIM = 1200;
-        let { width, height } = img;
-        if (width > MAX_DIM || height > MAX_DIM) {
-            if (width > height) { height = Math.round(height * MAX_DIM / width); width = MAX_DIM; }
-            else { width = Math.round(width * MAX_DIM / height); height = MAX_DIM; }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width; canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        const outputMime = 'image/jpeg';
-        const base64 = canvas.toDataURL(outputMime, 0.75).split(',')[1];
-        callback(base64, outputMime);
-    };
-    img.onerror = () => callback(dataUrl.split(',')[1], originalMime);
-    img.src = dataUrl;
-}
-
-function removePhoto() {
-    state.photoBase64 = null;
-    state.photoMime = null;
-    state.photoName = null;
-    els.fPhoto.value = '';
-    els.photoPreview.classList.remove('show');
-    els.photoPlaceholder.classList.remove('hide');
-    els.photoImg.src = '';
-}
-
-// ─────────────────────────────────────────────
-// VALIDATION
-// ─────────────────────────────────────────────
-// fBarcode se valida chequeando si hay productData o el hidden tiene valor
-// fDesc lo seteamos automáticamente, no se valida por separado
-
-const validationRules = {
-    fEmail: { required: true, type: 'emailOrName' },
-    fBarcode: { required: true },
-    fQty: { required: true, min: 1, integer: true },   // se ajusta en validateAll si isPesable
-    fExp: { required: true },
-    fBranch: { required: true },
-    fEvent: { required: true },
-    fDiscount: { required: false, min: 1, max: 99, integer: true }, // condicional — se activa en validateAll
-};
-
-const errorMap = {
-    fEmail: 'eEmail',
-    fBarcode: 'eBarcode',
-    fQty: 'eQty',
-    fExp: 'eExp',
-    fBranch: 'eBranch',
-    fEvent: 'eEvent',
-    fDiscount: 'eDiscount',
-};
-
-function validateField(fieldId) {
-    const rule = validationRules[fieldId];
-    if (!rule) return true;
-    const el = $(fieldId);
-    if (!el) return true;
-    const val = el.value.trim();
-    let ok = true;
-
-    if (rule.required && !val) ok = false;
-    if (ok && rule.type === 'emailOrName' && val) {
-        const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
-        const isName = val.trim().length >= 3;
-        if (!isEmail && !isName) ok = false;
-    }
-    if (ok && rule.min !== undefined && (isNaN(Number(val)) || Number(val) < rule.min)) ok = false;
-    if (ok && rule.max !== undefined && Number(val) > rule.max) ok = false;
-    if (ok && rule.integer && val && !Number.isInteger(Number(val))) ok = false;
-
-    // fBarcode: hidden, error va en su contenedor visible
-    if (fieldId === 'fBarcode') {
-        const errEl = $('eBarcode');
-        if (errEl) errEl.classList.toggle('show', !ok);
-        return ok;
-    }
-
-    el.classList.toggle('err', !ok);
-    const errEl = $(errorMap[fieldId]);
-    if (errEl) errEl.classList.toggle('show', !ok);
-    return ok;
-}
-
-function clearFieldError(fieldId) {
-    const el = $(fieldId);
-    if (!el) return;
-    el.classList.remove('err');
-    const errEl = $(errorMap[fieldId]);
-    if (errEl) errEl.classList.remove('show');
-}
-
-function validateAll() {
-    let allOk = true;
-
-    // Ajustar regla de cantidad según tipo de producto
-    validationRules.fQty = state.isPesable
-        ? { required: true, min: 0.001 }          // pesable: decimal en kg
-        : { required: true, min: 1, integer: true }; // normal: entero ≥ 1
-
-    for (const fieldId of Object.keys(validationRules)) {
-        // fDiscount: solo validar si el panel está visible
-        if (fieldId === 'fDiscount') {
-            if (els.discountWrap.style.display !== 'none') {
-                const val = els.fDiscount.value.trim();
-                const num = Number(val);
-                const ok = val !== '' && !isNaN(num) && Number.isInteger(num) && num >= 1 && num <= 99;
-                els.fDiscount.classList.toggle('err', !ok);
-                const errEl = $('eDiscount');
-                if (errEl) errEl.classList.toggle('show', !ok);
-                if (!ok) allOk = false;
-            }
-            continue;
-        }
-        if (!validateField(fieldId)) allOk = false;
-    }
-    return allOk;
-}
-
-// ─────────────────────────────────────────────
-// FORM SUBMISSION
-// ─────────────────────────────────────────────
-async function submitForm() {
-    if (state.submitting) return;
-    if (!validateAll()) {
-        showToast('err', 'Corregí los campos marcados antes de enviar.');
-        // Scroll al primer error visible
-        const firstErr = document.querySelector('.ferr.show');
-        if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        return;
-    }
-
-    const payload = {
-        action: 'submitForm',                   // ← FALTABA ESTO
-
-        // Campos renombrados para coincidir con Apps Script
-        usuario: els.fEmail.value.trim(),       // era: email
-        sucursal: els.fBranch.value,
-        event: (() => {                         // era: evento (AS lee body.event)
-            const base = els.fEvent.value;
-            if (base === 'OTRO DESCUENTO' && els.fDiscount.value.trim()) {
-                return `OTRO DESCUENTO ${els.fDiscount.value.trim()}% OFF`;
-            }
-            return base;
-        })(),
-        cantidad: els.fQty.value.trim(),
-        esPesable: state.isPesable,
-        unidadCantidad: state.isPesable ? 'kg' : 'unidades',
-        fechaVenc: els.fExp.value,              // era: vencimiento
-        aclaracion: els.fNote.value.trim(),
-        lote: els.fLot.value.trim(),
-        comentarios: els.fComment.value.trim(),
-
-        // Datos del producto
-        ean: els.fBarcode.value.trim(),         // era: codigoBarra
-        descripcion: els.fDesc.value.trim(),
-        codInterno: state.productData?.INTERNO || null,
-        proveedor: state.productData?.PROVEEDOR || null,
-        codProv: state.productData?.['COD.PROVEEDOR'] || null,  // era: codProveedor
-        gramaje: state.productData?.GRAMAJE || null,
-        uxb: state.productData?.UXB || null,
-        sector: state.productData?.SECTOR || null,
-        seccion: state.productData?.SECCION || null,
-
-        // Foto
-        photoBase64: state.photoBase64 || null,
-        photoMime: state.photoMime || null,
-        photoName: state.photoName || null,
-    };
-
-    setLoading(true);
-
-    if (APPS_SCRIPT_URL === 'PEGA_AQUI_TU_URL_DE_APPS_SCRIPT') {
-        console.log('📋 [DEMO MODE] Datos que se enviarían:', payload);
-        await delay(1500);
-        handleSuccess();
-        return;
-    }
-
-    try {
-        const response = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify(payload),
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        if (data.success) {
-            handleSuccess();
-        } else {
-            throw new Error(data.message || 'Error desconocido del servidor.');
-        }
-    } catch (err) {
-        console.error('Error al enviar:', err);
-        setLoading(false);
-        showToast('err', 'No se pudo guardar. Verificá la conexión.');
-    }
-}
-
-function handleSuccess() {
-    setLoading(false);
-    state.sentCount++;
-    localStorage.setItem('devCount', state.sentCount);
-    updateCounter();
-    showToast('ok', '¡Devolución registrada correctamente!');
-    clearForm();
-}
-
-function clearForm() {
-    // Limpia inputs visibles (excepto file e extInput)
-    document.querySelectorAll('input:not(#fPhoto):not(#extInput), select, textarea').forEach((el) => {
-        if (el.type !== 'hidden') el.value = '';
-        el.classList.remove('err');
-    });
-    // Limpia hidden inputs
-    els.fBarcode.value = '';
-    els.fDesc.value = '';
-    // Reset discount
-    els.discountWrap.style.display = 'none';
-    els.fDiscount.value = '';
-    // Reset restricción de fecha (quitar max/min que pudo quedar de un motivo previo)
-    els.fExp.removeAttribute('min');
-    els.fExp.removeAttribute('max');
-    // Reset pesable
-    state.isPesable = false;
-    state.pesoKg = null;
-    els.fQty.readOnly = false;
-    els.fQty.classList.remove('qty--pesable');
-    if (els.qtyPesableHint) els.qtyPesableHint.style.display = 'none';
-
-    document.querySelectorAll('.ferr').forEach((el) => el.classList.remove('show'));
-    els.scannedOk.classList.remove('show');
-
-    // Reset ext panel
-    if (els.extInput) {
-        els.extInput.value = '';
-        els.extInput.classList.remove('ext-input--reading', 'ext-input--found');
-        els.btnExtClear.style.display = 'none';
-        setExtStatus('ready', 'Listo — esperando lectura');
-    }
-    removePhoto();
-    hideProductCard();
-}
-
-// ─────────────────────────────────────────────
-// DISCOUNT INPUT TOGGLE
-// ─────────────────────────────────────────────
-function toggleDiscountInput(motivo) {
-    const isDiscount = motivo === 'OTRO DESCUENTO';
-    els.discountWrap.style.display = isDiscount ? 'block' : 'none';
-    if (!isDiscount) {
-        els.fDiscount.value = '';
-        clearFieldError('fDiscount');
-    } else {
-        setTimeout(() => els.fDiscount.focus(), 80);
-    }
-}
-
-// ─────────────────────────────────────────────
-// UI HELPERS
-// ─────────────────────────────────────────────
-function applyDateRestriction(motivo) {
-    // Sin restricciones — se permite cualquier fecha para todos los motivos
-    els.fExp.removeAttribute('min');
-    els.fExp.removeAttribute('max');
-}
-
-function setLoading(on) {
-    state.submitting = on;
-    els.btnSubmit.disabled = on;
-
-    // Mostrar/ocultar el overlay de bloqueo total
-    if (on) {
-        if (typeof window.showSendingOverlay === 'function') window.showSendingOverlay();
-    } else {
-        if (typeof window.hideSendingOverlay === 'function') window.hideSendingOverlay();
-    }
-
-    if (on) {
-        els.btnText.textContent = 'Enviando...';
-        const sp = document.createElement('div');
-        sp.className = 'spinner';
-        sp.id = '_spinner';
-        els.btnSubmit.insertBefore(sp, els.btnText);
-    } else {
-        els.btnText.textContent = 'Enviar devolución';
-        const sp = $('_spinner');
-        if (sp) sp.remove();
-    }
-}
-
-let toastTimer = null;
-function showToast(type, msg, duration = 3500) {
-    const { toast, toastMsg } = els;
-    toastMsg.textContent = msg;
-    toast.className = `toast ${type}`;
-    void toast.offsetWidth;
-    toast.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
-}
-
-function updateCounter() {
-    if (state.sentCount > 0) {
-        const label = state.sentCount === 1 ? 'registro enviado' : 'registros enviados';
-        els.counterBadge.textContent = `${state.sentCount} ${label}`;
-        els.counterBadge.classList.add('show');
-    }
-}
-
-function delay(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// ─────────────────────────────────────────────
-// SEARCH UTILS
-// ─────────────────────────────────────────────
-function normalize(str) {
-    if (!str) return '';
-    return String(str).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-}
-
-function highlight(text, query) {
-    if (!text || !query) return esc(text || '');
-    const normText = normalize(text);
-    const normQuery = normalize(query);
-    const result = [];
-    let i = 0;
-    while (i < text.length) {
-        const idx = normText.indexOf(normQuery, i);
-        if (idx === -1) { result.push(esc(text.slice(i))); break; }
-        result.push(esc(text.slice(i, idx)));
-        result.push(`<mark>${esc(text.slice(idx, idx + query.length))}</mark>`);
-        i = idx + query.length;
-    }
-    return result.join('');
-}
-
-function esc(str) {
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
-
-
-
-
-
-
-
-
-
-

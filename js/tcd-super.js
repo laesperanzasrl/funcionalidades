@@ -861,7 +861,7 @@ async function exportExcel() {
     fitToPage: true, fitToWidth: 1, fitToHeight: 0,
     margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.3, footer: 0.3 },
   };
-  ws.pageSetup.printTitlesRow = '1:4';
+  // printTitlesRow eliminado — los encabezados solo aparecen una vez al inicio
 
   // ── Layout de columnas ────────────────────────────────────
   // A  : Código de barras (imagen)
