@@ -828,11 +828,7 @@ function esc(str) {
 async function exportExcel() {
   if (!state.order.length) return;
 
-  const now       = new Date();
-  const fecha     = now.toLocaleDateString('es-AR');
-  const fechaFile = now.toISOString().slice(0, 10);
-  const remitoId  = now.getTime();
-
+  // ── Validaciones ──────────────────────────────────────────
   const sucursal = els.fSucursal.value;
   if (!sucursal) {
     els.eSucursal.classList.add('show');
@@ -841,6 +837,7 @@ async function exportExcel() {
     showToast('err', 'Seleccioná una sucursal antes de exportar.');
     return;
   }
+
   const concepto = els.fConcepto.value.trim();
   if (!concepto) {
     els.eConcepto.classList.add('show');
@@ -850,38 +847,45 @@ async function exportExcel() {
     return;
   }
 
+  // ── Metadatos ─────────────────────────────────────────────
+  const now          = new Date();
+  const fecha        = now.toLocaleDateString('es-AR');
+  const fechaFile    = now.toISOString().slice(0, 10);
+  const remitoId     = now.getTime();
   const conceptoFile = concepto.replace(/\s+/g, '_').toLowerCase();
-  const filename = `${sucursal}_${fechaFile}_${conceptoFile}_${remitoId}.xlsx`;
+  const filename     = `${sucursal}_${fechaFile}_${conceptoFile}_${remitoId}.xlsx`;
 
+  // ── Workbook ──────────────────────────────────────────────
   const workbook = new ExcelJS.Workbook();
   const ws = workbook.addWorksheet('Pedido', { views: [{ state: 'normal' }] });
 
   ws.pageSetup = {
-    paperSize: 9, orientation: 'portrait',
-    fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+    paperSize: 9,
+    orientation: 'portrait',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
     margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.3, footer: 0.3 },
   };
-  // printTitlesRow eliminado — los encabezados solo aparecen una vez al inicio
 
   // ── Layout de columnas ────────────────────────────────────
-  // A  : Código de barras (imagen)
-  // B  : Espaciador angosto
-  // C  : EAN
-  // D  : Descripción
-  // E  : Espaciador angosto
-  // F  : Gramaje
-  // G  : UxB
-  // H  : Cantidad
-  // ─────────────────────────────────────────────────────────
+  // A : Código de barras  → texto con fuente "Libre Barcode 128"
+  // B : Espaciador angosto
+  // C : EAN (texto plano, fuente normal)
+  // D : Descripción
+  // E : Espaciador angosto
+  // F : Gramaje
+  // G : UxB
+  // H : Cantidad
   ws.columns = [
-    { key: 'barcode', width: 18  },  // A
-    { key: 'sp1',     width: 0.01 },  // B – espaciador
-    { key: 'ean',     width: 16  },  // C
-    { key: 'desc',    width: 48  },  // D
-    { key: 'sp2',     width: 0.01 },  // E – espaciador
-    { key: 'gram',    width: 14  },  // F
-    { key: 'uxb',     width: 6   },  // G
-    { key: 'cant',    width: 8   },  // H
+    { key: 'barcode', width: 30   },  // A – ancho generoso para el barcode
+    { key: 'sp1',     width: 0.5  },  // B – espaciador visual
+    { key: 'ean',     width: 16   },  // C
+    { key: 'desc',    width: 48   },  // D
+    { key: 'sp2',     width: 0.5  },  // E – espaciador visual
+    { key: 'gram',    width: 14   },  // F
+    { key: 'uxb',     width: 6    },  // G
+    { key: 'cant',    width: 8    },  // H
   ];
 
   // ── Helpers ───────────────────────────────────────────────
@@ -891,117 +895,117 @@ async function exportExcel() {
     bottom: { style: 'thin' },
     right:  { style: 'thin' },
   };
+
   const centerMiddle = { horizontal: 'center', vertical: 'middle', wrapText: true };
 
+  /**
+   * Aplica alineación centrada y borde fino a una celda.
+   * @param {ExcelJS.Cell} cell
+   * @param {{ noborder?: boolean, bold?: boolean }} opts
+   */
   function styleCell(cell, opts = {}) {
     cell.alignment = centerMiddle;
     if (!opts.noborder) cell.border = thinBorder;
     if (opts.bold)      cell.font   = { ...(cell.font || {}), bold: true };
   }
 
-  function barcodeDataUrl(code) {
-    const canvas = document.createElement('canvas');
-    const fmt    = /^\d{13}$/.test(code) ? 'ean13' : 'code128';
-    try {
-      JsBarcode(canvas, String(code), {
-        format: fmt, displayValue: false,
-        margin: 4, width: 2, height: 56,
-      });
-    } catch {
-      JsBarcode(canvas, String(code), {
-        format: 'code128', displayValue: false,
-        margin: 4, width: 2, height: 56,
-      });
-    }
-    return canvas.toDataURL('image/png');
-  }
-
-  // ── Filas de cabecera (1-3) ───────────────────────────────
+  // ── Filas de cabecera (1–3) ───────────────────────────────
   const lastCol = 'H';
 
-  [[1, `REMITO/PEDIDO — ${sucursal.toUpperCase()} — ${fecha}`, true, 22],
-   [2, `Concepto: ${concepto}`,                                 false, 16],
-   [3, `ID: ${remitoId}`,                                       false, 14],
+  [
+    [1, `REMITO/PEDIDO — ${sucursal.toUpperCase()} — ${fecha}`, true,  22],
+    [2, `Concepto: ${concepto}`,                                false, 16],
+    [3, `ID: ${remitoId}`,                                      false, 14],
   ].forEach(([row, val, bold, size]) => {
     ws.mergeCells(`A${row}:${lastCol}${row}`);
-    const cell   = ws.getCell(`A${row}`);
-    cell.value   = val;
-    cell.font    = { bold, size };
+    const cell  = ws.getCell(`A${row}`);
+    cell.value  = val;
+    cell.font   = { bold, size };
     styleCell(cell);
   });
 
   // ── Fila de títulos (fila 4) ──────────────────────────────
-  const headerMap = { A:'COD-BAR', B:'', C:'EAN', D:'DESCRIPCION', E:'', F:'GRAMAJE', G:'UxB', H:'CANTIDAD' };
+  const headerMap = {
+    A: 'COD-BAR',
+    B: '',
+    C: 'EAN',
+    D: 'DESCRIPCION',
+    E: '',
+    F: 'GRAMAJE',
+    G: 'UxB',
+    H: 'CANTIDAD',
+  };
+
   for (const [col, val] of Object.entries(headerMap)) {
-    const cell   = ws.getCell(`${col}4`);
-    cell.value   = val;
-    cell.font    = { bold: true, size: 10 };
-    styleCell(cell, { noorder: col === 'B' || col === 'E' });
+    const cell  = ws.getCell(`${col}4`);
+    cell.value  = val;
+    cell.font   = { bold: true, size: 10 };
+    cell.alignment = centerMiddle;
+    // Espaciadores sin borde
     if (col !== 'B' && col !== 'E') cell.border = thinBorder;
   }
   ws.getRow(4).height = 18;
 
-  // ── Filas de datos ────────────────────────────────────────
+  // ── Filas de datos (fila 5 en adelante) ───────────────────
   for (let i = 0; i < state.order.length; i++) {
     const item     = state.order[i];
     const rowIndex = 5 + i;
     const eanCode  = String(item.ean || '');
-    const ROW_H    = 52; // px altura de fila
-    ws.getRow(rowIndex).height = ROW_H;
 
-    // A — celda vacía con borde (la imagen flota encima)
-    const cellA = ws.getCell(`A${rowIndex}`);
-    cellA.value = '';
-    cellA.border = thinBorder;
+    // Altura generosa para que el barcode resulte legible al imprimir
+    ws.getRow(rowIndex).height = 52;
 
-    // Imagen del barcode anclada a la celda A
-    if (eanCode) {
-      const b64     = barcodeDataUrl(eanCode).split(',')[1];
-      const imageId = workbook.addImage({ base64: b64, extension: 'png' });
-      ws.addImage(imageId, {
-        tl:       { col: 0.1,  row: rowIndex - 1 + 0.08 },
-        ext:      { width: 118, height: ROW_H * 0.82 },
-        editAs:   'oneCell',
-      });
-    }
+    // ── A — Código de barras como texto con fuente Libre Barcode 128 ──
+    // Si la fuente está instalada en la PC, Excel renderiza el barcode visualmente.
+    // Si no está instalada, se ve el número EAN en texto plano (igualmente útil).
+    const cellA     = ws.getCell(`A${rowIndex}`);
+    cellA.value     = eanCode;
+    cellA.border    = thinBorder;
+    cellA.alignment = { horizontal: 'center', vertical: 'middle' };
+    cellA.font      = {
+      name: 'Libre Barcode 128',  // fuente de código de barras
+      size: 28,                   // tamaño que da barras de buen alto con row height 52
+      color: { argb: 'FF000000' },
+    };
 
-    // B — espaciador sin borde
+    // ── B — Espaciador sin borde ──
     ws.getCell(`B${rowIndex}`).value = '';
 
-    // C — EAN texto
-    const cellC  = ws.getCell(`C${rowIndex}`);
-    cellC.value  = eanCode;
+    // ── C — EAN en texto plano, fuente monoespaciada ──
+    const cellC     = ws.getCell(`C${rowIndex}`);
+    cellC.value     = eanCode;
     styleCell(cellC);
-    cellC.font   = { name: 'Courier New', size: 10 };
+    cellC.font      = { name: 'Courier New', size: 10 };
 
-    // D — Descripción
-    const cellD  = ws.getCell(`D${rowIndex}`);
-    cellD.value  = item.descripcion || '';
+    // ── D — Descripción ──
+    const cellD     = ws.getCell(`D${rowIndex}`);
+    cellD.value     = item.descripcion || '';
     styleCell(cellD);
 
-    // E — espaciador
+    // ── E — Espaciador sin borde ──
     ws.getCell(`E${rowIndex}`).value = '';
 
-    // F — Gramaje
-    const cellF  = ws.getCell(`F${rowIndex}`);
-    cellF.value  = item.gramaje || '';
+    // ── F — Gramaje ──
+    const cellF     = ws.getCell(`F${rowIndex}`);
+    cellF.value     = item.gramaje || '';
     styleCell(cellF);
 
-    // G — UxB
-    const cellG  = ws.getCell(`G${rowIndex}`);
-    cellG.value  = item.uxb !== '' ? item.uxb : '';
+    // ── G — UxB ──
+    const cellG     = ws.getCell(`G${rowIndex}`);
+    cellG.value     = item.uxb !== '' ? item.uxb : '';
     styleCell(cellG);
 
-    // H — Cantidad
-    const cellH  = ws.getCell(`H${rowIndex}`);
-    cellH.value  = item.cantidad;
+    // ── H — Cantidad ──
+    const cellH     = ws.getCell(`H${rowIndex}`);
+    cellH.value     = item.cantidad;
     styleCell(cellH);
-    cellH.font   = { bold: true, size: 12 };
+    cellH.font      = { bold: true, size: 12 };
   }
 
-  // Autofit descripción (col 4 = D)
+  // Autofit columna D (descripción)
   autoFitColumns(ws, [4]);
 
+  // ── Guardar y subir ────────────────────────────────────────
   try {
     const buf  = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/octet-stream' });
