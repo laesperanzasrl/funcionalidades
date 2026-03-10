@@ -825,6 +825,17 @@ function esc(str) {
 }
 
 // ── Export Excel ──
+// ── Export Excel ──
+// Los códigos de barras se renderizan con la fuente "Libre Barcode 128".
+// Si la fuente no está instalada en la PC, la celda muestra el EAN en texto plano (igualmente útil).
+// Descarga gratuita: https://fonts.google.com/specimen/Libre+Barcode+128
+//
+// VENTAJAS sobre el método anterior (imágenes flotantes):
+//   ✅ La macro de consolidado copia correctamente las filas (End(xlUp) detecta el valor)
+//   ✅ PasteSpecial copia el contenido sin perder datos
+//   ✅ Archivos más livianos (sin imágenes embebidas)
+//   ✅ Fallback legible si la fuente no está instalada
+
 async function exportExcel() {
   if (!state.order.length) return;
 
@@ -879,10 +890,10 @@ async function exportExcel() {
   // H : Cantidad
   ws.columns = [
     { key: 'barcode', width: 30   },  // A – ancho generoso para el barcode
-    { key: 'sp1',     width: 0.5  },  // B – espaciador visual
+    { key: 'sp1',     width: 0.05  },  // B – espaciador visual
     { key: 'ean',     width: 16   },  // C
     { key: 'desc',    width: 48   },  // D
-    { key: 'sp2',     width: 0.5  },  // E – espaciador visual
+    { key: 'sp2',     width: 0.05  },  // E – espaciador visual
     { key: 'gram',    width: 14   },  // F
     { key: 'uxb',     width: 6    },  // G
     { key: 'cant',    width: 8    },  // H
@@ -896,7 +907,7 @@ async function exportExcel() {
     right:  { style: 'thin' },
   };
 
-  const centerMiddle = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  const centerMiddle = { horizontal: 'center', vertical: 'middle', wrapText: false };
 
   /**
    * Aplica alineación centrada y borde fino a una celda.
@@ -913,9 +924,9 @@ async function exportExcel() {
   const lastCol = 'H';
 
   [
-    [1, `REMITO/PEDIDO — ${sucursal.toUpperCase()} — ${fecha}`, true,  22],
-    [2, `Concepto: ${concepto}`,                                false, 16],
-    [3, `ID: ${remitoId}`,                                      false, 14],
+    [1, `REMITO/PEDIDO — ${sucursal.toUpperCase()} — ${fecha}`, true,  12],
+    [2, `Concepto: ${concepto}`,                                false, 10],
+    [3, `ID: ${remitoId}`,                                      false,  9],
   ].forEach(([row, val, bold, size]) => {
     ws.mergeCells(`A${row}:${lastCol}${row}`);
     const cell  = ws.getCell(`A${row}`);
@@ -952,19 +963,19 @@ async function exportExcel() {
     const rowIndex = 5 + i;
     const eanCode  = String(item.ean || '');
 
-    // Altura generosa para que el barcode resulte legible al imprimir
-    ws.getRow(rowIndex).height = 52;
+    // Alto máximo 20 pt — el barcode y el resto del contenido se ajustan a ese límite
+    ws.getRow(rowIndex).height = 20;
 
     // ── A — Código de barras como texto con fuente Libre Barcode 128 ──
-    // Si la fuente está instalada en la PC, Excel renderiza el barcode visualmente.
-    // Si no está instalada, se ve el número EAN en texto plano (igualmente útil).
+    // Con height 20 el size 14 genera barras que entran justas y son escaneables.
+    // Si la fuente no está instalada, se ve el EAN en texto plano.
     const cellA     = ws.getCell(`A${rowIndex}`);
     cellA.value     = eanCode;
     cellA.border    = thinBorder;
     cellA.alignment = { horizontal: 'center', vertical: 'middle' };
     cellA.font      = {
-      name: 'Libre Barcode 128',  // fuente de código de barras
-      size: 28,                   // tamaño que da barras de buen alto con row height 52
+      name: 'Libre Barcode 128',
+      size: 14,                   // ajustado para caber en height 20
       color: { argb: 'FF000000' },
     };
 
@@ -999,7 +1010,7 @@ async function exportExcel() {
     const cellH     = ws.getCell(`H${rowIndex}`);
     cellH.value     = item.cantidad;
     styleCell(cellH);
-    cellH.font      = { bold: true, size: 12 };
+    cellH.font      = { bold: true, size: 10 };
   }
 
   // Autofit columna D (descripción)
