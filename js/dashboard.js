@@ -1520,7 +1520,7 @@ function renderAccTable() {
     const diasDt = calcDias(r.fechaVenc);
     const esVencido = diasDt !== null && diasDt <= 0;
     const puedeTransf = cantDisp > 0 && r.estado !== 'VENDIDO' && !esVencido;
-    const puedeVentaAjuste = esVencido && r.estado !== 'VENDIDO' && cantDisp > 0;
+    const puedeVentaAjuste = (diasDt !== null && diasDt <= 1) && r.estado !== 'VENDIDO' && cantDisp > 0;
     const yaRegistrado = r.estado === 'VENDIDO' && (r.cantVendida > 0 || r.cantVencidaGondola > 0);
     const rowStyle = r.estado === 'VENDIDO'
       ? 'background:rgba(34,197,94,.06);border-left:2px solid rgba(34,197,94,.3);'
@@ -1585,7 +1585,7 @@ function renderAccTable() {
     const urg = getUrg(dias);
     const esVencido = dias !== null && dias <= 0;
     const puedeTransf = cantDisp > 0 && r.estado !== 'VENDIDO' && !esVencido;
-    const puedeVentaAjuste = esVencido && r.estado !== 'VENDIDO' && cantDisp > 0;
+    const puedeVentaAjuste = (dias !== null && dias <= 1) && r.estado !== 'VENDIDO' && cantDisp > 0;
     const yaRegistrado = r.estado === 'VENDIDO' && (r.cantVendida > 0 || r.cantVencidaGondola > 0);
     const cardVendidoStyle = r.estado === 'VENDIDO'
       ? 'border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.04);'
