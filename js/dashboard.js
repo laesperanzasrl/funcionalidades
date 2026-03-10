@@ -43,7 +43,7 @@ const URG_ORDER = { VENCIDO: 0, CRITICO: 1, URGENTE: 2, PROXIMO: 3, ATENCION: 4,
 const URG_LABELS = { VENCIDO: 'VENCIDO', CRITICO: 'CRÍTICO', URGENTE: 'URGENTE', PROXIMO: 'PRÓXIMO', ATENCION: 'ATENCIÓN', NORMAL: 'NORMAL' };
 const BAR_CLRS = { VENCIDO: 'var(--venc-v-fg)', CRITICO: 'var(--venc-c-fg)', URGENTE: 'var(--venc-u-fg)', PROXIMO: 'var(--venc-p-fg)', ATENCION: 'var(--venc-a-fg)', NORMAL: 'var(--venc-n-fg)' };
 
-const SUCURSALES_LIST = ['HIPER', 'CENTRO', 'RIBERA', 'MAYORISTA', 'PROVEEDOR', 'OTRO'];
+const SUCURSALES_LIST = ['HIPER', 'CENTRO', 'RIBERA', 'MAYORISTA'];
 let currentTransferData = null;
 let currentAdjustData = null;
 

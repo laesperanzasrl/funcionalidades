@@ -964,7 +964,7 @@ async function exportExcel() {
     const eanCode  = String(item.ean || '');
 
     // Alto máximo 20 pt — el barcode y el resto del contenido se ajustan a ese límite
-    ws.getRow(rowIndex).height = 20;
+    ws.getRow(rowIndex).height = 30;
 
     // ── A — Código de barras como texto con fuente Libre Barcode 128 ──
     // Con height 20 el size 14 genera barras que entran justas y son escaneables.

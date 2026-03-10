@@ -402,10 +402,12 @@ function esSectorPesable(data) {
     const sectorUp = (data.SECTOR || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const seccionUp = (data.SECCION || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const eanStr = String(data.EAN || data.INTERNO || '');
-    return (
-        SECTORES_PESABLES_KEYS.some(k => sectorUp.includes(k) || seccionUp.includes(k)) ||
-        eanStr.startsWith('23')
-    );
+
+    // EANs estándar (comienzan con 7, 8, etc.) NUNCA son pesables,
+    // aunque el producto pertenezca al sector frutas/verduras u otro sector pesable.
+    if (!eanStr.startsWith('2')) return false;
+
+    return SECTORES_PESABLES_KEYS.some(k => sectorUp.includes(k) || seccionUp.includes(k));
 }
 
 async function triggerLookup(code) {
