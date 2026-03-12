@@ -2975,8 +2975,8 @@ function abrirModalAccionVen(evt, venId, sucursal, cantActual, desc, ean, fechaV
   // ── Restricción horaria ──────────────────────────────────────
   const _ahora = new Date();
   const _mins  = _ahora.getHours() * 60 + _ahora.getMinutes();
-  if (_mins < 8 * 60 || _mins >= 16 * 60 ) {
-    showToast(false, 'El registro de acciones está disponible solo de 08:00 a 16:00 hs.', 6000);
+  if (_mins < 8 * 60 || _mins >= 13 * 60 ) {
+    showToast(false, 'El registro de acciones está disponible solo de 08:00 a 13:00 hs.', 6000);
     return;
   }
   const venRec = venData.find(v => v.id === venId) || {};
