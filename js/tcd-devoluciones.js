@@ -91,9 +91,10 @@ const els = {
     counterBadge: $('counterBadge'),
     cfgBanner: $('cfgBanner'),
     dupOverlay: $('dupOverlay'),
-  dupBody: $('dupBody'),
-  dupBtnCancel: $('dupBtnCancel'),
-  dupBtnProceed: $('dupBtnProceed'),
+    dupBody: $('dupBody'),
+    dupBtnCancel: $('dupBtnCancel'),
+    dupBtnProceed: $('dupBtnProceed'),
+    fDestinatarioVenta: $('fDestinatarioVenta')
 };
 
 const MOTIVOS_VENCIMIENTO = ['CONTROL DE VENCIMIENTO'];
@@ -231,10 +232,12 @@ async function init() {
     });
 
     // ── Tipo de registro ──
+    // ── Tipo de registro ──
     els.fEvent.addEventListener('change', () => {
         const val = els.fEvent.value;
         applyDateRestriction(val);
         toggleDiscountInput(val);
+        toggleSectorInterno(val);
         toggleBdBadge(val);
         updateSubmitButtonLabel(val);
         clearFieldError('fEvent');
@@ -277,11 +280,16 @@ document.addEventListener('DOMContentLoaded', init);
 function toggleBdBadge(motivo) {
     const badge = $('bdBadge');
     if (!badge || !motivo) { badge && (badge.style.display = 'none'); return; }
-    const esVen = MOTIVOS_VENCIMIENTO.includes(motivo);
-    badge.className = 'bd-badge ' + (esVen ? 'bd-badge--ven' : 'bd-badge--dev');
-    badge.textContent = esVen
-        ? '📋 Se guardará en: Control de Vencimientos'
-        : '📦 Se guardará en: Devoluciones / Acciones';
+
+    const configs = {
+        'CONTROL DE VENCIMIENTO': { cls: 'bd-badge--ven', txt: '📋 Se guardará en: Control de Vencimientos' },
+        'CONSUMO INTERNO': { cls: 'bd-badge--vyc', txt: '🏪 Se guardará en: Ventas y Consumos Internos' },
+        'VENTA': { cls: 'bd-badge--vyc', txt: '💰 Se guardará en: Ventas y Consumos Internos' },
+    };
+    const cfg = configs[motivo] || { cls: 'bd-badge--dev', txt: '📦 Se guardará en: Devoluciones / Acciones' };
+
+    badge.className = 'bd-badge ' + cfg.cls;
+    badge.textContent = cfg.txt;
     badge.style.display = 'flex';
 }
 
@@ -351,10 +359,41 @@ function showDuplicateModal(duplicateData, onProceed) {
 
 function updateSubmitButtonLabel(motivo) {
     if (!els.btnSubmitText) return;
-    const esVen = MOTIVOS_VENCIMIENTO.includes(motivo);
-    els.btnSubmitText.textContent = esVen
-        ? 'Enviar control de vencimiento'
-        : 'Enviar registro';
+    const labels = {
+        'CONTROL DE VENCIMIENTO': 'Enviar control de vencimiento',
+        'CONSUMO INTERNO': 'Enviar consumo interno',
+        'VENTA': 'Enviar registro de venta',
+    };
+    els.btnSubmitText.textContent = labels[motivo] || 'Enviar registro';
+}
+
+
+function toggleSectorInterno(motivo) {
+    // ── Campo sector interno (CONSUMO INTERNO) ──
+    const wrapSector = $('sectorInternoWrap');
+    const inputSector = $('fSectorInterno');
+    const mostrarSector = motivo === 'CONSUMO INTERNO';
+    if (wrapSector) wrapSector.style.display = mostrarSector ? 'block' : 'none';
+    if (!mostrarSector && inputSector) {
+        inputSector.value = '';
+        inputSector.classList.remove('err');
+        const errEl = $('eSectorInterno');
+        if (errEl) errEl.classList.remove('show');
+    }
+    if (mostrarSector && inputSector) setTimeout(() => inputSector.focus(), 80);
+
+    // ── Campo destinatario (VENTA) ──
+    const wrapDest = $('destinatarioVentaWrap');
+    const inputDest = $('fDestinatarioVenta');
+    const mostrarDest = motivo === 'VENTA';
+    if (wrapDest) wrapDest.style.display = mostrarDest ? 'block' : 'none';
+    if (!mostrarDest && inputDest) {
+        inputDest.value = '';
+        inputDest.classList.remove('err');
+        const errEl = $('eDestinatarioVenta');
+        if (errEl) errEl.classList.remove('show');
+    }
+    if (mostrarDest && inputDest) setTimeout(() => inputDest.focus(), 80);
 }
 
 // ─────────────────────────────────────────────
@@ -896,7 +935,7 @@ function validateAll() {
             if (els.discountWrap.style.display !== 'none') {
                 const val = els.fDiscount.value.trim();
                 const num = Number(val);
-                const ok = val !== '' && !isNaN(num) && Number.isInteger(num) && num >= 1 && num <= 99;
+                const ok  = val !== '' && !isNaN(num) && Number.isInteger(num) && num >= 1 && num <= 99;
                 els.fDiscount.classList.toggle('err', !ok);
                 const errEl = $('eDiscount');
                 if (errEl) errEl.classList.toggle('show', !ok);
@@ -906,6 +945,27 @@ function validateAll() {
         }
         if (!validateField(fieldId)) allOk = false;
     }
+
+    // ── Sector interno (CONSUMO INTERNO) ──
+    if (els.fEvent.value === 'CONSUMO INTERNO') {
+        const siEl  = $('fSectorInterno');
+        const siErr = $('eSectorInterno');
+        const ok    = siEl && siEl.value.trim().length >= 2;
+        if (siEl)  siEl.classList.toggle('err', !ok);
+        if (siErr) siErr.classList.toggle('show', !ok);
+        if (!ok)   allOk = false;
+    }
+
+    // ── Destinatario venta (VENTA) ──
+    if (els.fEvent.value === 'VENTA') {
+        const dvEl  = $('fDestinatarioVenta');
+        const dvErr = $('eDestinatarioVenta');
+        const ok    = dvEl && dvEl.value.trim().length >= 2;
+        if (dvEl)  dvEl.classList.toggle('err', !ok);
+        if (dvErr) dvErr.classList.toggle('show', !ok);
+        if (!ok)   allOk = false;
+    }
+
     return allOk;
 }
 
@@ -913,10 +973,12 @@ function validateAll() {
 // CONSTRUIR PAYLOAD
 // ─────────────────────────────────────────────
 function buildPayload() {
+    const sectorInternoEl     = $('fSectorInterno');
+    const destinatarioVentaEl = $('fDestinatarioVenta');
     return {
-        action: 'submitForm',
-        usuario: els.fEmail.value.trim(),
-        sucursal: els.fBranch.value,
+        action:         'submitForm',
+        usuario:        els.fEmail.value.trim(),
+        sucursal:       els.fBranch.value,
         event: (() => {
             const base = els.fEvent.value;
             if (base === 'OTRO DESCUENTO' && els.fDiscount.value.trim()) {
@@ -924,25 +986,27 @@ function buildPayload() {
             }
             return base;
         })(),
-        cantidad: els.fQty.value.trim().replace(',', '.'),
-        esPesable: state.isPesable,
-        unidadCantidad: state.isPesable ? 'kg' : 'unidades',
-        fechaVenc: els.fExp.value,
-        aclaracion: els.fNote.value.trim(),
-        lote: els.fLot.value.trim(),
-        comentarios: els.fComment.value.trim(),
-        ean: els.fBarcode.value.trim(),
-        descripcion: els.fDesc.value.trim(),
-        codInterno: state.productData?.INTERNO || null,
-        proveedor: state.productData?.PROVEEDOR || null,
-        codProv: state.productData?.['COD.PROVEEDOR'] || null,
-        gramaje: state.productData?.GRAMAJE || null,
-        uxb: state.productData?.UXB || null,
-        sector: state.productData?.SECTOR || null,
-        seccion: state.productData?.SECCION || null,
-        photoBase64: state.photoBase64 || null,
-        photoMime: state.photoMime || null,
-        photoName: state.photoName || null,
+        cantidad:           els.fQty.value.trim().replace(',', '.'),
+        esPesable:          state.isPesable,
+        unidadCantidad:     state.isPesable ? 'kg' : 'unidades',
+        fechaVenc:          els.fExp.value,
+        aclaracion:         els.fNote.value.trim(),
+        lote:               els.fLot.value.trim(),
+        comentarios:        els.fComment.value.trim(),
+        ean:                els.fBarcode.value.trim(),
+        descripcion:        els.fDesc.value.trim(),
+        codInterno:         state.productData?.INTERNO           || null,
+        proveedor:          state.productData?.PROVEEDOR         || null,
+        codProv:            state.productData?.['COD.PROVEEDOR'] || null,
+        gramaje:            state.productData?.GRAMAJE           || null,
+        uxb:                state.productData?.UXB               || null,
+        sector:             state.productData?.SECTOR            || null,
+        seccion:            state.productData?.SECCION           || null,
+        sectorInterno:      sectorInternoEl     ? sectorInternoEl.value.trim()     : '',
+        destinatarioVenta:  destinatarioVentaEl ? destinatarioVentaEl.value.trim() : '',
+        photoBase64:        state.photoBase64 || null,
+        photoMime:          state.photoMime   || null,
+        photoName:          state.photoName   || null,
     };
 }
 
@@ -1029,11 +1093,12 @@ function onSubmitSuccess() {
     updateCounter();
     showToast('ok', '✓ Registro enviado correctamente', 5000);
 
-    // Conservar email, sucursal y tipo de registro para el próximo envío
+    // Conservar campos de contexto para el próximo envío
     const savedEmail = els.fEmail.value;
     const savedBranch = els.fBranch.value;
     const savedEvent = els.fEvent.value;
     const savedDiscount = els.fDiscount.value;
+    const savedSectorInterno = ($('fSectorInterno') || {}).value || '';
 
     clearForm();
 
@@ -1041,12 +1106,21 @@ function onSubmitSuccess() {
     els.fBranch.value = savedBranch;
     els.fEvent.value = savedEvent;
     els.fDiscount.value = savedDiscount;
+
+    // Restaurar sector interno si el motivo lo requiere
+    const siEl = $('fSectorInterno');
+    if (siEl && savedEvent === 'CONSUMO INTERNO') {
+        siEl.value = savedSectorInterno;
+        const wrap = $('sectorInternoWrap');
+        if (wrap) wrap.style.display = 'block';
+    }
+
     toggleBdBadge(savedEvent);
     toggleDiscountInput(savedEvent);
+    toggleSectorInterno(savedEvent);
     updateSubmitButtonLabel(savedEvent);
     applyDateRestriction(savedEvent);
 
-    // Scroll al tope del formulario
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -1064,6 +1138,17 @@ function clearForm() {
     els.fDiscount.value = '';
     els.fExp.removeAttribute('min');
     els.fExp.removeAttribute('max');
+
+    // Ocultar sector interno
+    const sectorInternoWrap = $('sectorInternoWrap');
+    if (sectorInternoWrap) sectorInternoWrap.style.display = 'none';
+    const sectorInternoEl = $('fSectorInterno');
+    if (sectorInternoEl) { sectorInternoEl.value = ''; sectorInternoEl.classList.remove('err'); }
+
+     const destinatarioVentaWrap = $('destinatarioVentaWrap');
+    if (destinatarioVentaWrap) destinatarioVentaWrap.style.display = 'none';
+    const fDestinatarioVenta = $('fDestinatarioVenta');
+    if (fDestinatarioVenta) fDestinatarioVenta.value = '';
 
     state.isPesable = false;
     state.pesoKg = null;
@@ -1094,7 +1179,6 @@ function clearForm() {
     removePhoto();
     hideProductCard();
 }
-
 // ─────────────────────────────────────────────
 // DISCOUNT INPUT TOGGLE
 // ─────────────────────────────────────────────
@@ -1193,7 +1277,7 @@ function esc(str) {
 const HORARIO = {
     diasHabiles: [1, 2, 3, 4, 5, 6], // 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
     inicio: { h: 9, m: 0 },
-    fin: { h: 11, m: 30 },
+    fin: { h: 16, m: 30 },
 };
 
 function dentroDelHorario() {

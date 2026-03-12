@@ -29,15 +29,26 @@
             flex-direction: column;
             gap: 16px;
         }
-        #sendingOverlay.active { display: flex; }
+
+        #sendingOverlay.active {
+            display: flex;
+        }
+
         .sending-spinner {
-            width: 48px; height: 48px;
+            width: 48px;
+            height: 48px;
             border: 4px solid rgba(255, 255, 255, 0.15);
             border-top-color: #fff;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
         .sending-label {
             color: #fff;
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -76,11 +87,16 @@
             box-shadow: 0 6px 22px rgba(22, 163, 74, 0.30);
             touch-action: manipulation;
         }
+
         .btn-submit-primary:hover {
             background: #15803d;
             box-shadow: 0 8px 28px rgba(22, 163, 74, 0.45);
         }
-        .btn-submit-primary:active { transform: scale(0.98); }
+
+        .btn-submit-primary:active {
+            transform: scale(0.98);
+        }
+
         .btn-submit-primary:disabled {
             background: #2b2b2b;
             box-shadow: none;
@@ -230,7 +246,8 @@
                     <button class="mode-tab mode-tab--active" id="modeTabCam">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
                             stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-                            <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
+                            <path
+                                d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
                         </svg>
                         Cámara / Búsqueda
                     </button>
@@ -252,7 +269,8 @@
                         <button class="action-btn action-btn--scan" id="btnOpenScanner" type="button">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
                                 stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
+                                <path
+                                    d="M3 9V5a2 2 0 0 1 2-2h4M15 3h4a2 2 0 0 1 2 2v4M21 15v4a2 2 0 0 1-2 2h-4M9 21H5a2 2 0 0 1-2-2v-4" />
                                 <line x1="7" y1="8" x2="7" y2="16" />
                                 <line x1="10" y1="8" x2="10" y2="16" />
                                 <line x1="13" y1="8" x2="13" y2="16" />
@@ -375,10 +393,10 @@
                 <label for="fBranch">Sucursal <span class="req">*</span></label>
                 <select id="fBranch">
                     <option value="">Elegir...</option>
-                    <option value="HIPER">Hiper</option>
-                    <option value="CENTRO">Centro</option>
-                    <option value="RIBERA">Ribera</option>
-                    <option value="MAYORISTA">Mayorista</option>
+                    <option value="HIPER" style="color: yellow;font-weight: bold;">Hiper</option>
+                    <option value="CENTRO" style="color: rgb(0, 98, 245); font-weight: bold;">Centro</option>
+                    <option value="RIBERA" style="color: rgb(190, 0, 0);font-weight: bold;">Ribera</option>
+                    <option value="MAYORISTA" style="color: rgb(188, 0, 212);font-weight: bold;">Mayorista</option>
                 </select>
                 <div class="ferr" id="eBranch">Seleccioná una sucursal.</div>
             </div>
@@ -396,12 +414,16 @@
                         <option value="OTRO DESCUENTO">Otro descuento</option>
                         <option value="VENCIDO">Vencimiento sin acción</option>
                     </optgroup>
-                    <optgroup label="── Merma / Decomiso ──">
+                    <optgroup label="── Merma / Decomiso ──" style="color: orange;">
                         <option value="ROTO/DAÑADO">Roto / Dañado</option>
                         <option value="MAL ESTADO">Mal estado / No apto para consumo</option>
                         <option value="DECOMISO FRUTA Y VERDURA">Decomiso fruta y verdura</option>
                         <option value="DECOMISO CARNICERIA">Decomiso carnicería</option>
                         <option value="DECOMISO FIAMBRERIA">Decomiso fiambería</option>
+                    </optgroup>
+                    <optgroup label="── Otros ──" style="color:deeppink;">
+                        <option value="CONSUMO INTERNO">Consumo interno (especificar sector)</option>
+                        <option value="VENTA">Venta fabricas, bolsones, etc.</option>
                     </optgroup>
                 </select>
 
@@ -412,6 +434,31 @@
                         <span class="discount-pct-label">%</span>
                     </div>
                     <div class="ferr" id="eDiscount">Ingresá un porcentaje entre 1 y 99.</div>
+                </div>
+
+                <!-- Campo sector interno — visible solo para CONSUMO INTERNO -->
+                <div id="sectorInternoWrap" style="display:none; margin-top:10px;">
+                    <div class="field">
+                        <label for="fSectorInterno">
+                            Sector que consume <span class="req">*</span>
+                            <span class="label-hint">(ej: Administración, Carnicería, Personal...)</span>
+                        </label>
+                        <input type="text" id="fSectorInterno"
+                            placeholder="Especificá el sector que consumió el producto" autocomplete="off" />
+                        <div class="ferr" id="eSectorInterno">Especificá el sector de consumo.</div>
+                    </div>
+                </div>
+
+                <div id="destinatarioVentaWrap" style="display:none; margin-top: 10px;">
+                    <div class="field" style="margin-bottom:0">
+                        <label for="fDestinatarioVenta">
+                            Destinatario / Cliente <span class="req">*</span>
+                            <span class="label-hint">(ej: Fábrica Río Grande, Bolsones comedor, etc.)</span>
+                        </label>
+                        <input type="text" id="fDestinatarioVenta" placeholder="A quién se realiza la venta"
+                            autocomplete="off" />
+                        <div class="ferr" id="eDestinatarioVenta">Especificá el destinatario de la venta.</div>
+                    </div>
                 </div>
 
                 <div class="bd-badge" id="bdBadge" style="display:none"></div>
@@ -438,7 +485,8 @@
                             <button class="photo-btn-cam" id="btnCamera" type="button">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                     stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                    <path
+                                        d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                                     <circle cx="12" cy="13" r="4" />
                                 </svg>
                                 Cámara
@@ -491,10 +539,10 @@
         <!-- ─── ENVÍO ─── -->
         <div class="submit-wrap">
             <button class="btn-submit-primary" id="btnSubmit" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
-                    <line x1="22" y1="2" x2="11" y2="13"/>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                    stroke-linejoin="round" width="18" height="18">
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
                 </svg>
                 <span id="btnSubmitText">Enviar registro</span>
             </button>
@@ -510,17 +558,18 @@
     </div>
 
     <div class="dup-overlay" id="dupOverlay" role="dialog" aria-modal="true" aria-label="Registro duplicado">
-  <div class="dup-modal">
-    <div class="dup-icon">⚠️</div>
-    <h2 class="dup-title">Registro duplicado detectado</h2>
-    <p class="dup-body" id="dupBody"></p>
-    <div class="dup-hint">Realizá los ajustes de stock desde el dashboard para evitar duplicar información.</div>
-    <div class="dup-actions">
-      <button class="dup-btn dup-btn--cancel" id="dupBtnCancel">Cancelar y revisar</button>
-      <button class="dup-btn dup-btn--proceed" id="dupBtnProceed">Registrar de todas formas</button>
+        <div class="dup-modal">
+            <div class="dup-icon">⚠️</div>
+            <h2 class="dup-title">Registro duplicado detectado</h2>
+            <p class="dup-body" id="dupBody"></p>
+            <div class="dup-hint">Realizá los ajustes de stock desde el dashboard para evitar duplicar información.
+            </div>
+            <div class="dup-actions">
+                <button class="dup-btn dup-btn--cancel" id="dupBtnCancel">Cancelar y revisar</button>
+                <button class="dup-btn dup-btn--proceed" id="dupBtnProceed">Registrar de todas formas</button>
+            </div>
+        </div>
     </div>
-  </div>
-</div>
 
     <script src="../js/tcd-devoluciones.js" defer></script>
 

@@ -175,6 +175,56 @@ body {
   border-color: var(--green)
 }
 
+/* Contenedor del select para añadir la flecha personalizada */
+.select-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+/* El select propiamente dicho */
+#avMotivo.form-control {
+    background-color: var(--card2); /* Fondo oscuro como tus tarjetas */
+    color: #ffffff;
+    border: 1px solid var(--border2); /* Borde sutil */
+    border-radius: 6px;
+    padding: 12px 15px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+}
+
+/* Efecto al pasar el mouse o enfocar */
+#avMotivo.form-control:hover {
+    border-color: var(--border2);
+}
+
+#avMotivo.form-control:focus {
+    border-color: var(--border2); /* Violeta Nexus */
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(204, 116, 255, 0.1);
+}
+
+
+
+/* Estilo de los grupos y opciones (lo que el navegador permite) */
+#avMotivo optgroup {
+    background-color: var(--card2);
+    color: #888;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 10px;
+}
+
+#avMotivo option {
+    background-color: var(--card2);
+      font-size: 14px;
+    padding: 10px;
+    text-transform: none;
+}
+
 /* ── VENDIDO badge ── */
 .b-vendido {
   background: rgba(71, 85, 105, .2);
@@ -3802,4 +3852,246 @@ table.lote-table tbody tr:hover td {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text3)
+}
+/* ══════════════════════════════════════════════════
+   STICKY HISTORY BUTTON
+══════════════════════════════════════════════════ */
+.hist-sticky-btn {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 500;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 20px;
+  border-radius: 50px;
+  border: 1px solid var(--border2);
+  background: var(--card);
+  color: var(--text);
+  font-family: 'Manrope', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 6px 28px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.04);
+  transition: all .2s;
+  letter-spacing: .01em;
+}
+.hist-sticky-btn.visible { display: flex; }
+.hist-sticky-btn:hover {
+  background: var(--card2);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 36px rgba(0,0,0,.6);
+  border-color: var(--blue);
+}
+.hist-sticky-btn .hist-sticky-icon { font-size: 16px; }
+.hist-sticky-btn .hist-badge {
+  background: var(--blue);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  min-width: 20px;
+  text-align: center;
+}
+.hist-sticky-acc { bottom: 90px; }
+
+/* ══════════════════════════════════════════════════
+   HISTORY MODAL
+══════════════════════════════════════════════════ */
+.hist-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.78);
+  backdrop-filter: blur(5px);
+  z-index: 3500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.hist-modal-overlay.open { display: flex; }
+.hist-modal-box {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  width: min(820px, 100%);
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0,0,0,.6);
+}
+.hist-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 22px 24px 0;
+  gap: 12px;
+}
+.hist-modal-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+}
+.hist-modal-sub {
+  font-size: 10px;
+  color: var(--text3);
+  font-family: 'IBM Plex Mono', monospace;
+  margin-top: 4px;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+/* Tabs */
+.hist-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 14px 24px 0;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.hist-tab {
+  padding: 9px 18px;
+  border-radius: 8px 8px 0 0;
+  border: none;
+  background: transparent;
+  color: var(--text2);
+  font-family: 'Manrope', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .15s;
+  position: relative;
+  bottom: -1px;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.hist-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--blue);
+  background: var(--card);
+}
+.hist-tab:hover:not(.active) { color: var(--text); background: rgba(255,255,255,.04); }
+.hist-tab-badge {
+  display: inline-block;
+  background: var(--blue-d);
+  color: var(--blue);
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  margin-left: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700;
+}
+.hist-tab.active .hist-tab-badge { background: var(--blue); color: #000; }
+
+/* Content area */
+.hist-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px 24px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+.hist-content::-webkit-scrollbar { width: 5px; }
+.hist-content::-webkit-scrollbar-track { background: transparent; }
+.hist-content::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* Op cards */
+.hist-op-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+.hist-op-card.transfer  { border-left-color: var(--blue); }
+.hist-op-card.ajuste-pos { border-left-color: var(--green); }
+.hist-op-card.ajuste-neg { border-left-color: var(--red); }
+.hist-op-card.venta     { border-left-color: var(--amber); }
+.hist-op-card:last-child { margin-bottom: 0; }
+
+.hist-op-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.hist-op-desc {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hist-op-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--text3);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.hist-op-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.hist-arrow {
+  color: var(--text3);
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Chips */
+.hist-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  white-space: nowrap;
+}
+.hist-chip.ean     { color: var(--cyan);   border-color: rgba(34,212,232,.2);  background: rgba(34,212,232,.06); }
+.hist-chip.suc-orig{ color: var(--amber);  border-color: rgba(245,166,35,.2);  background: rgba(245,166,35,.06); }
+.hist-chip.suc-dest{ color: var(--blue);   border-color: rgba(79,142,255,.25); background: rgba(79,142,255,.08); }
+.hist-chip.venc    { color: var(--text3);  }
+.hist-chip.qty     { color: var(--text);   font-weight: 700; }
+.hist-chip.pos     { color: var(--green);  border-color: rgba(34,216,122,.2);  background: rgba(34,216,122,.06); }
+.hist-chip.neg     { color: var(--red);    border-color: rgba(255,77,77,.2);   background: rgba(255,77,77,.06); }
+
+/* Empty state */
+.hist-empty {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--text3);
+  font-size: 13px;
+}
+.hist-empty-icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+  opacity: .6;
+}
+
+@media (max-width: 600px) {
+  .hist-sticky-btn { bottom: 16px; right: 16px; padding: 11px 16px; font-size: 12px; }
+  .hist-sticky-acc { bottom: 72px; }
+  .hist-modal-box { max-height: 90vh; border-radius: 12px; }
+  .hist-modal-header { padding: 16px 16px 0; }
+  .hist-tabs { padding: 12px 16px 0; }
+  .hist-content { padding: 12px 16px 16px; }
 }

@@ -92,6 +92,12 @@ body {
     letter-spacing: 0.06em;
 }
 
+.bd-badge--vyc {
+    background: rgba(236, 72, 153, 0.08);
+    color: #f472b6;
+    border-color: rgba(236, 72, 153, 0.2);
+}
+
 /* ══ MODAL DUPLICADO ══ */
 .dup-overlay {
   display: none;

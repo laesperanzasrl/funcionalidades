@@ -49,10 +49,22 @@ let currentAdjustData = null;
 
 let currentAccTransferData = null;
 
+// ── LOG DATA (operaciones del día) ───────────────────
+let venLogs = [];
+let _histVenActiveTab = 'transfers';
+let _histAccActiveTab = 'transfers';
+
 // ══════════════════════════════════════════════════════
 //  HELPER: ¿Es producto pesable?
 // ══════════════════════════════════════════════════════
 const SECTORES_PESABLES = ['FIAMBRE', 'CARNICER', 'VERDULER', 'FRUTA', 'PESCAD', 'ROTISERI'];
+
+// Devuelve true solo cuando un DEV es hijo de una TRANSFERENCIA entre sucursales.
+// Los DEV con ID_ORIGEN = 'VEN-...' son acciones originales creadas desde el panel de
+// Vencimientos: NO son transferencias, deben mostrarse normalmente y aparecer en N/C.
+function esTransferHijo(r) {
+  return !!(r.idOrigen && String(r.idOrigen).startsWith('DEV-'));
+}
 
 function esPesable(item) {
   if (!item) return false;
@@ -64,8 +76,244 @@ function esPesable(item) {
 }
 
 // ══════════════════════════════════════════════════════
-//  INIT
+//  LOG OPERACIONES — Historial del día
 // ══════════════════════════════════════════════════════
+
+function _isToday(ts) {
+  if (!ts) return false;
+  const d = new Date(ts);
+  if (isNaN(d)) return false;
+  const t = new Date();
+  return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
+}
+
+function _extractFechaVenc(idVen) {
+  if (!idVen) return null;
+  const m = String(idVen).match(/VEN-\d+-(\d{8})-/);
+  if (!m) return null;
+  const s = m[1];
+  return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+}
+
+function _fmtTime(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return isNaN(d) ? '—' : d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function processVenLogs(raw) {
+  venLogs = (raw || []).map(r => ({
+    timestamp: r['TIMESTAMP'] || r['timestamp'] || '',
+    tipo: String(r['TIPO'] || r['tipo'] || ''),
+    idVen: r['ID_VEN'] || r['id_ven'] || '',
+    idDev: r['ID_DEV'] || r['id_dev'] || '',
+    descripcion: r['DESCRIPCION'] || r['descripcion'] || '',
+    ean: String(r['EAN'] || r['ean'] || ''),
+    sucursal: r['SUCURSAL'] || r['sucursal'] || '',
+    cantAnterior: parseFloat(String(r['CANT_ANTERIOR'] ?? r['cant_anterior'] ?? '')),
+    cantNueva: parseFloat(String(r['CANT_NUEVA'] ?? r['cant_nueva'] ?? '')),
+    delta: parseFloat(String(r['DELTA'] ?? r['delta'] ?? '')),
+    destino: r['DESTINO'] || r['destino'] || '',
+    usuario: r['USUARIO'] || r['usuario'] || '',
+    notas: r['NOTAS'] || r['notas'] || '',
+  }));
+  _updateHistBadges();
+}
+
+function _updateHistBadges() {
+  const today = venLogs.filter(r => _isToday(r.timestamp));
+  const VEN_TYPES = ['TRANSFERENCIA_SALIDA','TRANSFERENCIA_ENTRADA','TRANSFERENCIA_NUEVA_SUCURSAL','AJUSTE_POSITIVO','AJUSTE_NEGATIVO','AJUSTE_SIN_CAMBIO','AJUSTE_STOCK_A_CERO'];
+  const ACC_TYPES = ['ACC_TRANSFER_SALIDA','ACC_TRANSFER_NUEVO_REGISTRO','ACC_TRANSFER_ENTRADA_EXISTENTE','ACC_MARCADO_VENDIDO'];
+  const venCnt = today.filter(r => VEN_TYPES.includes(r.tipo)).length;
+  const accCnt = today.filter(r => ACC_TYPES.includes(r.tipo)).length;
+  const venBadge = document.getElementById('histVenBadge');
+  if (venBadge) { venBadge.textContent = venCnt; venBadge.style.display = venCnt ? '' : 'none'; }
+  const accBadge = document.getElementById('histAccBadge');
+  if (accBadge) { accBadge.textContent = accCnt; accBadge.style.display = accCnt ? '' : 'none'; }
+}
+
+// ── Abrir / cerrar modales ───────────────────────────
+function openHistVen() {
+  _histVenActiveTab = 'transfers';
+  const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const el = document.getElementById('histVenDate');
+  if (el) el.textContent = today.toUpperCase();
+  document.getElementById('histVenModal').classList.add('open');
+  _renderHistVen();
+}
+function closeHistVenModal(e) {
+  if (!e || e.target === document.getElementById('histVenModal'))
+    document.getElementById('histVenModal').classList.remove('open');
+}
+function openHistAcc() {
+  _histAccActiveTab = 'transfers';
+  const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const el = document.getElementById('histAccDate');
+  if (el) el.textContent = today.toUpperCase();
+  document.getElementById('histAccModal').classList.add('open');
+  _renderHistAcc();
+}
+function closeHistAccModal(e) {
+  if (!e || e.target === document.getElementById('histAccModal'))
+    document.getElementById('histAccModal').classList.remove('open');
+}
+
+function switchHistVenTab(tab) {
+  _histVenActiveTab = tab;
+  document.querySelectorAll('#histVenModal .hist-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  _renderHistVen();
+}
+function switchHistAccTab(tab) {
+  _histAccActiveTab = tab;
+  document.querySelectorAll('#histAccModal .hist-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  _renderHistAcc();
+}
+
+// ── Render VEN ───────────────────────────────────────
+function _renderHistVen() {
+  const today = venLogs.filter(r => _isToday(r.timestamp));
+  const VEN_TRANSFER_TYPES = ['TRANSFERENCIA_SALIDA','TRANSFERENCIA_ENTRADA','TRANSFERENCIA_NUEVA_SUCURSAL'];
+  const VEN_ADJ_TYPES = ['AJUSTE_POSITIVO','AJUSTE_NEGATIVO','AJUSTE_SIN_CAMBIO','AJUSTE_STOCK_A_CERO'];
+  const transfers = today.filter(r => VEN_TRANSFER_TYPES.includes(r.tipo));
+  const ajustes = today.filter(r => VEN_ADJ_TYPES.includes(r.tipo));
+
+  // Update tab badges
+  document.getElementById('histVenTabBadgeT').textContent = transfers.filter(r => r.tipo === 'TRANSFERENCIA_SALIDA').length;
+  document.getElementById('histVenTabBadgeA').textContent = ajustes.length;
+
+  const el = document.getElementById('histVenContent');
+  if (_histVenActiveTab === 'transfers') {
+    const salidas = today.filter(r => r.tipo === 'TRANSFERENCIA_SALIDA');
+    if (!salidas.length) {
+      el.innerHTML = `<div class="hist-empty"><div class="hist-empty-icon">⇄</div><div>Sin transferencias registradas hoy</div></div>`;
+      return;
+    }
+    el.innerHTML = salidas.map(r => {
+      const fechaVenc = _extractFechaVenc(r.idVen);
+      const qty = Math.abs(isNaN(r.delta) ? (r.cantAnterior - r.cantNueva) : r.delta);
+      return `<div class="hist-op-card transfer">
+        <div class="hist-op-row">
+          <div class="hist-op-desc">${esc(r.descripcion)}</div>
+          <span class="hist-op-time">${_fmtTime(r.timestamp)}</span>
+        </div>
+        <div class="hist-op-meta">
+          <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
+          <span class="hist-chip suc-orig">📤 ${esc(r.sucursal)}</span>
+          <span class="hist-arrow">→</span>
+          <span class="hist-chip suc-dest">📥 ${esc(r.destino || '—')}</span>
+          ${fechaVenc ? `<span class="hist-chip venc">📅 ${fechaVenc}</span>` : ''}
+          <span class="hist-chip qty">Cant: ${qty} u.</span>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    if (!ajustes.length) {
+      el.innerHTML = `<div class="hist-empty"><div class="hist-empty-icon">⚖</div><div>Sin ajustes registrados hoy</div></div>`;
+      return;
+    }
+    el.innerHTML = ajustes.map(r => {
+      const isPos = r.tipo === 'AJUSTE_POSITIVO';
+      const isNeg = r.tipo === 'AJUSTE_NEGATIVO' || r.tipo === 'AJUSTE_STOCK_A_CERO';
+      const tipoLabel = { AJUSTE_POSITIVO: '＋ Positivo', AJUSTE_NEGATIVO: '－ Negativo', AJUSTE_STOCK_A_CERO: '⬛ A cero', AJUSTE_SIN_CAMBIO: '＝ Sin cambio' }[r.tipo] || r.tipo;
+      const cardCls = isPos ? 'ajuste-pos' : isNeg ? 'ajuste-neg' : '';
+      const chipCls = isPos ? 'pos' : isNeg ? 'neg' : '';
+      const fechaVenc = _extractFechaVenc(r.idVen);
+      // Delta: preferimos el campo delta, sino lo calculamos
+      const deltaRaw = !isNaN(r.delta) ? r.delta : (!isNaN(r.cantNueva) && !isNaN(r.cantAnterior) ? r.cantNueva - r.cantAnterior : null);
+      const deltaStr = deltaRaw !== null
+        ? (deltaRaw > 0 ? `+${deltaRaw}` : `${deltaRaw}`) + ' u.'
+        : null;
+      const deltaChipCls = deltaRaw !== null ? (deltaRaw > 0 ? 'pos' : deltaRaw < 0 ? 'neg' : '') : '';
+      return `<div class="hist-op-card ${cardCls}">
+        <div class="hist-op-row">
+          <div class="hist-op-desc">${esc(r.descripcion)}</div>
+          <span class="hist-op-time">${_fmtTime(r.timestamp)}</span>
+        </div>
+        <div class="hist-op-meta">
+          <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
+          <span class="hist-chip suc-orig">🏪 ${esc(r.sucursal)}</span>
+          <span class="hist-chip ${chipCls}">${tipoLabel}</span>
+          ${fechaVenc ? `<span class="hist-chip venc">📅 ${fechaVenc}</span>` : ''}
+          <span class="hist-chip">Antes: ${isNaN(r.cantAnterior) ? '—' : r.cantAnterior}</span>
+          <span class="hist-chip qty">Ahora: ${isNaN(r.cantNueva) ? '—' : r.cantNueva}</span>
+          ${deltaStr ? `<span class="hist-chip ${deltaChipCls}" style="font-weight:800">Δ ${deltaStr}</span>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ── Render ACC ───────────────────────────────────────
+function _renderHistAcc() {
+  const today = venLogs.filter(r => _isToday(r.timestamp));
+  const accTransfers = today.filter(r => r.tipo === 'ACC_TRANSFER_SALIDA');
+  const accVentas = today.filter(r => r.tipo === 'ACC_MARCADO_VENDIDO');
+
+  // Dedup ventas: keep last per idDev+sucursal
+  const ventaMap = new Map();
+  accVentas.forEach(r => ventaMap.set((r.idDev || '') + '|' + r.sucursal, r));
+  const ventasDedup = [...ventaMap.values()].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  document.getElementById('histAccTabBadgeT').textContent = accTransfers.length;
+  document.getElementById('histAccTabBadgeV').textContent = ventasDedup.length;
+
+  const el = document.getElementById('histAccContent');
+  if (_histAccActiveTab === 'transfers') {
+    if (!accTransfers.length) {
+      el.innerHTML = `<div class="hist-empty"><div class="hist-empty-icon">⇄</div><div>Sin transferencias de acciones hoy</div></div>`;
+      return;
+    }
+    el.innerHTML = accTransfers.map(r => {
+      const qty = Math.abs(isNaN(r.delta) ? (r.cantAnterior - r.cantNueva) : r.delta);
+      const motivoMatch = r.notas.match(/Motivo[^:]*:\s*([^·\|]+)/);
+      const motivo = motivoMatch ? motivoMatch[1].trim() : '';
+      return `<div class="hist-op-card transfer">
+        <div class="hist-op-row">
+          <div class="hist-op-desc">${esc(r.descripcion)}</div>
+          <span class="hist-op-time">${_fmtTime(r.timestamp)}</span>
+        </div>
+        <div class="hist-op-meta">
+          <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
+          <span class="hist-chip suc-orig">📤 ${esc(r.sucursal)}</span>
+          <span class="hist-arrow">→</span>
+          <span class="hist-chip suc-dest">📥 ${esc(r.destino || '—')}</span>
+          <span class="hist-chip qty">Cant: ${qty} u.</span>
+          ${motivo ? `<span class="hist-chip">${esc(motivo)}</span>` : ''}
+          ${r.idDev ? `<span class="hist-chip" style="color:var(--purple);border-color:rgba(166,124,255,.25);background:rgba(166,124,255,.07)">📋 ${esc(r.idDev)}</span>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    if (!ventasDedup.length) {
+      el.innerHTML = `<div class="hist-empty"><div class="hist-empty-icon">🏷</div><div>Sin ventas ni ajustes hoy</div></div>`;
+      return;
+    }
+    el.innerHTML = ventasDedup.map(r => {
+      const vendMatch = r.notas.match(/Vendidas:\s*(\d+)/);
+      const vencMatch = r.notas.match(/Vencidas en gondola:\s*(\d+)/);
+      const motivoMatch = r.notas.match(/Motivo[^:]*:\s*([^|]+)/);
+      const vendidas = vendMatch ? vendMatch[1] : '—';
+      const vencidas = vencMatch ? vencMatch[1] : '—';
+      const motivo = motivoMatch ? motivoMatch[1].trim() : '';
+      const base = isNaN(r.cantAnterior) ? '—' : r.cantAnterior;
+      return `<div class="hist-op-card venta">
+        <div class="hist-op-row">
+          <div class="hist-op-desc">${esc(r.descripcion)}</div>
+          <span class="hist-op-time">${_fmtTime(r.timestamp)}</span>
+        </div>
+        <div class="hist-op-meta">
+          <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
+          <span class="hist-chip suc-orig">🏪 ${esc(r.sucursal)}</span>
+          ${motivo ? `<span class="hist-chip">${esc(motivo)}</span>` : ''}
+          <span class="hist-chip">Base: ${base}</span>
+          <span class="hist-chip pos">✓ Vendidas: ${vendidas}</span>
+          <span class="hist-chip neg">⛔ Góndola: ${vencidas}</span>
+          ${r.idDev ? `<span class="hist-chip" style="color:var(--purple);border-color:rgba(166,124,255,.25);background:rgba(166,124,255,.07)">📋 ${esc(r.idDev)}</span>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+}
 window.onload = () => {
   showPanel('resumen');
   if (SCRIPT_URL) {
@@ -91,6 +339,11 @@ function showPanel(id) {
   if (nav) nav.classList.add('active');
   document.getElementById('topbarTitle').textContent = PANEL_TITLES[id] || id;
   closeSidebar();
+  // Toggle sticky history buttons
+  const btnVen = document.getElementById('histVenBtn');
+  const btnAcc = document.getElementById('histAccBtn');
+  if (btnVen) btnVen.classList.toggle('visible', id === 'vencimientos');
+  if (btnAcc) btnAcc.classList.toggle('visible', id === 'acciones');
 }
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('backdrop').classList.toggle('open'); }
 function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('backdrop').classList.remove('open'); }
@@ -133,15 +386,23 @@ async function loadData() {
   if (_cdTimer) clearInterval(_cdTimer);
 
   try {
-    const [devRes, venRes] = await Promise.all([
+    const [devRes, venRes, logRes] = await Promise.all([
       fetch(`${SCRIPT_URL}?action=getHistorial&bd=devoluciones&_t=${Date.now()}`),
-      fetch(`${SCRIPT_URL}?action=getHistorial&bd=vencimientos&_t=${Date.now()}`)
+      fetch(`${SCRIPT_URL}?action=getHistorial&bd=vencimientos&_t=${Date.now()}`),
+      fetch(`${SCRIPT_URL}?action=getLogs&bd=vencimientos&_t=${Date.now()}`).catch(() => null)
     ]);
     const [devJson, venJson] = await Promise.all([devRes.json(), venRes.json()]);
     if (!devJson.success) throw new Error(devJson.message || 'Error BD Devoluciones');
     if (!venJson.success) throw new Error(venJson.message || 'Error BD Vencimientos');
     processDevData(devJson.data || []);
     processVenData(venJson.data || []);
+    // Logs (graceful: si el endpoint no existe, no falla todo)
+    if (logRes) {
+      try {
+        const logJson = await logRes.json();
+        if (logJson?.success) processVenLogs(logJson.data || []);
+      } catch(_) {}
+    }
     updateAll();
     const timeStr = 'Actualizado: ' + new Date().toLocaleTimeString('es-AR');
     const el = document.getElementById('syncTime');
@@ -207,15 +468,17 @@ function processDevData(raw) {
 
 function processVenData(raw) {
   venData = raw.map(r => {
-    const fv = r['FECHA VENCIMIENTO'] || r['FECHA VENC.'] || '';
+    // Soporta tanto headers con espacios ("FECHA VENCIMIENTO") como con guión bajo ("FECHA_VENC")
+    // para ser compatible con distintas configuraciones del sheet VEN.
+    const fv = r['FECHA VENCIMIENTO'] || r['FECHA VENC.'] || r['FECHA_VENC'] || '';
     const dias = calcDias(fv);
     return {
       id: r['ID'] || '',
-      fechaReg: parseRegDate(r['FECHA REGISTRO'] || ''),
+      fechaReg: parseRegDate(r['FECHA REGISTRO'] || r['FECHA_REG'] || ''),
       sucursal: String(r['SUCURSAL'] || ''),
       usuario: r['USUARIO'] || '',
       ean: String(r['EAN'] || ''),
-      codInterno: r['COD. INTERNO'] || '',
+      codInterno: r['COD. INTERNO'] || r['COD_INTERNO'] || '',
       descripcion: r['DESCRIPCION'] || '',
       gramaje: r['GRAMAJE'] || '',
       cantidad: r['CANTIDAD'] || '',
@@ -225,8 +488,8 @@ function processVenData(raw) {
       proveedor: r['PROVEEDOR'] || '',
       lote: r['LOTE'] || '',
       aclaracion: r['ACLARACION'] || '',
-      estadoGest: String(r['ESTADO GESTION'] || 'ACTIVO').toUpperCase(),
-      idAccion: r['ID ACCION'] || '',
+      estadoGest: String(r['ESTADO GESTION'] || r['ESTADO_GEST'] || 'ACTIVO').toUpperCase(),
+      idAccion: r['ID ACCION'] || r['ID_ACCION'] || '',
       _dias: dias,
       _urg: getUrg(dias),
     };
@@ -848,6 +1111,7 @@ function renderVencTable() {
     <button onclick="abrirModalTransferencia(event,'${f.id}','${esc(f.sucursal)}',${cantActualSuc})" class="btn-action btn-transfer-sm">⇄ Transferir</button>
     <button onclick="ajustarStock(event,'${f.id}',1)"  class="btn-action btn-adj-pos">＋ Ajuste</button>
     <button onclick="ajustarStock(event,'${f.id}',-1)" class="btn-action btn-adj-neg">－ Ajuste</button>
+    ${cantActualSuc > 0 && est !== 'ACCIONADO-TOTAL' ? `<button onclick="abrirModalAccionVen(event,'${f.id}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}')" class="btn-action" style="background:rgba(204, 116, 255, 0.46);color:white;border:1px solid rgb(110, 0, 173)">📦 Acción</button>` : ''}
     ${btnRegistrarVencimiento}
   </div>
 </div>` : `<div class="sf"><div class="sf-lbl">Modo Lote</div><div class="sf-val" style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:10px;margin-top:3px">☑ Seleccionado</div></div>`}
@@ -1066,8 +1330,10 @@ function renderVencTable() {
                       <button onclick="abrirModalTransferencia(event,'${f.id}','${esc(f.sucursal)}',${cantActualSuc})" class="vmc-btn vmc-btn-transfer">⇄ Transferir</button>
                       <button onclick="ajustarStock(event,'${f.id}',1)"  class="vmc-btn vmc-btn-pos">＋ Ajuste</button>
                       <button onclick="ajustarStock(event,'${f.id}',-1)" class="vmc-btn vmc-btn-neg">－ Ajuste</button>
+                      ${cantActualSuc > 0 && est !== 'ACCIONADO-TOTAL' ? `<button onclick="abrirModalAccionVen(event,'${f.id}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}')" class="vmc-btn" style="background:rgba(204, 116, 255, 0.46);color:white;border:1px solid rgb(110, 0, 173)">📦 Acción</button>` : ''}
                       ${btnRegistrar}
                     </div>` : ''}
+
                     ${linkedDevs.length > 0 ? `
                     <div class="vmc-linked-devs">
                       <div class="vmc-dlbl" style="margin-bottom:4px">Acciones vinculadas</div>
@@ -1459,6 +1725,17 @@ function clearAccFilters() {
   setAccPreset('all', allBtn);
 }
 
+function clearNcFilters() {
+  ['ncf-prov', 'ncf-estado', 'ncf-suc', 'ncf-motivo'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const searchEl = document.getElementById('ncf-search');
+  if (searchEl) searchEl.value = '';
+  
+  applyNcFilters();
+}
+
 function setAccDateMode(mode) {
   accDateMode = mode;
 
@@ -1516,11 +1793,11 @@ function renderAccTable() {
           ${page.map(r => {
     const hasVen = venByDevId.has(r.id);
     const cantDisp = r.cantDisponible;
-    const esHijo = !!r.idOrigen;
+    const esHijo = esTransferHijo(r);
     const diasDt = calcDias(r.fechaVenc);
     const esVencido = diasDt !== null && diasDt <= 0;
-    const puedeTransf = cantDisp > 0 && r.estado !== 'VENDIDO' && !esVencido;
-    const puedeVentaAjuste = (diasDt !== null && diasDt <= 1) && r.estado !== 'VENDIDO' && cantDisp > 0;
+    const puedeTransf = cantDisp > 0 && r.estado !== 'VENDIDO' && (diasDt === null || diasDt >= 0);
+    const puedeVentaAjuste = (diasDt !== null && diasDt < 0) && r.estado !== 'VENDIDO' && cantDisp > 0;
     const yaRegistrado = r.estado === 'VENDIDO' && (r.cantVendida > 0 || r.cantVencidaGondola > 0);
     const rowStyle = r.estado === 'VENDIDO'
       ? 'background:rgba(34,197,94,.06);border-left:2px solid rgba(34,197,94,.3);'
@@ -1580,12 +1857,12 @@ function renderAccTable() {
       ${page.map(r => {
     const hasVen = venByDevId.has(r.id);
     const cantDisp = r.cantDisponible;
-    const esHijo = !!r.idOrigen;
+    const esHijo = esTransferHijo(r);
     const dias = calcDias(r.fechaVenc);
     const urg = getUrg(dias);
     const esVencido = dias !== null && dias <= 0;
-    const puedeTransf = cantDisp > 0 && r.estado !== 'VENDIDO' && !esVencido;
-    const puedeVentaAjuste = (dias !== null && dias <= 1) && r.estado !== 'VENDIDO' && cantDisp > 0;
+    const puedeTransf = cantDisp > 0 && r.estado !== 'VENDIDO' && (dias === null || dias >= 0);
+    const puedeVentaAjuste = (dias !== null && dias < 0) && r.estado !== 'VENDIDO' && cantDisp > 0;
     const yaRegistrado = r.estado === 'VENDIDO' && (r.cantVendida > 0 || r.cantVencidaGondola > 0);
     const cardVendidoStyle = r.estado === 'VENDIDO'
       ? 'border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.04);'
@@ -1631,7 +1908,6 @@ function renderAccTable() {
   ${puedeTransf ? `<button onclick="abrirModalTransferenciaAcc(event,'${esc(r.id)}','${esc(r.sucursal)}',${cantDisp},'${esc(r.descripcion || '')}')" class="btn-action btn-transfer-sm">⇄ Transferir</button>` : ''}
   ${puedeVentaAjuste ? `<button onclick="abrirModalVentaAjuste(event,'${esc(r.id)}','${esc(r.descripcion || '')}',${cantDisp})" class="btn-action btn-vender">📊 Venta/Ajuste</button>` : ''}
   ${yaRegistrado ? `<span style="font-size:10px;color:#94a3b8;font-family:'IBM Plex Mono',monospace;align-self:center">✓ ${r.cantVendida}u. vend. · <span style="color:#f87171">⛔ ${r.cantVencidaGondola}u. góndola</span></span>` : r.estado === 'VENDIDO' ? `<span style="font-size:10px;color:#94a3b8;font-family:'IBM Plex Mono',monospace;align-self:center">✓ vendido</span>` : ''}
-  ${esVencido && r.estado !== 'VENDIDO' ? `<span style="font-size:10px;color:#f87171;font-family:'IBM Plex Mono',monospace;align-self:center">⛔ vencido</span>` : ''}
 </div>` : ''}
         </div>`;
   }).join('')}
@@ -1785,16 +2061,7 @@ async function ejecutarVentaAjuste() {
     if (json.success) {
       const vencida = json.cantVencidaGondola !== undefined ? json.cantVencidaGondola : (cantTotal - cantVendida);
       showToast(true, 'Vendidas: ' + cantVendida + ' | Venc. gondola: ' + vencida);
-      const item = devData.find(d => d.id === id);
-      if (item) {
-        item.estado = 'VENDIDO';
-        item.cantDisponible = 0;
-        item.cantVendida = cantVendida;
-        item.cantVencidaGondola = vencida;
-      }
-      applyAccFilters();
-      applyNcFilters();
-      updateResumenKPIs();
+      await loadData();
     } else {
       showToast(false, json.message || 'Error al registrar venta/ajuste');
     }
@@ -1968,8 +2235,10 @@ function applyNcFilters() {
   const mot = document.getElementById('ncf-motivo')?.value || '';
   const search = (document.getElementById('ncf-search')?.value || '').toLowerCase();
   filteredNc = devData.filter(r => {
-    // Solo registros originales — los hijos de transferencia no son reclamos al proveedor
-    if (r.idOrigen) return false;
+    // Solo registros originales — excluir hijos de transferencia DEV→DEV.
+    // Los DEV creados desde el panel de Vencimientos tienen ID_ORIGEN = '' (igual que tcd-devoluciones)
+    // y SÍ deben aparecer aquí para que compras/proveedores puedan gestionar el reclamo.
+    if (esTransferHijo(r)) return false;
     if (prov && r.proveedor !== prov) return false;
     if (est && r.estado !== est) return false;
     if (suc && r.sucursal !== suc) return false;
@@ -2569,7 +2838,11 @@ function ajustarStock(evt, id, delta) {
   btn.style.color = isPos ? '#000' : '#fff';
 
   document.getElementById('modalAdjust').style.display = 'flex';
-  setTimeout(() => input.focus(), 100);
+  setTimeout(() => {
+    input.focus();
+    const ley = document.getElementById('adjustLeyenda');
+    if (ley) ley.value = '';
+  }, 100);
 }
 
 // ══════════════════════════════════════════════════════
@@ -2672,24 +2945,185 @@ async function ejecutarAjuste() {
   }
 
   const nuevaCant = parseFloat(parseFloat((cantActual + delta * qty).toFixed(3)).toFixed(3));
+  const leyenda = (document.getElementById('adjustLeyenda')?.value || '').trim();
   cerrarModalAdjust();
   showSpinner('Actualizando stock...');
   try {
     const response = await fetch(SCRIPT_URL, {
       method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'updateStock', id, nuevaCant })
+      body: JSON.stringify({ action: 'updateStock', id, nuevaCant, leyenda: leyenda || undefined })
     });
     const json = await response.json();
     if (json.success) {
-      const elQty = document.getElementById('qty-' + id);
-      if (elQty) elQty.textContent = nuevaCant;
-      const item = venData.find(v => v.id === id);
-      if (item) item.cantidad = nuevaCant;
-      showToast(true, `Stock: ${cantActual} → ${nuevaCant}${pesable ? ' kg' : ' u.'}`);
+      showToast(true, `Stock: ${cantActual} → ${nuevaCant}${pesable ? ' kg' : ' u.'}${leyenda ? ' · ' + leyenda : ''}`);
+      await loadData();
     } else {
       showToast(false, json.message || 'Error al actualizar');
     }
   } catch (e) { showToast(false, 'Error de red al actualizar stock'); console.error(e); }
+  hideSpinner();
+}
+
+// ══════════════════════════════════════════════════════
+//  MODAL ACCIÓN DESDE CONTROL VENCIMIENTOS
+// ══════════════════════════════════════════════════════
+let _currentAccionVenData = null;
+
+function abrirModalAccionVen(evt, venId, sucursal, cantActual, desc, ean, fechaVenc) {
+  if (evt) evt.stopPropagation();
+
+  // ── Restricción horaria ──────────────────────────────────────
+  const _ahora = new Date();
+  const _mins  = _ahora.getHours() * 60 + _ahora.getMinutes();
+  if (_mins < 8 * 60 || _mins >= 16 * 60 ) {
+    showToast(false, 'El registro de acciones está disponible solo de 08:00 a 16:00 hs.', 6000);
+    return;
+  }
+  const venRec = venData.find(v => v.id === venId) || {};
+  const pesable = esPesable(venRec);
+
+  _currentAccionVenData = {
+    venId, sucursal, cantActual, desc, ean, fechaVenc, pesable,
+    gramaje:    venRec.gramaje    || '',
+    codInterno: venRec.codInterno || '',
+    sector:     venRec.sector     || '',
+    seccion:    venRec.seccion    || '',
+    proveedor:  venRec.proveedor  || '',
+    lote:       venRec.lote       || '',
+    usuario:    venRec.usuario    || '',
+  };
+
+  // Header
+  const descEl = document.getElementById('avDesc');
+  if (descEl) descEl.textContent = desc || '—';
+
+  // Pills de info
+  const infoEl = document.getElementById('avInfo');
+  if (infoEl) {
+    const p = (lbl, val, c) => val
+      ? `<span><span style="color:var(--text3)">${lbl}:</span> <strong style="color:${c || 'var(--text)'}">${esc(String(val))}</strong></span>`
+      : '';
+    infoEl.innerHTML = [
+      p('Suc',     sucursal,                    'var(--cyan)'),
+      p('Stock',   cantActual + (pesable ? ' kg' : ' u.'), '#60a5fa'),
+      p('Vence',   fmtDateOnly(fechaVenc),       'var(--text2)'),
+      p('EAN',     ean,                          'var(--text3)'),
+      venRec.lote ? p('Lote', venRec.lote,       'var(--text3)') : '',
+    ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+  }
+
+  // Reset campos
+  const sel = document.getElementById('avMotivo');
+  if (sel) sel.value = '';
+  const cantEl = document.getElementById('avCantidad');
+  if (cantEl) {
+    cantEl.value   = cantActual;
+    cantEl.max     = cantActual;
+    cantEl.step    = pesable ? '0.001' : '1';
+    cantEl.min     = pesable ? '0.001' : '1';
+  }
+  const maxEl = document.getElementById('avCantMax');
+  if (maxEl) maxEl.textContent = `Máximo disponible: ${cantActual}${pesable ? ' kg' : ' u.'}`;
+  const leyEl = document.getElementById('avLeyenda');
+  if (leyEl) leyEl.value = '';
+  const nombEl = document.getElementById('avNombre');
+  if (nombEl) nombEl.value = '';
+  const nombErrEl = document.getElementById('avNombreErr');
+  if (nombErrEl) nombErrEl.style.display = 'none';
+
+  document.getElementById('modalAccionVen').style.display = 'flex';
+  setTimeout(() => { if (sel) sel.focus(); }, 120);
+}
+
+function cerrarModalAccionVen() {
+  document.getElementById('modalAccionVen').style.display = 'none';
+  _currentAccionVenData = null;
+}
+
+async function ejecutarAccionVen() {
+  if (!_currentAccionVenData) return;
+
+  const motivo = (document.getElementById('avMotivo')?.value || '').trim();
+  if (!motivo) { showToast(false, 'Seleccioná un motivo antes de confirmar.'); return; }
+
+  const { venId, sucursal, cantActual, desc, ean, fechaVenc,
+          gramaje, codInterno, sector, seccion, proveedor, lote, pesable } = _currentAccionVenData;
+
+  const raw = (document.getElementById('avCantidad')?.value || '0').replace(',', '.');
+  const cantidad = parseFloat(raw);
+  if (!cantidad || cantidad <= 0 || isNaN(cantidad)) {
+    showToast(false, 'Ingresá una cantidad válida mayor a 0.'); return;
+  }
+  if (!pesable && !Number.isInteger(cantidad)) {
+    showToast(false, 'Solo se aceptan cantidades enteras para este producto.'); return;
+  }
+  if (cantidad > cantActual) {
+    showToast(false, `No podés registrar más de ${cantActual}${pesable ? ' kg' : ' u.'} disponibles.`); return;
+  }
+
+  const leyenda = (document.getElementById('avLeyenda')?.value || '').trim();
+
+  const nombre = (document.getElementById('avNombre')?.value || '').trim();
+  if (!nombre) {
+    const errEl = document.getElementById('avNombreErr');
+    if (errEl) errEl.style.display = 'block';
+    document.getElementById('avNombre')?.focus();
+    return;
+  }
+  const errElNomb = document.getElementById('avNombreErr');
+  if (errElNomb) errElNomb.style.display = 'none';
+
+  // Formatear fechaVenc como YYYY-MM-DD
+  const fvParsed = parseFechaVenc(fechaVenc);
+  const fechaVencFmt = fvParsed
+    ? `${fvParsed.getFullYear()}-${String(fvParsed.getMonth()+1).padStart(2,'0')}-${String(fvParsed.getDate()).padStart(2,'0')}`
+    : (fechaVenc || '');
+
+  cerrarModalAccionVen();
+  showSpinner('Registrando acción…');
+
+  try {
+    const body = {
+      action:       'registrarAccionDesdeVen',
+      idVen:        venId,
+      motivo,
+      cantidad,
+      leyenda:      leyenda || '',
+      usuario:      nombre.toUpperCase(),
+      // Datos del producto (el backend los usa si no los lee de la fila VEN)
+      ean,
+      fechaVenc:    fechaVencFmt,
+      sucursal,
+      descripcion:  desc,
+      gramaje,
+      codInterno,
+      sector,
+      seccion,
+      proveedor,
+      lote,
+    };
+
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    });
+    const json = await res.json();
+
+    if (json.success) {
+      const esVentaConsumo = motivo.toUpperCase().includes('VENTA') || motivo.toUpperCase().includes('CONSUMO');
+      const destinoLabel = esVentaConsumo ? ' → 📊 Ventas/Consumos' : '';
+      showToast(true, `Acción registrada: ${cantidad}${pesable ? ' kg' : ' u.'} · ${motivo}${leyenda ? ' · ' + leyenda : ''}${destinoLabel}`);
+      await loadData();
+      // Volver al panel de vencimientos para ver el resultado
+      showPanel('vencimientos');
+    } else {
+      showToast(false, json.message || 'Error al registrar acción');
+    }
+  } catch (e) {
+    showToast(false, 'Error de red al registrar acción');
+    console.error(e);
+  }
   hideSpinner();
 }
 
