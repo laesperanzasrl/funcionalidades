@@ -101,6 +101,52 @@ function _fmtTime(ts) {
   return isNaN(d) ? '—' : d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 }
 
+// Busca datos de producto (gramaje, proveedor) por EAN o descripción
+function _getProductInfo(ean, descripcion) {
+  let gramaje = '';
+  let proveedor = '';
+  
+  // Buscar en venData primero
+  if (ean) {
+    const venMatch = venData.find(v => v.ean === ean);
+    if (venMatch) {
+      gramaje = venMatch.gramaje || '';
+      proveedor = venMatch.proveedor || '';
+      return { gramaje, proveedor };
+    }
+  }
+  
+  // Buscar en devData
+  if (ean) {
+    const devMatch = devData.find(d => d.ean === ean);
+    if (devMatch) {
+      gramaje = devMatch.gramaje || '';
+      proveedor = devMatch.proveedor || '';
+      return { gramaje, proveedor };
+    }
+  }
+  
+  // Buscar por descripción si no encontró por EAN
+  if (descripcion) {
+    const descLower = (descripcion || '').toLowerCase();
+    const venMatch = venData.find(v => (v.descripcion || '').toLowerCase().includes(descLower));
+    if (venMatch) {
+      gramaje = venMatch.gramaje || '';
+      proveedor = venMatch.proveedor || '';
+      return { gramaje, proveedor };
+    }
+    
+    const devMatch = devData.find(d => (d.descripcion || '').toLowerCase().includes(descLower));
+    if (devMatch) {
+      gramaje = devMatch.gramaje || '';
+      proveedor = devMatch.proveedor || '';
+      return { gramaje, proveedor };
+    }
+  }
+  
+  return { gramaje: '', proveedor: '' };
+}
+
 function processVenLogs(raw) {
   venLogs = (raw || []).map(r => ({
     timestamp: r['TIMESTAMP'] || r['timestamp'] || '',
@@ -191,6 +237,7 @@ function _renderHistVen() {
     el.innerHTML = salidas.map(r => {
       const fechaVenc = _extractFechaVenc(r.idVen);
       const qty = Math.abs(isNaN(r.delta) ? (r.cantAnterior - r.cantNueva) : r.delta);
+      const { gramaje, proveedor } = _getProductInfo(r.ean, r.descripcion);
       return `<div class="hist-op-card transfer">
         <div class="hist-op-row">
           <div class="hist-op-desc">${esc(r.descripcion)}</div>
@@ -198,6 +245,8 @@ function _renderHistVen() {
         </div>
         <div class="hist-op-meta">
           <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
+          ${gramaje ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>` : ''}
+          ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
           <span class="hist-chip suc-orig">📤 ${esc(r.sucursal)}</span>
           <span class="hist-arrow">→</span>
           <span class="hist-chip suc-dest">📥 ${esc(r.destino || '—')}</span>
@@ -218,6 +267,7 @@ function _renderHistVen() {
       const cardCls = isPos ? 'ajuste-pos' : isNeg ? 'ajuste-neg' : '';
       const chipCls = isPos ? 'pos' : isNeg ? 'neg' : '';
       const fechaVenc = _extractFechaVenc(r.idVen);
+      const { gramaje, proveedor } = _getProductInfo(r.ean, r.descripcion);
       // Delta: preferimos el campo delta, sino lo calculamos
       const deltaRaw = !isNaN(r.delta) ? r.delta : (!isNaN(r.cantNueva) && !isNaN(r.cantAnterior) ? r.cantNueva - r.cantAnterior : null);
       const deltaStr = deltaRaw !== null
@@ -231,6 +281,8 @@ function _renderHistVen() {
         </div>
         <div class="hist-op-meta">
           <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
+          ${gramaje ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>` : ''}
+          ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
           <span class="hist-chip suc-orig">🏪 ${esc(r.sucursal)}</span>
           <span class="hist-chip ${chipCls}">${tipoLabel}</span>
           ${fechaVenc ? `<span class="hist-chip venc">📅 ${fechaVenc}</span>` : ''}
@@ -267,6 +319,7 @@ function _renderHistAcc() {
       const qty = Math.abs(isNaN(r.delta) ? (r.cantAnterior - r.cantNueva) : r.delta);
       const motivoMatch = r.notas.match(/Motivo[^:]*:\s*([^·\|]+)/);
       const motivo = motivoMatch ? motivoMatch[1].trim() : '';
+      const { gramaje, proveedor } = _getProductInfo(r.ean, r.descripcion);
       return `<div class="hist-op-card transfer">
         <div class="hist-op-row">
           <div class="hist-op-desc">${esc(r.descripcion)}</div>
@@ -274,6 +327,8 @@ function _renderHistAcc() {
         </div>
         <div class="hist-op-meta">
           <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
+          ${gramaje ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>` : ''}
+          ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
           <span class="hist-chip suc-orig">📤 ${esc(r.sucursal)}</span>
           <span class="hist-arrow">→</span>
           <span class="hist-chip suc-dest">📥 ${esc(r.destino || '—')}</span>
@@ -296,6 +351,7 @@ function _renderHistAcc() {
       const vencidas = vencMatch ? vencMatch[1] : '—';
       const motivo = motivoMatch ? motivoMatch[1].trim() : '';
       const base = isNaN(r.cantAnterior) ? '—' : r.cantAnterior;
+      const { gramaje, proveedor } = _getProductInfo(r.ean, r.descripcion);
       return `<div class="hist-op-card venta">
         <div class="hist-op-row">
           <div class="hist-op-desc">${esc(r.descripcion)}</div>
@@ -303,6 +359,8 @@ function _renderHistAcc() {
         </div>
         <div class="hist-op-meta">
           <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
+          ${gramaje ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>` : ''}
+          ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
           <span class="hist-chip suc-orig">🏪 ${esc(r.sucursal)}</span>
           ${motivo ? `<span class="hist-chip">${esc(motivo)}</span>` : ''}
           <span class="hist-chip">Base: ${base}</span>
@@ -2979,7 +3037,7 @@ function abrirModalAccionVen(evt, venId, sucursal, cantActual, desc, ean, fechaV
     const _mins = _ahora.getHours() * 60 + _ahora.getMinutes();
     const _diasValidos = [1, 2, 3, 4, 5, 6]; // Lun-Sáb
     const _ini = 9 * 60; // 09:00
-    const _fin = 13 * 60; // 12:00
+    const _fin = 12 * 60; // 12:00
     if (!_diasValidos.includes(_dia) || _mins < _ini || _mins >= _fin) {
       showToast(false, 'El registro de acciones está disponible lunes a sábado, de 09:00 a 12:00 hs.', 6000);
       return;
