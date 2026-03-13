@@ -1019,7 +1019,10 @@ function buildPayload() {
 async function submitSingle() {
     if (state.submitting) return;
 
-    if (!dentroDelHorario()) {
+    const sucursal = els.fBranch.value;
+
+    // ── Restricción horaria (NO aplica para MAYORISTA) ──
+    if (sucursal !== 'MAYORISTA' && !dentroDelHorario()) {
         showToast('err', mensajeHorario(), 7000);
         return;
     }
@@ -1034,7 +1037,6 @@ async function submitSingle() {
     const tipoRegistro = els.fEvent.value;
     const ean = els.fBarcode.value.trim();
     const fechaVenc = els.fExp.value;
-    const sucursal = els.fBranch.value;
 
     // ── Verificar duplicados antes de enviar ──
     if (ean && fechaVenc && sucursal && tipoRegistro) {
@@ -1277,7 +1279,7 @@ function esc(str) {
 const HORARIO = {
     diasHabiles: [1, 2, 3, 4, 5, 6], // 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
     inicio: { h: 9, m: 0 },
-    fin: { h: 11, m: 30 },
+    fin: { h: 13, m: 0 },
 };
 
 function dentroDelHorario() {
@@ -1291,7 +1293,7 @@ function dentroDelHorario() {
 
 function mensajeHorario() {
     const pad = n => String(n).padStart(2, '0');
-    return `El formulario está disponible solo de lunes a viernes, `
+    return `El formulario está disponible solo de lunes a sábado, `
         + `de ${pad(HORARIO.inicio.h)}:${pad(HORARIO.inicio.m)} `
         + `a ${pad(HORARIO.fin.h)}:${pad(HORARIO.fin.m)} hs.`;
 }

@@ -1074,7 +1074,7 @@ function renderVencTable() {
             style="cursor:pointer;accent-color:#60a5fa;width:14px;height:14px;flex-shrink:0">
         ` : '';
 
-        const btnRegistrarVencimiento = (!loteMode && g.urg === 'VENCIDO' && est === 'ACTIVO' && cantActualSuc > 0)
+        const btnRegistrarVencimiento = (!loteMode && g.urg === 'VENCIDO' && cantActualSuc > 0)
           ? `<button onclick="registrarVencimientoManual(event,'${esc(f.id)}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}')"
                class="btn-action" style="background:#3d0000;color:#ff4444;border:1px solid #9b1c1c;font-weight:800;padding:6px 12px;font-size:11px">
                🚨 Registrar Vencimiento
@@ -1298,7 +1298,7 @@ function renderVencTable() {
           (d.sucursal || '').toUpperCase().trim() === _sucF
         );
 
-        const btnRegistrar = (!loteMode && g.urg === 'VENCIDO' && est === 'ACTIVO' && cantActualSuc > 0)
+        const btnRegistrar = (!loteMode && g.urg === 'VENCIDO' && cantActualSuc > 0)
           ? `<button onclick="registrarVencimientoManual(event,'${esc(f.id)}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}')"
                        class="vmc-btn vmc-btn-venc">🚨 Registrar Vencido</button>` : '';
 
@@ -2972,12 +2972,18 @@ let _currentAccionVenData = null;
 function abrirModalAccionVen(evt, venId, sucursal, cantActual, desc, ean, fechaVenc) {
   if (evt) evt.stopPropagation();
 
-  // ── Restricción horaria ──────────────────────────────────────
-  const _ahora = new Date();
-  const _mins  = _ahora.getHours() * 60 + _ahora.getMinutes();
-  if (_mins < 8 * 60 || _mins >= 13 * 60 ) {
-    showToast(false, 'El registro de acciones está disponible solo de 08:00 a 13:00 hs.', 6000);
-    return;
+  // ── Restricción horaria (NO aplica para MAYORISTA) ──────────
+  if (sucursal !== 'MAYORISTA') {
+    const _ahora = new Date();
+    const _dia = _ahora.getDay();
+    const _mins = _ahora.getHours() * 60 + _ahora.getMinutes();
+    const _diasValidos = [1, 2, 3, 4, 5, 6]; // Lun-Sáb
+    const _ini = 9 * 60; // 09:00
+    const _fin = 13 * 60; // 12:00
+    if (!_diasValidos.includes(_dia) || _mins < _ini || _mins >= _fin) {
+      showToast(false, 'El registro de acciones está disponible lunes a sábado, de 09:00 a 12:00 hs.', 6000);
+      return;
+    }
   }
   const venRec = venData.find(v => v.id === venId) || {};
   const pesable = esPesable(venRec);
