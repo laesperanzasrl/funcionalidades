@@ -575,12 +575,22 @@ function buildCfFilterDescription(inputQuery) {
 // ══════════════════════════════════════════════
 // ── Productos
 // ══════════════════════════════════════════════
+// Elimina símbolos/caracteres especiales al inicio de las descripciones
+// Ej: "+,SCHWEPPES CITRUS" → "SCHWEPPES CITRUS" | "..COCA COLA" → "COCA COLA"
+function limpiarDescripcion(desc) {
+  if (!desc) return '';
+  return String(desc).replace(/^[^A-Za-z0-9\xC0-\xFF]+/, '').trim();
+}
+
 async function cargarProductos() {
   try {
     const res  = await fetch('../data/productos.json');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
-    state.productos = json.data || [];
+    state.productos = (json.data || []).map(p => ({
+      ...p,
+      DESCRIPCION: limpiarDescripcion(p.DESCRIPCION),
+    }));
   } catch (err) {
     console.error('Error al cargar productos.json:', err);
     showToast('err', 'No se pudo cargar la base de productos.');

@@ -399,12 +399,22 @@ function toggleSectorInterno(motivo) {
 // ─────────────────────────────────────────────
 // PRODUCTOS
 // ─────────────────────────────────────────────
+// Elimina símbolos/caracteres especiales al inicio de las descripciones
+// Ej: "+,SCHWEPPES CITRUS" → "SCHWEPPES CITRUS" | "..COCA COLA" → "COCA COLA"
+function limpiarDescripcion(desc) {
+    if (!desc) return '';
+    return String(desc).replace(/^[^A-Za-z0-9\xC0-\xFF]+/, '').trim();
+}
+
 async function cargarProductos() {
     try {
         const res = await fetch('../data/productos.json');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
-        state.productos = json.data || [];
+        state.productos = (json.data || []).map(p => ({
+            ...p,
+            DESCRIPCION: limpiarDescripcion(p.DESCRIPCION),
+        }));
     } catch (err) {
         console.error('Error al cargar productos.json:', err);
         showToast('err', 'No se pudo cargar la base de productos.');
@@ -935,7 +945,7 @@ function validateAll() {
             if (els.discountWrap.style.display !== 'none') {
                 const val = els.fDiscount.value.trim();
                 const num = Number(val);
-                const ok  = val !== '' && !isNaN(num) && Number.isInteger(num) && num >= 1 && num <= 99;
+                const ok = val !== '' && !isNaN(num) && Number.isInteger(num) && num >= 1 && num <= 99;
                 els.fDiscount.classList.toggle('err', !ok);
                 const errEl = $('eDiscount');
                 if (errEl) errEl.classList.toggle('show', !ok);
@@ -948,22 +958,22 @@ function validateAll() {
 
     // ── Sector interno (CONSUMO INTERNO) ──
     if (els.fEvent.value === 'CONSUMO INTERNO') {
-        const siEl  = $('fSectorInterno');
+        const siEl = $('fSectorInterno');
         const siErr = $('eSectorInterno');
-        const ok    = siEl && siEl.value.trim().length >= 2;
-        if (siEl)  siEl.classList.toggle('err', !ok);
+        const ok = siEl && siEl.value.trim().length >= 2;
+        if (siEl) siEl.classList.toggle('err', !ok);
         if (siErr) siErr.classList.toggle('show', !ok);
-        if (!ok)   allOk = false;
+        if (!ok) allOk = false;
     }
 
     // ── Destinatario venta (VENTA) ──
     if (els.fEvent.value === 'VENTA') {
-        const dvEl  = $('fDestinatarioVenta');
+        const dvEl = $('fDestinatarioVenta');
         const dvErr = $('eDestinatarioVenta');
-        const ok    = dvEl && dvEl.value.trim().length >= 2;
-        if (dvEl)  dvEl.classList.toggle('err', !ok);
+        const ok = dvEl && dvEl.value.trim().length >= 2;
+        if (dvEl) dvEl.classList.toggle('err', !ok);
         if (dvErr) dvErr.classList.toggle('show', !ok);
-        if (!ok)   allOk = false;
+        if (!ok) allOk = false;
     }
 
     return allOk;
@@ -973,12 +983,12 @@ function validateAll() {
 // CONSTRUIR PAYLOAD
 // ─────────────────────────────────────────────
 function buildPayload() {
-    const sectorInternoEl     = $('fSectorInterno');
+    const sectorInternoEl = $('fSectorInterno');
     const destinatarioVentaEl = $('fDestinatarioVenta');
     return {
-        action:         'submitForm',
-        usuario:        els.fEmail.value.trim(),
-        sucursal:       els.fBranch.value,
+        action: 'submitForm',
+        usuario: els.fEmail.value.trim(),
+        sucursal: els.fBranch.value,
         event: (() => {
             const base = els.fEvent.value;
             if (base === 'OTRO DESCUENTO' && els.fDiscount.value.trim()) {
@@ -986,27 +996,27 @@ function buildPayload() {
             }
             return base;
         })(),
-        cantidad:           els.fQty.value.trim().replace(',', '.'),
-        esPesable:          state.isPesable,
-        unidadCantidad:     state.isPesable ? 'kg' : 'unidades',
-        fechaVenc:          els.fExp.value,
-        aclaracion:         els.fNote.value.trim(),
-        lote:               els.fLot.value.trim(),
-        comentarios:        els.fComment.value.trim(),
-        ean:                els.fBarcode.value.trim(),
-        descripcion:        els.fDesc.value.trim(),
-        codInterno:         state.productData?.INTERNO           || null,
-        proveedor:          state.productData?.PROVEEDOR         || null,
-        codProv:            state.productData?.['COD.PROVEEDOR'] || null,
-        gramaje:            state.productData?.GRAMAJE           || null,
-        uxb:                state.productData?.UXB               || null,
-        sector:             state.productData?.SECTOR            || null,
-        seccion:            state.productData?.SECCION           || null,
-        sectorInterno:      sectorInternoEl     ? sectorInternoEl.value.trim()     : '',
-        destinatarioVenta:  destinatarioVentaEl ? destinatarioVentaEl.value.trim() : '',
-        photoBase64:        state.photoBase64 || null,
-        photoMime:          state.photoMime   || null,
-        photoName:          state.photoName   || null,
+        cantidad: els.fQty.value.trim().replace(',', '.'),
+        esPesable: state.isPesable,
+        unidadCantidad: state.isPesable ? 'kg' : 'unidades',
+        fechaVenc: els.fExp.value,
+        aclaracion: els.fNote.value.trim(),
+        lote: els.fLot.value.trim(),
+        comentarios: els.fComment.value.trim(),
+        ean: els.fBarcode.value.trim(),
+        descripcion: els.fDesc.value.trim(),
+        codInterno: state.productData?.INTERNO || null,
+        proveedor: state.productData?.PROVEEDOR || null,
+        codProv: state.productData?.['COD.PROVEEDOR'] || null,
+        gramaje: state.productData?.GRAMAJE || null,
+        uxb: state.productData?.UXB || null,
+        sector: state.productData?.SECTOR || null,
+        seccion: state.productData?.SECCION || null,
+        sectorInterno: sectorInternoEl ? sectorInternoEl.value.trim() : '',
+        destinatarioVenta: destinatarioVentaEl ? destinatarioVentaEl.value.trim() : '',
+        photoBase64: state.photoBase64 || null,
+        photoMime: state.photoMime || null,
+        photoName: state.photoName || null,
     };
 }
 
@@ -1078,8 +1088,14 @@ async function doSubmit() {
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            if (data.success) onSubmitSuccess();
-            else throw new Error(data.message || 'Error desconocido');
+
+            if (data.success) {
+                onSubmitSuccess();
+            } else if (data.limitReached) {
+                showToast('err', data.message || 'Límite diario de controles de vencimiento alcanzado para esta sucursal.', 9000);
+            } else {
+                throw new Error(data.message || 'Error desconocido');
+            }
         }
     } catch (err) {
         console.error('submitSingle error:', err);
@@ -1147,7 +1163,7 @@ function clearForm() {
     const sectorInternoEl = $('fSectorInterno');
     if (sectorInternoEl) { sectorInternoEl.value = ''; sectorInternoEl.classList.remove('err'); }
 
-     const destinatarioVentaWrap = $('destinatarioVentaWrap');
+    const destinatarioVentaWrap = $('destinatarioVentaWrap');
     if (destinatarioVentaWrap) destinatarioVentaWrap.style.display = 'none';
     const fDestinatarioVenta = $('fDestinatarioVenta');
     if (fDestinatarioVenta) fDestinatarioVenta.value = '';

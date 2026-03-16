@@ -49,6 +49,8 @@ let currentAdjustData = null;
 
 let currentAccTransferData = null;
 
+let _currentReplicarData = null;
+
 // ── LOG DATA (operaciones del día) ───────────────────
 let venLogs = [];
 let _histVenActiveTab = 'transfers';
@@ -92,59 +94,13 @@ function _extractFechaVenc(idVen) {
   const m = String(idVen).match(/VEN-\d+-(\d{8})-/);
   if (!m) return null;
   const s = m[1];
-  return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+  return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
 }
 
 function _fmtTime(ts) {
   if (!ts) return '—';
   const d = new Date(ts);
   return isNaN(d) ? '—' : d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-}
-
-// Busca datos de producto (gramaje, proveedor) por EAN o descripción
-function _getProductInfo(ean, descripcion) {
-  let gramaje = '';
-  let proveedor = '';
-  
-  // Buscar en venData primero
-  if (ean) {
-    const venMatch = venData.find(v => v.ean === ean);
-    if (venMatch) {
-      gramaje = venMatch.gramaje || '';
-      proveedor = venMatch.proveedor || '';
-      return { gramaje, proveedor };
-    }
-  }
-  
-  // Buscar en devData
-  if (ean) {
-    const devMatch = devData.find(d => d.ean === ean);
-    if (devMatch) {
-      gramaje = devMatch.gramaje || '';
-      proveedor = devMatch.proveedor || '';
-      return { gramaje, proveedor };
-    }
-  }
-  
-  // Buscar por descripción si no encontró por EAN
-  if (descripcion) {
-    const descLower = (descripcion || '').toLowerCase();
-    const venMatch = venData.find(v => (v.descripcion || '').toLowerCase().includes(descLower));
-    if (venMatch) {
-      gramaje = venMatch.gramaje || '';
-      proveedor = venMatch.proveedor || '';
-      return { gramaje, proveedor };
-    }
-    
-    const devMatch = devData.find(d => (d.descripcion || '').toLowerCase().includes(descLower));
-    if (devMatch) {
-      gramaje = devMatch.gramaje || '';
-      proveedor = devMatch.proveedor || '';
-      return { gramaje, proveedor };
-    }
-  }
-  
-  return { gramaje: '', proveedor: '' };
 }
 
 function processVenLogs(raw) {
@@ -168,10 +124,24 @@ function processVenLogs(raw) {
 
 function _updateHistBadges() {
   const today = venLogs.filter(r => _isToday(r.timestamp));
-  const VEN_TYPES = ['TRANSFERENCIA_SALIDA','TRANSFERENCIA_ENTRADA','TRANSFERENCIA_NUEVA_SUCURSAL','AJUSTE_POSITIVO','AJUSTE_NEGATIVO','AJUSTE_SIN_CAMBIO','AJUSTE_STOCK_A_CERO'];
-  const ACC_TYPES = ['ACC_TRANSFER_SALIDA','ACC_TRANSFER_NUEVO_REGISTRO','ACC_TRANSFER_ENTRADA_EXISTENTE','ACC_MARCADO_VENDIDO'];
+
+  const VEN_TYPES = [
+    'TRANSFERENCIA_SALIDA','TRANSFERENCIA_ENTRADA','TRANSFERENCIA_NUEVA_SUCURSAL',
+    'AJUSTE_POSITIVO','AJUSTE_NEGATIVO','AJUSTE_SIN_CAMBIO','AJUSTE_STOCK_A_CERO',
+    'CONTROL_VEN_INSERT','CONTROL_VEN_UPSERT','ACCION_DESDE_VEN'
+  ];
+  const ACC_TYPES = [
+    'ACC_TRANSFER_SALIDA','ACC_TRANSFERENCIA_SALIDA',
+    'ACC_TRANSFER_NUEVO_REGISTRO','ACC_TRANSFER_ENTRADA_EXISTENTE',
+    'ACC_MARCADO_VENDIDO',
+    'ACC_AJUSTE_POSITIVO','ACC_AJUSTE_NEGATIVO','ACC_AJUSTE_A_CERO','ACC_AJUSTE_SIN_CAMBIO',
+    'DEVOLUCION_CON_DESCUENTO_VEN','DEVOLUCION_VINCULACION_MANUAL',
+    'VYC_INSERT','VYC_CON_DESCUENTO_VEN',
+    'ACCION_DESDE_VEN','REGISTRO_VENCIMIENTO_MANUAL','AUTO_VENCIMIENTO_DIARIO'
+  ];
   const venCnt = today.filter(r => VEN_TYPES.includes(r.tipo)).length;
   const accCnt = today.filter(r => ACC_TYPES.includes(r.tipo)).length;
+
   const venBadge = document.getElementById('histVenBadge');
   if (venBadge) { venBadge.textContent = venCnt; venBadge.style.display = venCnt ? '' : 'none'; }
   const accBadge = document.getElementById('histAccBadge');
@@ -184,6 +154,12 @@ function openHistVen() {
   const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
   const el = document.getElementById('histVenDate');
   if (el) el.textContent = today.toUpperCase();
+
+  // Forzar pestaña activa visualmente
+  document.querySelectorAll('#histVenModal .hist-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === 'transfers');
+  });
+
   document.getElementById('histVenModal').classList.add('open');
   _renderHistVen();
 }
@@ -192,10 +168,16 @@ function closeHistVenModal(e) {
     document.getElementById('histVenModal').classList.remove('open');
 }
 function openHistAcc() {
-  _histAccActiveTab = 'transfers';
+  _histAccActiveTab = 'registros';
   const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
   const el = document.getElementById('histAccDate');
   if (el) el.textContent = today.toUpperCase();
+
+  // Forzar pestaña activa visualmente
+  document.querySelectorAll('#histAccModal .hist-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === 'registros');
+  });
+
   document.getElementById('histAccModal').classList.add('open');
   _renderHistAcc();
 }
@@ -218,8 +200,8 @@ function switchHistAccTab(tab) {
 // ── Render VEN ───────────────────────────────────────
 function _renderHistVen() {
   const today = venLogs.filter(r => _isToday(r.timestamp));
-  const VEN_TRANSFER_TYPES = ['TRANSFERENCIA_SALIDA','TRANSFERENCIA_ENTRADA','TRANSFERENCIA_NUEVA_SUCURSAL'];
-  const VEN_ADJ_TYPES = ['AJUSTE_POSITIVO','AJUSTE_NEGATIVO','AJUSTE_SIN_CAMBIO','AJUSTE_STOCK_A_CERO'];
+  const VEN_TRANSFER_TYPES = ['TRANSFERENCIA_SALIDA', 'TRANSFERENCIA_ENTRADA', 'TRANSFERENCIA_NUEVA_SUCURSAL'];
+  const VEN_ADJ_TYPES = ['AJUSTE_POSITIVO', 'AJUSTE_NEGATIVO', 'AJUSTE_SIN_CAMBIO', 'AJUSTE_STOCK_A_CERO'];
   const transfers = today.filter(r => VEN_TRANSFER_TYPES.includes(r.tipo));
   const ajustes = today.filter(r => VEN_ADJ_TYPES.includes(r.tipo));
 
@@ -228,6 +210,54 @@ function _renderHistVen() {
   document.getElementById('histVenTabBadgeA').textContent = ajustes.length;
 
   const el = document.getElementById('histVenContent');
+  // ── Actualizar badge de registros ──────────────────────────
+  const VEN_REG_TYPES = ['CONTROL_VEN_INSERT', 'CONTROL_VEN_UPSERT'];
+  const registros = today.filter(r => VEN_REG_TYPES.includes(r.tipo));
+  document.getElementById('histVenTabBadgeR').textContent = registros.length;
+
+  if (_histVenActiveTab === 'registros') {
+    if (!registros.length) {
+      el.innerHTML = `<div class="hist-empty"><div class="hist-empty-icon">📋</div><div>Sin registros de control de vencimiento hoy</div></div>`;
+      return;
+    }
+    el.innerHTML = registros.map(r => {
+      const _prod = venData.find(v => String(v.ean || '').trim() === r.ean)
+        || devData.find(d => String(d.ean || '').trim() === r.ean) || {};
+      const gramaje = _prod.gramaje || '';
+      const proveedor = _prod.proveedor || '';
+      const fechaVenc = _extractFechaVenc(r.idVen);
+      const isUpsert = r.tipo === 'CONTROL_VEN_UPSERT';
+      const deltaStr = !isNaN(r.delta)
+        ? (r.delta > 0 ? '+' + r.delta : String(r.delta)) + ' u.'
+        : null;
+
+      return `<div class="hist-op-card registro-ven">
+        <div class="hist-op-row">
+          <span class="hist-op-time">${_fmtTime(r.timestamp)}</span>
+          <div class="hist-op-desc">${esc(r.descripcion)}</div>
+          ${isUpsert
+          ? `<span class="hist-chip" style="color:var(--amber);border-color:rgba(245,166,35,.25);background:rgba(245,166,35,.07)">↺ SUMA</span>`
+          : `<span class="hist-chip pos">✚ NUEVO</span>`}
+        </div>
+        <div class="hist-op-meta">
+          <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
+          <span class="hist-chip suc-orig">🏪 ${esc(r.sucursal)}</span>
+          ${gramaje ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>` : ''}
+          ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
+          ${fechaVenc ? `<span class="hist-chip venc">📅 ${fechaVenc}</span>` : ''}
+          ${!isNaN(r.cantAnterior) ? `<span class="hist-chip">Antes: ${r.cantAnterior}</span>` : ''}
+          ${!isNaN(r.cantNueva) ? `<span class="hist-chip qty">Ahora: ${r.cantNueva}</span>` : ''}
+          ${deltaStr ? `<span class="hist-chip ${r.delta > 0 ? 'pos' : 'neg'}" style="font-weight:800">Δ ${deltaStr}</span>` : ''}
+          ${r.usuario ? `<span class="hist-chip" style="color:var(--text3)">👤 ${esc(r.usuario)}</span>` : ''}
+          <button class="btn-replicar" onclick="abrirModalReplicar('${esc(r.idVen)}','${esc(r.descripcion)}','${esc(r.ean)}','${esc(r.sucursal)}','${fechaVenc || ''}','${esc(gramaje)}')">
+            📋 Replicar en mi sucursal
+          </button>
+        </div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
   if (_histVenActiveTab === 'transfers') {
     const salidas = today.filter(r => r.tipo === 'TRANSFERENCIA_SALIDA');
     if (!salidas.length) {
@@ -235,18 +265,24 @@ function _renderHistVen() {
       return;
     }
     el.innerHTML = salidas.map(r => {
+
+      const _prod = venData.find(v => String(v.ean || '').trim() === r.ean)
+        || devData.find(d => String(d.ean || '').trim() === r.ean) || {};
+      const gramaje = _prod.gramaje || '';
+      const proveedor = _prod.proveedor || '';
       const fechaVenc = _extractFechaVenc(r.idVen);
       const qty = Math.abs(isNaN(r.delta) ? (r.cantAnterior - r.cantNueva) : r.delta);
-      const { gramaje, proveedor } = _getProductInfo(r.ean, r.descripcion);
       return `<div class="hist-op-card transfer">
         <div class="hist-op-row">
+                  <span class="hist-op-time">${_fmtTime(r.timestamp)}</span>
           <div class="hist-op-desc">${esc(r.descripcion)}</div>
-          <span class="hist-op-time">${_fmtTime(r.timestamp)}</span>
-        </div>
-        <div class="hist-op-meta">
+
           <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
           ${gramaje ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>` : ''}
           ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
+        </div>
+        <div class="hist-op-meta">
+          <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
           <span class="hist-chip suc-orig">📤 ${esc(r.sucursal)}</span>
           <span class="hist-arrow">→</span>
           <span class="hist-chip suc-dest">📥 ${esc(r.destino || '—')}</span>
@@ -261,13 +297,26 @@ function _renderHistVen() {
       return;
     }
     el.innerHTML = ajustes.map(r => {
+
+      const _prod = venData.find(v => String(v.ean || '').trim() === r.ean)
+        || devData.find(d => String(d.ean || '').trim() === r.ean) || {};
+      const gramaje = _prod.gramaje || '';
+      const proveedor = _prod.proveedor || '';
       const isPos = r.tipo === 'AJUSTE_POSITIVO';
       const isNeg = r.tipo === 'AJUSTE_NEGATIVO' || r.tipo === 'AJUSTE_STOCK_A_CERO';
-      const tipoLabel = { AJUSTE_POSITIVO: '＋ Positivo', AJUSTE_NEGATIVO: '－ Negativo', AJUSTE_STOCK_A_CERO: '⬛ A cero', AJUSTE_SIN_CAMBIO: '＝ Sin cambio' }[r.tipo] || r.tipo;
+
+      const tipoLabel = {
+        AJUSTE_POSITIVO: '＋ Positivo',
+        AJUSTE_NEGATIVO: '－ Negativo',
+        AJUSTE_STOCK_A_CERO: '⬛ A cero',
+        AJUSTE_SIN_CAMBIO: '＝ Sin cambio',
+        ACCION_DESDE_VEN: '📋 Acción registrada',
+        REGISTRO_VENCIMIENTO_MANUAL: '🚨 Vencimiento manual'
+      }[r.tipo] || r.tipo;
+
       const cardCls = isPos ? 'ajuste-pos' : isNeg ? 'ajuste-neg' : '';
       const chipCls = isPos ? 'pos' : isNeg ? 'neg' : '';
       const fechaVenc = _extractFechaVenc(r.idVen);
-      const { gramaje, proveedor } = _getProductInfo(r.ean, r.descripcion);
       // Delta: preferimos el campo delta, sino lo calculamos
       const deltaRaw = !isNaN(r.delta) ? r.delta : (!isNaN(r.cantNueva) && !isNaN(r.cantAnterior) ? r.cantNueva - r.cantAnterior : null);
       const deltaStr = deltaRaw !== null
@@ -276,19 +325,20 @@ function _renderHistVen() {
       const deltaChipCls = deltaRaw !== null ? (deltaRaw > 0 ? 'pos' : deltaRaw < 0 ? 'neg' : '') : '';
       return `<div class="hist-op-card ${cardCls}">
         <div class="hist-op-row">
+    
           <div class="hist-op-desc">${esc(r.descripcion)}</div>
-          <span class="hist-op-time">${_fmtTime(r.timestamp)}</span>
-        </div>
-        <div class="hist-op-meta">
-          <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
+                    <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
           ${gramaje ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>` : ''}
           ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
+        </div>
+        <div class="hist-op-meta">          <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
           <span class="hist-chip suc-orig">🏪 ${esc(r.sucursal)}</span>
           <span class="hist-chip ${chipCls}">${tipoLabel}</span>
           ${fechaVenc ? `<span class="hist-chip venc">📅 ${fechaVenc}</span>` : ''}
           <span class="hist-chip">Antes: ${isNaN(r.cantAnterior) ? '—' : r.cantAnterior}</span>
           <span class="hist-chip qty">Ahora: ${isNaN(r.cantNueva) ? '—' : r.cantNueva}</span>
           ${deltaStr ? `<span class="hist-chip ${deltaChipCls}" style="font-weight:800">Δ ${deltaStr}</span>` : ''}
+             <span class="hist-op-time">${_fmtTime(r.timestamp)}</span>
         </div>
       </div>`;
     }).join('');
@@ -298,70 +348,168 @@ function _renderHistVen() {
 // ── Render ACC ───────────────────────────────────────
 function _renderHistAcc() {
   const today = venLogs.filter(r => _isToday(r.timestamp));
-  const accTransfers = today.filter(r => r.tipo === 'ACC_TRANSFER_SALIDA');
-  const accVentas = today.filter(r => r.tipo === 'ACC_MARCADO_VENDIDO');
 
-  // Dedup ventas: keep last per idDev+sucursal
+  const ACC_TRANSFER_TYPES = ['ACC_TRANSFER_SALIDA', 'ACC_TRANSFERENCIA_SALIDA'];
+  const ACC_AJUSTE_TYPES   = ['ACC_AJUSTE_POSITIVO','ACC_AJUSTE_NEGATIVO','ACC_AJUSTE_A_CERO','ACC_AJUSTE_SIN_CAMBIO'];
+
+  // ── Registros del día: se lee de devData (hoja Acciones) filtrado por fecha de hoy ─────────
+  const accRegistros = devData
+    .filter(r => _isToday(r.fecha))
+    .sort((a, b) => (b.fecha || 0) - (a.fecha || 0));
+
+  // Declarar todas las variables necesarias antes de usarlas
+  const accTransfers = today.filter(r => ACC_TRANSFER_TYPES.includes(r.tipo));
+  const accVentas    = today.filter(r => r.tipo === 'ACC_MARCADO_VENDIDO');
+  const accAjustes   = today.filter(r => ACC_AJUSTE_TYPES.includes(r.tipo));
+
   const ventaMap = new Map();
   accVentas.forEach(r => ventaMap.set((r.idDev || '') + '|' + r.sucursal, r));
   const ventasDedup = [...ventaMap.values()].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-  document.getElementById('histAccTabBadgeT').textContent = accTransfers.length;
-  document.getElementById('histAccTabBadgeV').textContent = ventasDedup.length;
-
   const el = document.getElementById('histAccContent');
-  if (_histAccActiveTab === 'transfers') {
-    if (!accTransfers.length) {
-      el.innerHTML = `<div class="hist-empty"><div class="hist-empty-icon">⇄</div><div>Sin transferencias de acciones hoy</div></div>`;
+
+  document.getElementById('histAccTabBadgeReg').textContent = accRegistros.length;
+  document.getElementById('histAccTabBadgeT').textContent   = accTransfers.length + accAjustes.length;
+  document.getElementById('histAccTabBadgeV').textContent   = ventasDedup.length;
+
+  if (_histAccActiveTab === 'registros') {
+    if (!accRegistros.length) {
+      el.innerHTML = `<div class="hist-empty"><div class="hist-empty-icon">📋</div><div>Sin registros de acciones hoy</div></div>`;
       return;
     }
-    el.innerHTML = accTransfers.map(r => {
-      const qty = Math.abs(isNaN(r.delta) ? (r.cantAnterior - r.cantNueva) : r.delta);
-      const motivoMatch = r.notas.match(/Motivo[^:]*:\s*([^·\|]+)/);
-      const motivo = motivoMatch ? motivoMatch[1].trim() : '';
-      const { gramaje, proveedor } = _getProductInfo(r.ean, r.descripcion);
-      return `<div class="hist-op-card transfer">
+    el.innerHTML = accRegistros.map(r => {
+      const estadoCls = { 'VENDIDO': 'pos', 'N/C RECIBIDA': 'pos', 'RECHAZADA': 'neg' }[r.estado] || '';
+      const estadoIcon = {
+        'VENDIDO': '✅', 'PENDIENTE': '⏳', 'EN GESTION': '🔄',
+        'N/C RECIBIDA': '📄', 'RECHAZADA': '❌',
+      }[r.estado] || '📋';
+      return `<div class="hist-op-card registro-acc">
         <div class="hist-op-row">
           <div class="hist-op-desc">${esc(r.descripcion)}</div>
+          <span class="hist-chip ${estadoCls}">${estadoIcon} ${esc(r.estado)}</span>
+        </div>
+        <div class="hist-op-meta">
+          <span class="hist-chip suc-orig">🏪 ${esc(r.sucursal)}</span>
+          ${r.motivo    ? `<span class="hist-chip motivo">🏷 ${esc(r.motivo)}</span>` : ''}
+          ${r.cantidad  ? `<span class="hist-chip qty">Cant: ${r.cantidad}</span>` : ''}
+          ${r.fechaVenc ? `<span class="hist-chip neg">📅 Venc: ${esc(r.fechaVenc)}</span>` : ''}
+          ${r.gramaje   ? `<span class="hist-chip">⚖️ ${esc(r.gramaje)}</span>` : ''}
+          ${r.proveedor ? `<span class="hist-chip">🏢 ${esc(r.proveedor)}</span>` : ''}
+          ${r.lote      ? `<span class="hist-chip">🔢 Lote: ${esc(r.lote)}</span>` : ''}
+          ${r.usuario   ? `<span class="hist-chip" style="color:var(--text3)">👤 ${esc(r.usuario)}</span>` : ''}
+          ${r.id        ? `<span class="hist-chip" style="color:var(--purple);border-color:rgba(166,124,255,.25);background:rgba(166,124,255,.07)">📋 ${esc(r.id)}</span>` : ''}
+        </div>
+      </div>`;
+    }).join('')
+    return;
+  }
+
+  if (_histAccActiveTab === 'transfers') {
+    const todos = [...accTransfers, ...accAjustes].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    if (!todos.length) {
+      el.innerHTML = `<div class="hist-empty"><div class="hist-empty-icon">⇄</div><div>Sin transferencias ni ajustes de acciones hoy</div></div>`;
+      return;
+    }
+
+    el.innerHTML = todos.map(r => {
+      const _prod = devData.find(d => String(d.ean || '').trim() === r.ean)
+                 || venData.find(v => String(v.ean || '').trim() === r.ean) || {};
+      const gramaje   = _prod.gramaje   || '';
+      const proveedor = _prod.proveedor || '';
+
+      const esAjuste = ACC_AJUSTE_TYPES.includes(r.tipo);
+      const qty = Math.abs(isNaN(r.delta) ? (r.cantAnterior - r.cantNueva) : r.delta);
+      const deltaRaw = !isNaN(r.delta) ? r.delta
+        : (!isNaN(r.cantNueva) && !isNaN(r.cantAnterior) ? r.cantNueva - r.cantAnterior : null);
+      const deltaStr = deltaRaw !== null
+        ? (deltaRaw > 0 ? '+' + deltaRaw : String(deltaRaw)) + ' u.' : null;
+      const deltaChipCls = deltaRaw !== null ? (deltaRaw > 0 ? 'pos' : deltaRaw < 0 ? 'neg' : '') : '';
+
+      const motivoMatch = r.notas ? r.notas.match(/Motivo[^:]*:\s*([^·\|]+)/) : null;
+      const motivo = motivoMatch ? motivoMatch[1].trim() : '';
+
+      if (esAjuste) {
+        const tipoLabel = {
+          ACC_AJUSTE_POSITIVO:  '＋ Ajuste positivo',
+          ACC_AJUSTE_NEGATIVO:  '－ Ajuste negativo',
+          ACC_AJUSTE_A_CERO:    '⬛ A cero',
+          ACC_AJUSTE_SIN_CAMBIO:'＝ Sin cambio',
+        }[r.tipo] || r.tipo;
+        const isPos = r.tipo === 'ACC_AJUSTE_POSITIVO';
+        const isNeg = r.tipo === 'ACC_AJUSTE_NEGATIVO' || r.tipo === 'ACC_AJUSTE_A_CERO';
+        const chipCls = isPos ? 'pos' : isNeg ? 'neg' : '';
+
+        return `<div class="hist-op-card ${isPos ? 'ajuste-pos' : isNeg ? 'ajuste-neg' : ''}">
+          <div class="hist-op-row">
+            <span class="hist-op-time">${_fmtTime(r.timestamp)}</span>
+            <div class="hist-op-desc">${esc(r.descripcion)}</div>
+          </div>
+          <div class="hist-op-meta">
+            <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
+            <span class="hist-chip suc-orig">🏪 ${esc(r.sucursal)}</span>
+            <span class="hist-chip ${chipCls}">${tipoLabel}</span>
+            ${gramaje   ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>`   : ''}
+            ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
+            <span class="hist-chip">Antes: ${isNaN(r.cantAnterior) ? '—' : r.cantAnterior}</span>
+            <span class="hist-chip qty">Ahora: ${isNaN(r.cantNueva) ? '—' : r.cantNueva}</span>
+            ${deltaStr ? `<span class="hist-chip ${deltaChipCls}" style="font-weight:800">Δ ${deltaStr}</span>` : ''}
+            ${r.idDev ? `<span class="hist-chip" style="color:var(--purple);border-color:rgba(166,124,255,.25);background:rgba(166,124,255,.07)">📋 ${esc(r.idDev)}</span>` : ''}
+          </div>
+        </div>`;
+      }
+
+      // Transferencia
+      return `<div class="hist-op-card transfer">
+        <div class="hist-op-row">
           <span class="hist-op-time">${_fmtTime(r.timestamp)}</span>
+          <div class="hist-op-desc">${esc(r.descripcion)}</div>
         </div>
         <div class="hist-op-meta">
           <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
-          ${gramaje ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>` : ''}
-          ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
           <span class="hist-chip suc-orig">📤 ${esc(r.sucursal)}</span>
           <span class="hist-arrow">→</span>
           <span class="hist-chip suc-dest">📥 ${esc(r.destino || '—')}</span>
           <span class="hist-chip qty">Cant: ${qty} u.</span>
+          ${gramaje   ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>`   : ''}
+          ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
           ${motivo ? `<span class="hist-chip">${esc(motivo)}</span>` : ''}
           ${r.idDev ? `<span class="hist-chip" style="color:var(--purple);border-color:rgba(166,124,255,.25);background:rgba(166,124,255,.07)">📋 ${esc(r.idDev)}</span>` : ''}
         </div>
       </div>`;
     }).join('');
+
   } else {
+    // Ventas / ajustes finales
     if (!ventasDedup.length) {
       el.innerHTML = `<div class="hist-empty"><div class="hist-empty-icon">🏷</div><div>Sin ventas ni ajustes hoy</div></div>`;
       return;
     }
+
     el.innerHTML = ventasDedup.map(r => {
-      const vendMatch = r.notas.match(/Vendidas:\s*(\d+)/);
-      const vencMatch = r.notas.match(/Vencidas en gondola:\s*(\d+)/);
-      const motivoMatch = r.notas.match(/Motivo[^:]*:\s*([^|]+)/);
-      const vendidas = vendMatch ? vendMatch[1] : '—';
-      const vencidas = vencMatch ? vencMatch[1] : '—';
-      const motivo = motivoMatch ? motivoMatch[1].trim() : '';
+      const _prod = devData.find(d => String(d.ean || '').trim() === r.ean)
+                 || venData.find(v => String(v.ean || '').trim() === r.ean) || {};
+      const gramaje   = _prod.gramaje   || '';
+      const proveedor = _prod.proveedor || '';
+
+      const vendMatch  = r.notas ? r.notas.match(/Vendidas:\s*(\d+)/)           : null;
+      const vencMatch  = r.notas ? r.notas.match(/Vencidas en gondola:\s*(\d+)/) : null;
+      const motivoMatch = r.notas ? r.notas.match(/Motivo[^:]*:\s*([^|]+)/)     : null;
+      const vendidas = vendMatch  ? vendMatch[1]  : '—';
+      const vencidas = vencMatch  ? vencMatch[1]  : '—';
+      const motivo   = motivoMatch ? motivoMatch[1].trim() : '';
       const base = isNaN(r.cantAnterior) ? '—' : r.cantAnterior;
-      const { gramaje, proveedor } = _getProductInfo(r.ean, r.descripcion);
+
       return `<div class="hist-op-card venta">
         <div class="hist-op-row">
-          <div class="hist-op-desc">${esc(r.descripcion)}</div>
           <span class="hist-op-time">${_fmtTime(r.timestamp)}</span>
+          <div class="hist-op-desc">${esc(r.descripcion)}</div>
         </div>
         <div class="hist-op-meta">
           <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
-          ${gramaje ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>` : ''}
-          ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
           <span class="hist-chip suc-orig">🏪 ${esc(r.sucursal)}</span>
+          ${gramaje   ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>`   : ''}
+          ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
           ${motivo ? `<span class="hist-chip">${esc(motivo)}</span>` : ''}
           <span class="hist-chip">Base: ${base}</span>
           <span class="hist-chip pos">✓ Vendidas: ${vendidas}</span>
@@ -372,6 +520,7 @@ function _renderHistAcc() {
     }).join('');
   }
 }
+
 window.onload = () => {
   showPanel('resumen');
   if (SCRIPT_URL) {
@@ -380,7 +529,141 @@ window.onload = () => {
   } else {
     document.getElementById('configModal').classList.add('open');
   }
+  _updateThemeBtn(localStorage.getItem('nexus_theme') || 'dark');
 };
+
+// ══════════════════════════════════════════════════════
+//  MODAL REPLICAR REGISTRO
+// ══════════════════════════════════════════════════════
+function abrirModalReplicar(idVen, desc, ean, sucOrigen, fechaVenc, gramaje) {
+  _currentReplicarData = { idVen, desc, ean, sucOrigen, fechaVenc, gramaje };
+
+  const descEl = document.getElementById('repRegDesc');
+  if (descEl) descEl.textContent = desc || '—';
+
+  const infoEl = document.getElementById('repRegInfo');
+  if (infoEl) {
+    infoEl.innerHTML = [
+      ean      ? `<span>EAN: <strong>${esc(ean)}</strong></span>`       : '',
+      gramaje  ? `<span>⚖️ ${esc(gramaje)}</span>`                      : '',
+      fechaVenc ? `<span>📅 Vence: <strong>${fechaVenc}</strong></span>` : '',
+      sucOrigen ? `<span class="hist-chip origen-suc">Origen: ${esc(sucOrigen)}</span>` : '',
+    ].filter(Boolean).join('<span style="color:var(--text3)"> · </span>');
+  }
+
+  const dateEl = document.getElementById('repRegDate');
+  if (dateEl) dateEl.textContent = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
+
+  // Reset campos
+  const sucEl   = document.getElementById('repRegSuc');
+  const cantEl  = document.getElementById('repRegCant');
+  const nombEl  = document.getElementById('repRegNombre');
+  const loteEl  = document.getElementById('repRegLote');
+  const unitEl  = document.getElementById('repRegCantUnit');
+
+  if (sucEl)   sucEl.value   = '';
+  if (cantEl)  cantEl.value  = '';
+  if (nombEl)  nombEl.value  = '';
+  if (loteEl)  loteEl.value  = '';
+  if (unitEl)  unitEl.textContent = gramaje ? `(kg)` : `(unidades)`;
+
+  // Ocultar errores
+  ['repRegSucErr','repRegCantErr','repRegNombreErr'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+
+  document.getElementById('modalReplicarReg').classList.add('open');
+  setTimeout(() => { if (sucEl) sucEl.focus(); }, 150);
+}
+
+function cerrarModalReplicar(evt) {
+  if (evt && evt.target !== document.getElementById('modalReplicarReg')) return;
+  document.getElementById('modalReplicarReg').classList.remove('open');
+  _currentReplicarData = null;
+}
+
+async function ejecutarReplicar() {
+  if (!_currentReplicarData) return;
+  const { idVen, desc, ean, fechaVenc, gramaje } = _currentReplicarData;
+
+  const sucEl   = document.getElementById('repRegSuc');
+  const cantEl  = document.getElementById('repRegCant');
+  const nombEl  = document.getElementById('repRegNombre');
+  const loteEl  = document.getElementById('repRegLote');
+
+  const suc    = sucEl?.value  || '';
+  const cant   = parseFloat((cantEl?.value || '').replace(',', '.'));
+  const nombre = (nombEl?.value || '').trim().toUpperCase();
+
+  // Validaciones
+  let ok = true;
+  if (!suc) {
+    document.getElementById('repRegSucErr').style.display = 'block';
+    ok = false;
+  }
+  if (!cant || cant <= 0 || isNaN(cant)) {
+    document.getElementById('repRegCantErr').style.display = 'block';
+    ok = false;
+  }
+  if (!nombre || nombre.length < 2) {
+    document.getElementById('repRegNombreErr').style.display = 'block';
+    ok = false;
+  }
+  if (!ok) return;
+
+  document.getElementById('modalReplicarReg').classList.remove('open');
+  showSpinner('Replicando registro…');
+
+  try {
+    // Buscar el VEN original para obtener todos los datos del producto
+    const venOrig = venData.find(v => v.id === idVen) || {};
+
+    const body = {
+      action:      'submitForm',
+      tipoRegistro: 'CONTROL DE VENCIMIENTO',
+      sucursal:    suc,
+      usuario:     nombre,
+      ean:         ean,
+      fechaVenc:   fechaVenc,
+      descripcion: desc,
+      gramaje:     gramaje || venOrig.gramaje || '',
+      codInterno:  venOrig.codInterno || '',
+      sector:      venOrig.sector     || '',
+      seccion:     venOrig.seccion    || '',
+      proveedor:   venOrig.proveedor  || '',
+      cantidad:    cant,
+      lote:        loteEl?.value?.trim() || venOrig.lote || '',
+    };
+
+    const res  = await fetch(SCRIPT_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body:    JSON.stringify(body),
+    });
+    const json = await res.json();
+
+      if (json.success) {
+      // Cerrar ambos modales
+      document.getElementById('modalReplicarReg').classList.remove('open');
+      document.getElementById('histVenModal').classList.remove('open');
+      document.body.style.overflow = '';
+      _currentReplicarData = null;
+
+      showToast(true, `✓ Replicado en ${suc} · ${cant} u. · ${json.action === 'updated' ? 'Sumado a stock existente' : 'Nuevo registro creado'}`);
+      await loadData();
+    
+    } else if (json.limitReached) {
+      showToast(false, json.message || 'Límite diario alcanzado para esta sucursal.');
+    } else {
+      showToast(false, json.message || 'Error al replicar');
+    }
+  } catch (e) {
+    showToast(false, 'Error de red al replicar');
+    console.error(e);
+  }
+  hideSpinner();
+}
 
 // ══════════════════════════════════════════════════════
 //  NAV
@@ -459,7 +742,7 @@ async function loadData() {
       try {
         const logJson = await logRes.json();
         if (logJson?.success) processVenLogs(logJson.data || []);
-      } catch(_) {}
+      } catch (_) { }
     }
     updateAll();
     const timeStr = 'Actualizado: ' + new Date().toLocaleTimeString('es-AR');
@@ -640,6 +923,7 @@ function buildVenGrupos() {
       g.urg = getUrg(g.dias);
       g.desc = g.sucursales.reduce((b, se) => se.latest.descripcion || b, '—');
       g.prov = g.sucursales.reduce((b, se) => se.latest.proveedor || b, '');
+      g.gramaje = g.sucursales.reduce((b, se) => se.latest.gramaje || b, '');
       g.totalU = g.sucursales.reduce((s, se) => s + (parseFloat(String(se.latest.cantidad || 0).replace(',', '.')) || 0), 0);
       const ests = g.sucursales.map(se => se.latest.estadoGest.replace(/\s+/g, '_'));
       if (ests.some(e => e === 'ACTIVO')) g.grupoEstado = 'ACTIVO';
@@ -863,7 +1147,7 @@ function clearVencFilters() {
 function regroupByEan(groups) {
   const map = new Map();
   groups.forEach(g => {
-    if (!map.has(g.ean)) map.set(g.ean, { ean: g.ean, desc: g.desc, prov: g.prov, vencGrupos: [] });
+    if (!map.has(g.ean)) map.set(g.ean, { ean: g.ean, desc: g.desc, prov: g.prov, gramaje: g.gramaje || '', vencGrupos: [] });
     map.get(g.ean).vencGrupos.push(g);
   });
   return [...map.values()].map(p => {
@@ -1048,7 +1332,10 @@ function renderVencTable() {
         </div>
       </td>
       <td class="c-mono" style="font-size:11px;color:var(--text2)">${esc(prod.ean)}</td>
-      <td class="c-main"><span class="expand-icon">▶</span>${esc(prod.desc)}</td>
+      <td class="c-main">
+        <span class="expand-icon">▶</span>${esc(prod.desc)}
+        ${prod.gramaje ? `<div style="font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:2px;letter-spacing:.04em">${esc(prod.gramaje)}</div>` : ''}
+      </td>
       <td class="c-right" style="vertical-align:middle">${qtyRiskHtml(prodTotal, prod.worstDias)}</td>
       <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;color:var(--text2)" title="${esc(prod.prov)}">${esc(prod.prov || '—')}</td>
       <td><div class="suc-badges">${sucBadges}</div></td>
@@ -1132,13 +1419,6 @@ function renderVencTable() {
             style="cursor:pointer;accent-color:#60a5fa;width:14px;height:14px;flex-shrink:0">
         ` : '';
 
-        const btnRegistrarVencimiento = (!loteMode && g.urg === 'VENCIDO' && cantActualSuc > 0)
-          ? `<button onclick="registrarVencimientoManual(event,'${esc(f.id)}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}')"
-               class="btn-action" style="background:#3d0000;color:#ff4444;border:1px solid #9b1c1c;font-weight:800;padding:6px 12px;font-size:11px">
-               🚨 Registrar Vencimiento
-             </button>`
-          : '';
-
         tableHtml += `
         <tr class="suc-row${showRow ? ' visible' : ''}${isSucOpen ? ' suc-open' : ''}"
             data-suc-key="${esc(sucKey)}" data-prod-ean="${esc(prod.ean)}" data-grupo-key="${esc(g.key)}">
@@ -1170,7 +1450,6 @@ function renderVencTable() {
     <button onclick="ajustarStock(event,'${f.id}',1)"  class="btn-action btn-adj-pos">＋ Ajuste</button>
     <button onclick="ajustarStock(event,'${f.id}',-1)" class="btn-action btn-adj-neg">－ Ajuste</button>
     ${cantActualSuc > 0 && est !== 'ACCIONADO-TOTAL' ? `<button onclick="abrirModalAccionVen(event,'${f.id}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}')" class="btn-action" style="background:rgba(204, 116, 255, 0.46);color:white;border:1px solid rgb(110, 0, 173)">📦 Acción</button>` : ''}
-    ${btnRegistrarVencimiento}
   </div>
 </div>` : `<div class="sf"><div class="sf-lbl">Modo Lote</div><div class="sf-val" style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:10px;margin-top:3px">☑ Seleccionado</div></div>`}
                 <div class="sf wide"><div class="sf-lbl">Acción${linkedDevs.length > 1 ? 'es' : ''} vinculada${linkedDevs.length > 1 ? 's' : ''} (${linkedDevs.length || 'sin acción'})</div><div class="sf-val" style="margin-top:2px">${devChip}</div></div>
@@ -1283,6 +1562,7 @@ function renderVencTable() {
         </div>
         <div class="vmc-prod-info">
           <div class="vmc-prod-desc">${esc(prod.desc)}</div>
+          ${prod.gramaje ? `<div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:1px">${esc(prod.gramaje)}</div>` : ''}
           <div class="vmc-prod-meta">
             <span class="urg ${prod.worstUrg}" style="font-size:9px">${URG_LABELS[prod.worstUrg]}</span>
             ${prod.prov ? `<span class="vmc-prov">${esc(prod.prov)}</span>` : ''}
@@ -1356,10 +1636,6 @@ function renderVencTable() {
           (d.sucursal || '').toUpperCase().trim() === _sucF
         );
 
-        const btnRegistrar = (!loteMode && g.urg === 'VENCIDO' && cantActualSuc > 0)
-          ? `<button onclick="registrarVencimientoManual(event,'${esc(f.id)}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}')"
-                       class="vmc-btn vmc-btn-venc">🚨 Registrar Vencido</button>` : '';
-
         const loteCheck = loteMode ? `
                   <input type="checkbox" ${loteSeleccionados.has(sucKey) ? 'checked' : ''}
                     onclick="event.stopPropagation();toggleLoteRow('${esc(sucKey)}','${esc(f.id)}','${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}','${esc(f.sucursal || '')}',${cantActualSuc},this)"
@@ -1389,7 +1665,6 @@ function renderVencTable() {
                       <button onclick="ajustarStock(event,'${f.id}',1)"  class="vmc-btn vmc-btn-pos">＋ Ajuste</button>
                       <button onclick="ajustarStock(event,'${f.id}',-1)" class="vmc-btn vmc-btn-neg">－ Ajuste</button>
                       ${cantActualSuc > 0 && est !== 'ACCIONADO-TOTAL' ? `<button onclick="abrirModalAccionVen(event,'${f.id}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}')" class="vmc-btn" style="background:rgba(204, 116, 255, 0.46);color:white;border:1px solid rgb(110, 0, 173)">📦 Acción</button>` : ''}
-                      ${btnRegistrar}
                     </div>` : ''}
 
                     ${linkedDevs.length > 0 ? `
@@ -1790,7 +2065,7 @@ function clearNcFilters() {
   });
   const searchEl = document.getElementById('ncf-search');
   if (searchEl) searchEl.value = '';
-  
+
   applyNcFilters();
 }
 
@@ -1860,7 +2135,7 @@ function renderAccTable() {
     const rowStyle = r.estado === 'VENDIDO'
       ? 'background:rgba(34,197,94,.06);border-left:2px solid rgba(34,197,94,.3);'
       : esVencido ? 'background:rgba(248,113,113,.04);border-left:2px solid rgba(248,113,113,.25);'
-      : '';
+        : '';
 
     return `<tr style="${rowStyle}">
               <td class="c-mono" style="font-size:11px;white-space:nowrap">${fmtDateDisp(r.fecha)}</td>
@@ -1868,7 +2143,10 @@ function renderAccTable() {
                 <span class="suc-b ${getSucClass(r.sucursal)}">${esc(r.sucursal || '—')}</span>
                 ${esHijo ? `<br><span class="transfer-origin-badge" style="font-size:9px">⇄ de ${esc(r.sucOrigenTransfer || '?')}</span>` : ''}
               </td>
-              <td class="c-main">${esc(r.descripcion || '—')}</td>
+              <td class="c-main">
+                ${esc(r.descripcion || '—')}
+                ${r.gramaje ? `<div style="font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:2px;letter-spacing:.04em">${esc(r.gramaje)}</div>` : ''}
+              </td>
               <td class="c-mono" style="font-size:11px">${r.ean || '—'}</td>
               <td class="c-right c-mono">${cantDisp}</td>
               <td>${vencBadge(r.fechaVenc)}</td>
@@ -1896,8 +2174,8 @@ function renderAccTable() {
              <span style="color:#f87171">⛔ ${r.cantVencidaGondola} venc. góndola</span>
            </span>`
         : r.estado === 'VENDIDO'
-        ? `<span style="font-size:10px;color:#94a3b8;font-family:'IBM Plex Mono',monospace">✓ vendido</span>`
-        : ''}
+          ? `<span style="font-size:10px;color:#94a3b8;font-family:'IBM Plex Mono',monospace">✓ vendido</span>`
+          : ''}
                   ${esVencido && r.estado !== 'VENDIDO'
         ? `<span style="font-size:10px;color:#f87171;font-family:'IBM Plex Mono',monospace">⛔ vencido</span>`
         : ''}
@@ -1925,7 +2203,7 @@ function renderAccTable() {
     const cardVendidoStyle = r.estado === 'VENDIDO'
       ? 'border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.04);'
       : esVencido ? 'border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.04);'
-      : '';
+        : '';
     return `
         <div class="acc-card acc-card-urg-${urg}" style="${cardVendidoStyle}">
           <div class="acc-card-top">
@@ -2080,13 +2358,27 @@ function calcVentaAjuste() {
   if (!currentVentaAjusteData) return;
   const { cantTotal, pesable } = currentVentaAjusteData;
   const raw = (document.getElementById('vaQty').value || '0').replace(',', '.');
-  const vendida = Math.max(0, Math.min(parseFloat(raw) || 0, cantTotal));
-  const vencida = Math.max(0, cantTotal - vendida);
+  // vaQty = lo que quedó en góndola sin vender
+  const gondola = Math.max(0, Math.min(parseFloat(raw) || 0, cantTotal));
+  const vendida = Math.max(0, cantTotal - gondola);
   const dec = pesable ? 3 : 0;
   document.getElementById('vaResultVendida').textContent = vendida.toFixed(dec) + (pesable ? ' kg' : ' u.');
-  document.getElementById('vaResultVencida').textContent = vencida.toFixed(dec) + (pesable ? ' kg' : ' u.');
+  document.getElementById('vaResultVencida').textContent = gondola.toFixed(dec) + (pesable ? ' kg' : ' u.');
   document.getElementById('vaResultVendida').style.color = vendida > 0 ? '#4ade80' : 'var(--text3)';
-  document.getElementById('vaResultVencida').style.color = vencida > 0 ? '#f87171' : 'var(--text3)';
+  document.getElementById('vaResultVencida').style.color = gondola > 0 ? '#f87171' : 'var(--text3)';
+  // Sync slider
+  const slider = document.getElementById('vaSlider');
+  if (slider) slider.value = cantTotal > 0 ? (gondola / cantTotal) * 100 : 0;
+}
+
+function syncVaSlider(val) {
+  if (!currentVentaAjusteData) return;
+  const { cantTotal, pesable } = currentVentaAjusteData;
+  // slider 0 = nada en góndola, 100 = todo en góndola
+  const gondola = (parseFloat(val) / 100) * cantTotal;
+  const inp = document.getElementById('vaQty');
+  inp.value = pesable ? gondola.toFixed(3) : Math.round(gondola);
+  calcVentaAjuste();
 }
 
 function cerrarModalVentaAjuste() {
@@ -2098,15 +2390,16 @@ async function ejecutarVentaAjuste() {
   if (!currentVentaAjusteData) return;
   const { id, cantTotal, pesable } = currentVentaAjusteData;
   const raw = (document.getElementById('vaQty').value || '0').replace(',', '.');
-  const cantVendida = parseFloat(raw) || 0;
-  if (cantVendida < 0 || cantVendida > cantTotal) {
-    showToast(false, 'La cantidad vendida debe estar entre 0 y ' + cantTotal);
+  const gondola = parseFloat(raw) || 0;
+  if (gondola < 0 || gondola > cantTotal) {
+    showToast(false, 'La cantidad en góndola debe estar entre 0 y ' + cantTotal);
     return;
   }
-  if (!pesable && !Number.isInteger(cantVendida)) {
+  if (!pesable && !Number.isInteger(gondola)) {
     showToast(false, 'Solo se aceptan cantidades enteras para productos no pesables.');
     return;
   }
+  const cantVendida = cantTotal - gondola;
   cerrarModalVentaAjuste();
   showSpinner('Registrando venta/ajuste...');
   try {
@@ -2331,7 +2624,7 @@ function renderNcTable() {
     const tieneHijos = devData.some(h => h.idOrigen === r.id);
     const distribHtml = tieneHijos
       ? distrib.map(s =>
-          `<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;
+        `<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;
            background:rgba(79,142,255,.1);border:1px solid rgba(79,142,255,.2);
            border-radius:4px;padding:2px 6px;color:var(--text2);
            font-family:'IBM Plex Mono',monospace;white-space:nowrap;margin:1px">
@@ -2358,8 +2651,8 @@ function renderNcTable() {
            </span>` : ''}
          </div>`
       : r.estado === 'VENDIDO'
-      ? `<span style="color:#94a3b8;font-size:11px;font-family:'IBM Plex Mono',monospace">✓ vendido</span>`
-      : `<span style="color:var(--text3);font-size:11px">—</span>`;
+        ? `<span style="color:#94a3b8;font-size:11px;font-family:'IBM Plex Mono',monospace">✓ vendido</span>`
+        : `<span style="color:var(--text3);font-size:11px">—</span>`;
     const rowStyle = r.estado === 'VENDIDO'
       ? 'background:rgba(34,197,94,.06);border-left:3px solid rgba(34,197,94,.35);'
       : '';
@@ -2380,7 +2673,8 @@ function renderNcTable() {
         <td class="c-mono" style="font-size:11px">${r.lote || '—'}</td>
         <td>${estadoBadge(r.estado)}</td>
         <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;color:var(--text2);font-size:11px">${r.obsNC || '—'}</td>
-      </tr>`; }).join('')}
+      </tr>`;
+  }).join('')}
     </tbody></table></div>`;
   renderPagination('ncPagination', filteredNc.length, ncPage, p => { ncPage = p; renderNcTable(); });
 }
@@ -2718,7 +3012,7 @@ async function exportNcXlsx() {
   // ── Para cada fila calcular totales consolidados (padre + hijos transferidos) ──
   const rowsConsolidados = rows.map(r => {
     const hijosAll = devData.filter(h => h.idOrigen === r.id);
-    const totalVend  = (r.cantVendida || 0)        + hijosAll.reduce((s, h) => s + (h.cantVendida        || 0), 0);
+    const totalVend = (r.cantVendida || 0) + hijosAll.reduce((s, h) => s + (h.cantVendida || 0), 0);
     const totalVencG = (r.cantVencidaGondola || 0) + hijosAll.reduce((s, h) => s + (h.cantVencidaGondola || 0), 0);
     return { r, totalVend, totalVencG };
   });
@@ -2733,16 +3027,16 @@ async function exportNcXlsx() {
   };
 
   ws.columns = [
-    { key: 'sucursal',   width: 16 },
-    { key: 'descripcion',width: 36 },
-    { key: 'ean',        width: 16 },
-    { key: 'cantTotal',  width: 12 },
-    { key: 'vendidas',   width: 12 },
-    { key: 'vencGondola',width: 14 },
-    { key: 'venc',       width: 14 },
-    { key: 'proveedor',  width: 26 },
-    { key: 'motivo',     width: 22 },
-    { key: 'lote',       width: 14 },
+    { key: 'sucursal', width: 16 },
+    { key: 'descripcion', width: 36 },
+    { key: 'ean', width: 16 },
+    { key: 'cantTotal', width: 12 },
+    { key: 'vendidas', width: 12 },
+    { key: 'vencGondola', width: 14 },
+    { key: 'venc', width: 14 },
+    { key: 'proveedor', width: 26 },
+    { key: 'motivo', width: 22 },
+    { key: 'lote', width: 14 },
   ];
 
   // ── Encabezado ──────────────────────────────────────────
@@ -2763,22 +3057,22 @@ async function exportNcXlsx() {
   rowsConsolidados.forEach(({ r, totalVend, totalVencG }, i) => {
     const isEven = i % 2 === 1;
     const dRow = ws.addRow([
-      r.sucursal  || '—',
+      r.sucursal || '—',
       r.descripcion || '—',
-      r.ean        || '—',
-      r.cantidad   || 0,
+      r.ean || '—',
+      r.cantidad || 0,
       totalVend,
       totalVencG,
       fmtVenc(r.fechaVenc),
-      r.proveedor  || '—',
-      r.motivo     || '—',
-      r.lote       || '—',
+      r.proveedor || '—',
+      r.motivo || '—',
+      r.lote || '—',
     ]);
     dRow.height = 20;
 
     dRow.eachCell({ includeEmpty: true }, (c, col) => {
       c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isEven ? 'FFF5F7FF' : 'FFFFFFFF' } };
-      c.alignment = { vertical: 'middle', horizontal: [4,5,6].includes(col) ? 'center' : 'left', wrapText: col === 2 };
+      c.alignment = { vertical: 'middle', horizontal: [4, 5, 6].includes(col) ? 'center' : 'left', wrapText: col === 2 };
       c.font = { size: 10 };
       c.border = { bottom: { style: 'thin', color: { argb: 'FFDDDDDD' } }, right: { style: 'thin', color: { argb: 'FFDDDDDD' } } };
     });
@@ -2808,15 +3102,15 @@ async function exportNcXlsx() {
     // Columna Motivo → color badge
     const motivoCell = dRow.getCell(9);
     const mU = (r.motivo || '').toUpperCase();
-    if (mU.includes('2X1'))       { motivoCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } }; motivoCell.font = { size: 10, bold: true, color: { argb: 'FF93C5FD' } }; }
-    else if (mU.includes('50%'))  { motivoCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3B1F6A' } }; motivoCell.font = { size: 10, bold: true, color: { argb: 'FFCA9FFC' } }; }
+    if (mU.includes('2X1')) { motivoCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } }; motivoCell.font = { size: 10, bold: true, color: { argb: 'FF93C5FD' } }; }
+    else if (mU.includes('50%')) { motivoCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3B1F6A' } }; motivoCell.font = { size: 10, bold: true, color: { argb: 'FFCA9FFC' } }; }
     else if (mU.includes('VENC')) { motivoCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3D0000' } }; motivoCell.font = { size: 10, bold: true, color: { argb: 'FFFF4444' } }; }
     else if (mU.includes('ROT') || mU.includes('DA') || mU.includes('ESTADO')) { motivoCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3D2200' } }; motivoCell.font = { size: 10, bold: true, color: { argb: 'FFFB923C' } }; }
   });
 
   // ── Fila de totales ──────────────────────────────────────
-  const sumCant  = rowsConsolidados.reduce((s, { r }) => s + (parseFloat(String(r.cantidad || 0).replace(',', '.')) || 0), 0);
-  const sumVend  = rowsConsolidados.reduce((s, { totalVend })  => s + totalVend,  0);
+  const sumCant = rowsConsolidados.reduce((s, { r }) => s + (parseFloat(String(r.cantidad || 0).replace(',', '.')) || 0), 0);
+  const sumVend = rowsConsolidados.reduce((s, { totalVend }) => s + totalVend, 0);
   const sumVencG = rowsConsolidados.reduce((s, { totalVencG }) => s + totalVencG, 0);
 
   const totRow = ws.addRow(['', `TOTAL: ${rows.length} registros`, '', sumCant, sumVend, sumVencG, '', '', '', '']);
@@ -2824,7 +3118,7 @@ async function exportNcXlsx() {
   totRow.eachCell({ includeEmpty: true }, (c, col) => {
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D111F' } };
     c.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
-    c.alignment = { vertical: 'middle', horizontal: [4,5,6].includes(col) ? 'center' : 'left' };
+    c.alignment = { vertical: 'middle', horizontal: [4, 5, 6].includes(col) ? 'center' : 'left' };
   });
   const tVend = totRow.getCell(5);
   tVend.font = { bold: true, color: { argb: 'FF4ADE80' }, size: 10 };
@@ -3048,13 +3342,13 @@ function abrirModalAccionVen(evt, venId, sucursal, cantActual, desc, ean, fechaV
 
   _currentAccionVenData = {
     venId, sucursal, cantActual, desc, ean, fechaVenc, pesable,
-    gramaje:    venRec.gramaje    || '',
+    gramaje: venRec.gramaje || '',
     codInterno: venRec.codInterno || '',
-    sector:     venRec.sector     || '',
-    seccion:    venRec.seccion    || '',
-    proveedor:  venRec.proveedor  || '',
-    lote:       venRec.lote       || '',
-    usuario:    venRec.usuario    || '',
+    sector: venRec.sector || '',
+    seccion: venRec.seccion || '',
+    proveedor: venRec.proveedor || '',
+    lote: venRec.lote || '',
+    usuario: venRec.usuario || '',
   };
 
   // Header
@@ -3068,11 +3362,11 @@ function abrirModalAccionVen(evt, venId, sucursal, cantActual, desc, ean, fechaV
       ? `<span><span style="color:var(--text3)">${lbl}:</span> <strong style="color:${c || 'var(--text)'}">${esc(String(val))}</strong></span>`
       : '';
     infoEl.innerHTML = [
-      p('Suc',     sucursal,                    'var(--cyan)'),
-      p('Stock',   cantActual + (pesable ? ' kg' : ' u.'), '#60a5fa'),
-      p('Vence',   fmtDateOnly(fechaVenc),       'var(--text2)'),
-      p('EAN',     ean,                          'var(--text3)'),
-      venRec.lote ? p('Lote', venRec.lote,       'var(--text3)') : '',
+      p('Suc', sucursal, 'var(--cyan)'),
+      p('Stock', cantActual + (pesable ? ' kg' : ' u.'), '#60a5fa'),
+      p('Vence', fmtDateOnly(fechaVenc), 'var(--text2)'),
+      p('EAN', ean, 'var(--text3)'),
+      venRec.lote ? p('Lote', venRec.lote, 'var(--text3)') : '',
     ].filter(Boolean).join(' &nbsp;·&nbsp; ');
   }
 
@@ -3081,10 +3375,10 @@ function abrirModalAccionVen(evt, venId, sucursal, cantActual, desc, ean, fechaV
   if (sel) sel.value = '';
   const cantEl = document.getElementById('avCantidad');
   if (cantEl) {
-    cantEl.value   = cantActual;
-    cantEl.max     = cantActual;
-    cantEl.step    = pesable ? '0.001' : '1';
-    cantEl.min     = pesable ? '0.001' : '1';
+    cantEl.value = cantActual;
+    cantEl.max = cantActual;
+    cantEl.step = pesable ? '0.001' : '1';
+    cantEl.min = pesable ? '0.001' : '1';
   }
   const maxEl = document.getElementById('avCantMax');
   if (maxEl) maxEl.textContent = `Máximo disponible: ${cantActual}${pesable ? ' kg' : ' u.'}`;
@@ -3111,7 +3405,7 @@ async function ejecutarAccionVen() {
   if (!motivo) { showToast(false, 'Seleccioná un motivo antes de confirmar.'); return; }
 
   const { venId, sucursal, cantActual, desc, ean, fechaVenc,
-          gramaje, codInterno, sector, seccion, proveedor, lote, pesable } = _currentAccionVenData;
+    gramaje, codInterno, sector, seccion, proveedor, lote, pesable } = _currentAccionVenData;
 
   const raw = (document.getElementById('avCantidad')?.value || '0').replace(',', '.');
   const cantidad = parseFloat(raw);
@@ -3140,7 +3434,7 @@ async function ejecutarAccionVen() {
   // Formatear fechaVenc como YYYY-MM-DD
   const fvParsed = parseFechaVenc(fechaVenc);
   const fechaVencFmt = fvParsed
-    ? `${fvParsed.getFullYear()}-${String(fvParsed.getMonth()+1).padStart(2,'0')}-${String(fvParsed.getDate()).padStart(2,'0')}`
+    ? `${fvParsed.getFullYear()}-${String(fvParsed.getMonth() + 1).padStart(2, '0')}-${String(fvParsed.getDate()).padStart(2, '0')}`
     : (fechaVenc || '');
 
   cerrarModalAccionVen();
@@ -3148,17 +3442,17 @@ async function ejecutarAccionVen() {
 
   try {
     const body = {
-      action:       'registrarAccionDesdeVen',
-      idVen:        venId,
+      action: 'registrarAccionDesdeVen',
+      idVen: venId,
       motivo,
       cantidad,
-      leyenda:      leyenda || '',
-      usuario:      nombre.toUpperCase(),
+      leyenda: leyenda || '',
+      usuario: nombre.toUpperCase(),
       // Datos del producto (el backend los usa si no los lee de la fila VEN)
       ean,
-      fechaVenc:    fechaVencFmt,
+      fechaVenc: fechaVencFmt,
       sucursal,
-      descripcion:  desc,
+      descripcion: desc,
       gramaje,
       codInterno,
       sector,
@@ -3428,3 +3722,40 @@ function abrirModalLote() {
 
 function cerrarModalConfirmLote() { document.getElementById('modalConfirmLote').style.display = 'none'; }
 function confirmarEjecutarLote() { cerrarModalConfirmLote(); ejecutarLote(); }
+
+
+// ══════════════════════════════════════════════════════
+//  THEME TOGGLE
+// ══════════════════════════════════════════════════════
+function toggleTheme() {
+  const html = document.documentElement;
+  const isLight = html.getAttribute('data-theme') === 'light';
+  const newTheme = isLight ? 'dark' : 'light';
+  html.setAttribute('data-theme', newTheme);
+  localStorage.setItem('nexus_theme', newTheme);
+  _updateThemeBtn(newTheme);
+}
+
+function _updateThemeBtn(theme) {
+  const icon = document.getElementById('themeIcon');
+  const label = document.getElementById('themeLabel');
+  const hint = document.getElementById('themeHint');
+  if (!icon) return;
+  if (theme === 'light') {
+    icon.textContent = '🌙';
+    label.textContent = 'Modo Oscuro';
+    hint.textContent = 'LIGHT';
+  } else {
+    icon.textContent = '☀️';
+    label.textContent = 'Modo Claro';
+    hint.textContent = 'DARK';
+  }
+}
+
+// Aplicar tema guardado al cargar la página
+(function () {
+  const saved = localStorage.getItem('nexus_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  // El botón se actualiza en window.onload
+  window.addEventListener('DOMContentLoaded', () => _updateThemeBtn(saved));
+})();

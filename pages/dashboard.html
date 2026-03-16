@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 
 <head>
     <meta charset="UTF-8">
@@ -104,6 +104,11 @@
             <button class="btn btn-secondary btn-sm" style="width:100%;margin-top:8px;font-size:11px"
                 onclick="openConfig()">⚙
                 Configuración</button>
+            <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()">
+                <span class="theme-toggle-icon" id="themeIcon">☀️</span>
+                <span class="theme-toggle-label" id="themeLabel">Modo Claro</span>
+                <span class="theme-toggle-hint" id="themeHint">DARK</span>
+            </button>
         </div>
     </aside>
 
@@ -678,16 +683,19 @@
 
     <div id="modalTransfer" class="modal-transfer-overlay">
         <div class="modal-transfer-content">
-            <h3>⇄ Transferir Stock</h3>
-            <label>Sucursal Destino:</label><select id="destSucursal"></select>
-            <label>Cantidad a mover:</label>
-            <input type="number" id="transferQty" min="1" value="1">
-            <p id="transferMaxLabel" style="font-size:0.8rem;margin-top:-10px;margin-bottom:15px;opacity:0.6;"></p>
-            <div style="display:flex;gap:12px;">
-                <button onclick="ejecutarTransferencia()"
-                    style="flex:2;background:var(--accent);color:white;border:none;padding:12px;border-radius:6px;font-weight:700;cursor:pointer;">CONFIRMAR</button>
-                <button onclick="cerrarModalTransfer()"
-                    style="flex:1;background:#444;color:white;border:none;padding:12px;border-radius:6px;cursor:pointer;">X</button>
+            <h3 class="mt-title">⇄ Transferir Stock</h3>
+            <div class="mt-field">
+                <label class="mt-label">Sucursal Destino</label>
+                <select id="destSucursal" class="mt-select"></select>
+            </div>
+            <div class="mt-field">
+                <label class="mt-label">Cantidad a mover</label>
+                <input type="number" id="transferQty" min="1" value="1" class="mt-input">
+                <p id="transferMaxLabel" class="mt-hint"></p>
+            </div>
+            <div class="mt-actions">
+                <button onclick="ejecutarTransferencia()" class="mt-btn-confirm">CONFIRMAR</button>
+                <button onclick="cerrarModalTransfer()" class="mt-btn-cancel">Cancelar</button>
             </div>
         </div>
     </div>
@@ -754,217 +762,165 @@
     </div>
 
     <!-- MODAL TRANSFERENCIA ACCIONES -->
-    <div id="modalTransferAcc" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);
-     align-items:center;justify-content:center;z-index:4000;backdrop-filter:blur(4px)">
-        <div style="background:#131728;border:1px solid #1e3a5f;border-radius:14px;padding:28px 32px;
-              width:380px;max-width:90vw;display:flex;flex-direction:column;gap:12px">
-            <h3 style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:#60a5fa">
-                ⇄ Transferir entre Sucursales
-            </h3>
-            <p id="transferAccInfo" style="font-size:11px;color:var(--text2);font-family:'IBM Plex Mono',monospace;
-       background:rgba(79,142,255,.07);border:1px solid rgba(79,142,255,.15);
-       padding:8px 10px;border-radius:7px;margin:0"></p>
-            <div>
-                <label style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;
-             display:block;margin-bottom:5px;letter-spacing:.04em">SUCURSAL DESTINO</label>
-                <select id="destSucursalAcc" style="width:100%;background:var(--card2);color:var(--text);
-              border:1px solid var(--border2);border-radius:7px;padding:9px 12px;font-size:13px;
-              font-family:'Manrope',sans-serif"></select>
+    <div id="modalTransferAcc" class="modal-transfer-overlay" style="z-index:4000">
+        <div class="modal-transfer-content">
+            <h3 class="mt-title">⇄ Transferir entre Sucursales</h3>
+            <p id="transferAccInfo" class="mt-info-chip"></p>
+            <div class="mt-field">
+                <label class="mt-label">Sucursal Destino</label>
+                <select id="destSucursalAcc" class="mt-select"></select>
             </div>
-            <div>
-                <label style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;
-             display:block;margin-bottom:5px;letter-spacing:.04em">CANTIDAD A TRANSFERIR</label>
-                <input type="number" id="transferQtyAcc" min="1" value="1" style="width:100%;background:var(--card2);color:var(--text);
-                    border:1px solid var(--border2);border-radius:7px;padding:9px 12px;
-                    font-size:14px;font-family:'IBM Plex Mono',monospace">
-                <p id="transferMaxLabelAcc" style="font-size:11px;color:var(--text3);margin-top:5px;
-         font-family:'IBM Plex Mono',monospace"></p>
+            <div class="mt-field">
+                <label class="mt-label">Cantidad a Transferir</label>
+                <input type="number" id="transferQtyAcc" min="1" value="1" class="mt-input">
+                <p id="transferMaxLabelAcc" class="mt-hint"></p>
             </div>
-            <div style="display:flex;gap:10px;margin-top:4px">
-                <button onclick="ejecutarTransferenciaAcc()" style="flex:2;background:var(--blue);color:#fff;border:none;padding:12px;
-                     border-radius:8px;font-weight:700;cursor:pointer;font-family:'Manrope',sans-serif;
-                     font-size:13px">
-                    CONFIRMAR
-                </button>
-                <button onclick="cerrarModalTransferAcc()" style="flex:1;background:var(--card2);color:var(--text2);
-                     border:1px solid var(--border);padding:12px;border-radius:8px;
-                     cursor:pointer;font-family:'Manrope',sans-serif;font-size:13px">
-                    Cancelar
-                </button>
+            <div class="mt-actions">
+                <button onclick="ejecutarTransferenciaAcc()" class="mt-btn-confirm">CONFIRMAR</button>
+                <button onclick="cerrarModalTransferAcc()" class="mt-btn-cancel">Cancelar</button>
             </div>
         </div>
     </div>
 
     <!-- MODAL VENTA / AJUSTE — solo para vencidos -->
-    <div id="modalVentaAjuste" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);
-     align-items:center;justify-content:center;z-index:4100;backdrop-filter:blur(4px)">
-        <div style="background:#131728;border:1px solid rgba(248,113,113,.3);border-radius:14px;
-              padding:28px 32px;width:400px;max-width:92vw;display:flex;flex-direction:column;gap:14px">
-            <!-- Header -->
-            <div>
-                <h3 id="vaModalTitle" style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;
-          color:#f87171;margin:0 0 4px">📊 Registrar Venta / Ajuste</h3>
-                <p id="vaModalDesc" style="font-size:13px;color:var(--text2);margin:0;
-         font-family:'Manrope',sans-serif;font-weight:500"></p>
-            </div>
-            <!-- Info total -->
-            <div style="background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.18);
-                border-radius:8px;padding:10px 14px;font-size:12px;color:var(--text2);line-height:1.7">
-                Disponible en esta sucursal:
-                <strong id="vaModalCantTotal" style="color:var(--text);font-family:'IBM Plex Mono',monospace"></strong>
-                <br>
-                <span style="font-size:11px;color:var(--text3)">
-                    Ingresá cuántas unidades <em>efectivamente se vendieron</em> de esta sucursal.<br>
-                    El resto se registra como vencido en góndola para el reclamo al proveedor.
-                </span>
-            </div>
-            <!-- Input cantidad vendida -->
-            <div>
-                <label style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;
-             display:block;margin-bottom:6px;letter-spacing:.04em">CANTIDAD VENDIDA (0 si no se vendió nada)</label>
-                <input type="number" id="vaQty" min="0" value="0" oninput="calcVentaAjuste()" style="width:100%;background:var(--card2);color:var(--text);
-                    border:1px solid var(--border2);border-radius:7px;padding:10px 12px;
-                    font-size:16px;font-family:'IBM Plex Mono',monospace;
-                    box-sizing:border-box">
-            </div>
-            <!-- Resultado desglose -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-                <div style="background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.2);
-                  border-radius:8px;padding:10px 14px;text-align:center">
-                    <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;
-             letter-spacing:.04em;margin-bottom:4px">✓ VENDIDAS</div>
-                    <div id="vaResultVendida" style="font-size:18px;font-weight:700;
-             font-family:'IBM Plex Mono',monospace;color:var(--text3)">0 u.</div>
-                    <div style="font-size:9px;color:var(--text3);margin-top:3px">reclamo al precio de acción</div>
-                </div>
-                <div style="background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.2);
-                  border-radius:8px;padding:10px 14px;text-align:center">
-                    <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;
-             letter-spacing:.04em;margin-bottom:4px">⛔ VENC. GÓNDOLA</div>
-                    <div id="vaResultVencida" style="font-size:18px;font-weight:700;
-             font-family:'IBM Plex Mono',monospace;color:var(--text3)">0 u.</div>
-                    <div style="font-size:9px;color:var(--text3);margin-top:3px">reclamo al costo completo</div>
-                </div>
-            </div>
-            <!-- Botones -->
-            <div style="display:flex;gap:10px;margin-top:2px">
-                <button onclick="ejecutarVentaAjuste()" style="flex:2;background:#f87171;color:#000;border:none;padding:12px;
-                     border-radius:8px;font-weight:700;cursor:pointer;
-                     font-family:'Manrope',sans-serif;font-size:13px">
-                    ✔ Confirmar
-                </button>
-                <button onclick="cerrarModalVentaAjuste()" style="flex:1;background:var(--card2);color:var(--text2);
-                     border:1px solid var(--border);padding:12px;border-radius:8px;
-                     cursor:pointer;font-family:'Manrope',sans-serif;font-size:13px">
-                    Cancelar
-                </button>
-            </div>
+    <div id="modalVentaAjuste" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);
+     align-items:center;justify-content:center;z-index:4100;backdrop-filter:blur(6px)">
+      <div class="va-modal-box">
+
+        <!-- Header -->
+        <div class="va-header">
+          <div class="va-header-icon">📦</div>
+          <div>
+            <h3 id="vaModalTitle" class="va-title">Registrar Venta / Ajuste</h3>
+            <p id="vaModalDesc" class="va-subtitle"></p>
+          </div>
         </div>
+
+        <!-- Chip disponible total -->
+        <div class="va-total-chip">
+          <span class="va-total-label">STOCK TOTAL A ACCIONAR</span>
+          <span id="vaModalCantTotal" class="va-total-val"></span>
+        </div>
+
+        <!-- Input principal -->
+        <div class="va-input-section">
+          <label class="va-input-label">¿CUÁNTAS QUEDARON SIN VENDER EN GÓNDOLA?</label>
+          <div class="va-input-hint">Ingresá solo lo que <strong>no se vendió</strong> y quedó vencido. Si todo se vendió, ingresá <strong>0</strong>.</div>
+          <div class="va-input-wrap">
+            <span class="va-input-icon">🛒</span>
+            <input type="number" id="vaQty" min="0" value="0" oninput="calcVentaAjuste()" class="va-input" placeholder="0">
+            <span class="va-input-unit" id="vaInputUnit">u.</span>
+          </div>
+          <div class="va-slider-wrap">
+            <input type="range" id="vaSlider" min="0" max="100" value="0" step="1"
+                   oninput="syncVaSlider(this.value)" class="va-slider">
+            <div class="va-slider-labels">
+              <span>Nada en góndola</span>
+              <span>Todo en góndola</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Resultado automático -->
+        <div class="va-results">
+          <div class="va-result-card va-result-sold">
+            <div class="va-result-icon">✅</div>
+            <div class="va-result-lbl">SE VENDIERON</div>
+            <div id="vaResultVendida" class="va-result-val va-val-sold">—</div>
+            <div class="va-result-sub">a precio de acción</div>
+          </div>
+          <div class="va-result-arrow">+</div>
+          <div class="va-result-card va-result-expired">
+            <div class="va-result-icon">⚠️</div>
+            <div class="va-result-lbl">QUEDARON EN GÓNDOLA</div>
+            <div id="vaResultVencida" class="va-result-val va-val-exp">—</div>
+            <div class="va-result-sub">vencidas sin vender</div>
+          </div>
+        </div>
+
+        <!-- Botones -->
+        <div class="va-actions">
+          <button onclick="ejecutarVentaAjuste()" class="va-btn-confirm">✔ Confirmar registro</button>
+          <button onclick="cerrarModalVentaAjuste()" class="va-btn-cancel">Cancelar</button>
+        </div>
+
+      </div>
     </div>
 
 
 
     <!-- ══ MODAL: REGISTRAR ACCIÓN DESDE VENCIMIENTOS ══ -->
-    <div id="modalAccionVen" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);
-         align-items:center;justify-content:center;z-index:4200;backdrop-filter:blur(4px)">
-        <div style="background:#131728;border:1px solid rgba(96,165,250,.28);border-radius:14px;
-                  padding:28px 30px;width:460px;max-width:94vw;display:flex;flex-direction:column;
-                  gap:16px;max-height:92vh;overflow-y:auto">
+    <div id="modalAccionVen" class="modal-transfer-overlay" style="z-index:4200">
+      <div class="av-modal-box">
 
-            <!-- Header -->
-            <div style="border-bottom:1px solid rgba(255,255,255,.07);padding-bottom:14px">
-                <h3 style="font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:#60a5fa;margin:0 0 5px">
-                    📦 Registrar acción sobre producto
-                </h3>
-                <p id="avDesc" style="font-size:13px;color:var(--text2);margin:0;font-family:'Manrope',sans-serif;
-             font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></p>
-            </div>
-
-            <!-- Info pills -->
-            <div id="avInfo" style="display:flex;flex-wrap:wrap;gap:6px;background:rgba(96,165,250,.05);
-             border:1px solid rgba(96,165,250,.13);border-radius:8px;padding:10px 14px;
-             font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--text2);line-height:2"></div>
-
-            <!-- Motivo -->
-            <div>
-                <label style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;
-                 display:block;margin-bottom:5px;letter-spacing:.04em">MOTIVO / TIPO DE ACCIÓN</label>
-                <select id="avMotivo" class="form-control">
-                    <option value="">Elegir...</option>
-                    <optgroup label="── Acciones sobre producto ──" style="color:chartreuse;">
-                        <option value="ACCION 2X1">Acción 2x1</option>
-                        <option value="ACCION 50% OFF">Acción 50% OFF</option>
-                        <option value="VENCIDO">Vencimiento sin acción</option>
-                    </optgroup>
-                    <optgroup label="── Merma / Decomiso ──" style="color: orange;">
-                        <option value="ROTO/DAÑADO">Roto / Dañado</option>
-                        <option value="MAL ESTADO">Mal estado / No apto para consumo</option>
-                        <option value="DECOMISO FRUTA Y VERDURA">Decomiso fruta y verdura</option>
-                        <option value="DECOMISO CARNICERIA">Decomiso carnicería</option>
-                        <option value="DECOMISO FIAMBRERIA">Decomiso fiambería</option>
-                    </optgroup>
-                      <optgroup label="── Otros ──" style="color:deeppink;">
-                        <option value="CONSUMO INTERNO">Consumo interno (especificar sector)</option>
-                        <option value="VENTA">Venta fabricas, bolsones, etc.</option>
-                    </optgroup>
-                </select>
-            </div>
-
-            <!-- Cantidad -->
-            <div>
-                <label style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;
-                 display:block;margin-bottom:5px;letter-spacing:.04em">CANTIDAD</label>
-                <input type="number" id="avCantidad" min="1" value="1" style="width:100%;background:var(--card2);color:var(--text);border:1px solid var(--border2);
-                        border-radius:7px;padding:10px 12px;font-size:18px;font-family:'IBM Plex Mono',monospace;
-                        box-sizing:border-box">
-                <div id="avCantMax" style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;
-               margin-top:5px"></div>
-            </div>
-
-            <!-- Leyenda -->
-            <div>
-                <label style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;
-                 display:block;margin-bottom:5px;letter-spacing:.04em">
-                    LEYENDA <span style="opacity:.45;font-weight:400">(opcional · máx. 80 car.)</span>
-                </label>
-                <input type="text" id="avLeyenda" maxlength="80" autocomplete="off"
-                    placeholder="Ej: promoción fin de semana, retiro de góndola, etc…" style="width:100%;background:var(--card2);color:var(--text);border:1px solid var(--border2);
-                        border-radius:7px;padding:9px 12px;font-size:13px;font-family:'Manrope',sans-serif;
-                        box-sizing:border-box;outline:none">
-            </div>
-
-            <!-- Nombre -->
-            <div>
-                <label style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;
-                 display:block;margin-bottom:5px;letter-spacing:.04em">
-                    NOMBRE <span style="color:#f87171;font-weight:700">*</span>
-                </label>
-                <input type="text" id="avNombre" maxlength="60" autocomplete="off"
-                    placeholder="Tu nombre y apellido…"
-                    style="width:100%;background:var(--card2);color:var(--text);border:1px solid var(--border2);
-                           border-radius:7px;padding:9px 12px;font-size:13px;font-family:'Manrope',sans-serif;
-                           box-sizing:border-box;outline:none">
-                <div id="avNombreErr" style="display:none;font-size:11px;color:#f87171;
-                     font-family:'IBM Plex Mono',monospace;margin-top:4px">
-                    ⚠ Ingresá tu nombre antes de confirmar.
-                </div>
-            </div>
-
-            <!-- Botones -->
-            <div style="display:flex;gap:10px;padding-top:2px">
-                <button onclick="ejecutarAccionVen()"
-                    style="flex:2;background:#60a5fa;color:#000;border:none;padding:13px;
-                         border-radius:8px;font-weight:700;cursor:pointer;font-family:'Manrope',sans-serif;font-size:13px">
-                    ✔ Confirmar acción
-                </button>
-                <button onclick="cerrarModalAccionVen()"
-                    style="flex:1;background:var(--card2);color:var(--text2);border:1px solid var(--border);
-                         padding:13px;border-radius:8px;cursor:pointer;font-family:'Manrope',sans-serif;font-size:13px">
-                    Cancelar
-                </button>
-            </div>
-
+        <!-- Header -->
+        <div class="av-header">
+          <h3 class="av-title">📦 Registrar acción sobre producto</h3>
+          <p id="avDesc" class="av-desc"></p>
         </div>
+
+        <!-- Info pills -->
+        <div id="avInfo" class="av-info-chip"></div>
+
+        <!-- Motivo -->
+        <div class="av-field">
+          <label class="av-label">Motivo / Tipo de acción</label>
+          <div class="av-select-wrap">
+            <select id="avMotivo" class="av-select">
+              <option value="">Elegir...</option>
+              <optgroup label="── Acciones sobre producto ──">
+                <option value="ACCION 2X1">Acción 2x1</option>
+                <option value="ACCION 50% OFF">Acción 50% OFF</option>
+                <option value="VENCIDO">Vencimiento sin acción</option>
+              </optgroup>
+              <optgroup label="── Merma / Decomiso ──">
+                <option value="ROTO/DAÑADO">Roto / Dañado</option>
+                <option value="MAL ESTADO">Mal estado / No apto para consumo</option>
+                <option value="DECOMISO FRUTA Y VERDURA">Decomiso fruta y verdura</option>
+                <option value="DECOMISO CARNICERIA">Decomiso carnicería</option>
+                <option value="DECOMISO FIAMBRERIA">Decomiso fiambería</option>
+              </optgroup>
+              <optgroup label="── Otros ──">
+                <option value="CONSUMO INTERNO">Consumo interno (especificar sector)</option>
+                <option value="VENTA">Venta fábricas, bolsones, etc.</option>
+              </optgroup>
+            </select>
+            <span class="av-select-arrow">▾</span>
+          </div>
+        </div>
+
+        <!-- Cantidad -->
+        <div class="av-field">
+          <label class="av-label">Cantidad</label>
+          <input type="number" id="avCantidad" min="1" value="1" class="av-input av-input-lg">
+          <div id="avCantMax" class="av-hint"></div>
+        </div>
+
+        <!-- Leyenda -->
+        <div class="av-field">
+          <label class="av-label">Leyenda <span class="av-label-opt">(opcional · máx. 80 car.)</span></label>
+          <input type="text" id="avLeyenda" maxlength="80" autocomplete="off"
+              placeholder="Ej: promoción fin de semana, retiro de góndola, etc…"
+              class="av-input">
+        </div>
+
+        <!-- Nombre -->
+        <div class="av-field">
+          <label class="av-label">Nombre <span class="av-label-req">*</span></label>
+          <input type="text" id="avNombre" maxlength="60" autocomplete="off"
+              placeholder="Tu nombre y apellido…" class="av-input">
+          <div id="avNombreErr" class="av-err" style="display:none">
+            ⚠ Ingresá tu nombre antes de confirmar.
+          </div>
+        </div>
+
+        <!-- Botones -->
+        <div class="av-actions">
+          <button onclick="ejecutarAccionVen()" class="av-btn-confirm">✔ Confirmar acción</button>
+          <button onclick="cerrarModalAccionVen()" class="av-btn-cancel">Cancelar</button>
+        </div>
+
+      </div>
     </div>
 
     <!-- ══ STICKY BUTTON: HISTORIAL VENCIMIENTOS ══ -->
@@ -993,6 +949,9 @@
                 <button class="btn btn-secondary btn-sm" onclick="closeHistVenModal()">✕</button>
             </div>
             <div class="hist-tabs">
+                <button class="hist-tab" data-tab="registros" onclick="switchHistVenTab('registros')">
+                    Registros <span class="hist-tab-badge" id="histVenTabBadgeR">0</span>
+                </button>
                 <button class="hist-tab active" data-tab="transfers" onclick="switchHistVenTab('transfers')">
                     ⇄ Transferencias <span class="hist-tab-badge" id="histVenTabBadgeT">0</span>
                 </button>
@@ -1009,6 +968,83 @@
         </div>
     </div>
 
+    <!-- ══ MODAL REPLICAR REGISTRO ══════════════════════════ -->
+<div class="hist-modal-overlay" id="modalReplicarReg" onclick="cerrarModalReplicar(event)">
+  <div class="hist-modal-box" style="max-width:480px">
+    <div class="hist-modal-header">
+      <div>
+        <div class="hist-modal-title">📋 Replicar registro</div>
+        <div class="hist-modal-sub" id="repRegDate"></div>
+      </div>
+      <button onclick="cerrarModalReplicar()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;padding:4px">✕</button>
+    </div>
+
+    <!-- Producto info (solo lectura) -->
+    <div style="padding:16px 24px 0">
+      <div id="repRegDesc" style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:8px"></div>
+      <div id="repRegInfo" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--text3)"></div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--text2);margin-bottom:16px">
+        📌 El producto, EAN y fecha de vencimiento se copian del registro original. Solo completá la sucursal, cantidad y tu nombre.
+      </div>
+    </div>
+
+    <!-- Formulario -->
+    <div style="padding:0 24px 24px;display:flex;flex-direction:column;gap:14px">
+
+      <!-- Sucursal -->
+      <div>
+        <label style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;display:block;margin-bottom:6px">SUCURSAL *</label>
+        <select id="repRegSuc" style="width:100%;padding:10px 12px;background:var(--card);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px">
+          <option value="">— Elegir sucursal —</option>
+          <option value="HIPER">HIPER</option>
+          <option value="CENTRO">CENTRO</option>
+          <option value="RIBERA">RIBERA</option>
+          <option value="MAYORISTA">MAYORISTA</option>
+        </select>
+        <div id="repRegSucErr" style="display:none;color:var(--red);font-size:11px;margin-top:4px">⚠ Seleccioná una sucursal</div>
+      </div>
+
+      <!-- Cantidad -->
+      <div>
+        <label style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;display:block;margin-bottom:6px">
+          CANTIDAD * <span id="repRegCantUnit" style="color:var(--text3)"></span>
+        </label>
+        <input id="repRegCant" type="number" min="0.001" step="1" value=""
+          style="width:100%;padding:10px 12px;background:var(--card);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:14px;font-family:'IBM Plex Mono',monospace;box-sizing:border-box">
+        <div id="repRegCantErr" style="display:none;color:var(--red);font-size:11px;margin-top:4px">⚠ Ingresá una cantidad válida mayor a 0</div>
+      </div>
+
+      <!-- Nombre -->
+      <div>
+        <label style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;display:block;margin-bottom:6px">TU NOMBRE / USUARIO *</label>
+        <input id="repRegNombre" type="text" placeholder="Ej: MARIA, JUAN..."
+          style="width:100%;padding:10px 12px;background:var(--card);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box;text-transform:uppercase"
+          oninput="this.value=this.value.toUpperCase()">
+        <div id="repRegNombreErr" style="display:none;color:var(--red);font-size:11px;margin-top:4px">⚠ Ingresá tu nombre</div>
+      </div>
+
+      <!-- Lote (pre-llenado, editable) -->
+      <div>
+        <label style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;display:block;margin-bottom:6px">LOTE <span style="color:var(--text3)">(opcional)</span></label>
+        <input id="repRegLote" type="text" placeholder="Dejar vacío si no aplica"
+          style="width:100%;padding:10px 12px;background:var(--card);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box">
+      </div>
+
+      <!-- Botones -->
+      <div style="display:flex;gap:10px;margin-top:4px">
+        <button onclick="cerrarModalReplicar()"
+          style="flex:1;padding:11px;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text2);font-size:13px;cursor:pointer">
+          Cancelar
+        </button>
+        <button onclick="ejecutarReplicar()"
+          style="flex:2;padding:11px;background:var(--blue);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">
+          ✓ Registrar en mi sucursal
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
     <!-- ══ MODAL: HISTORIAL ACCIONES ══ -->
     <div class="hist-modal-overlay" id="histAccModal" onclick="closeHistAccModal(event)">
         <div class="hist-modal-box">
@@ -1020,9 +1056,11 @@
                 <button class="btn btn-secondary btn-sm" onclick="closeHistAccModal()">✕</button>
             </div>
             <div class="hist-tabs">
-                <button class="hist-tab active" data-tab="transfers" onclick="switchHistAccTab('transfers')">
-                    ⇄ Transferencias <span class="hist-tab-badge" id="histAccTabBadgeT">0</span>
+                <button class="hist-tab active" data-tab="registros" onclick="switchHistAccTab('registros')">
+                    Registros <span class="hist-tab-badge" id="histAccTabBadgeReg">0</span>
                 </button>
+                <button class="hist-tab" data-tab="transfers" onclick="switchHistAccTab('transfers')">
+                    ⇄ Transferencias <span class="hist-tab-badge" id="histAccTabBadgeT">0</span>
                 <button class="hist-tab" data-tab="ventas" onclick="switchHistAccTab('ventas')">
                     🏷 Ventas / Ajustes <span class="hist-tab-badge" id="histAccTabBadgeV">0</span>
                 </button>
