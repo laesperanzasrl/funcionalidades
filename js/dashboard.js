@@ -126,18 +126,18 @@ function _updateHistBadges() {
   const today = venLogs.filter(r => _isToday(r.timestamp));
 
   const VEN_TYPES = [
-    'TRANSFERENCIA_SALIDA','TRANSFERENCIA_ENTRADA','TRANSFERENCIA_NUEVA_SUCURSAL',
-    'AJUSTE_POSITIVO','AJUSTE_NEGATIVO','AJUSTE_SIN_CAMBIO','AJUSTE_STOCK_A_CERO',
-    'CONTROL_VEN_INSERT','CONTROL_VEN_UPSERT','ACCION_DESDE_VEN'
+    'TRANSFERENCIA_SALIDA', 'TRANSFERENCIA_ENTRADA', 'TRANSFERENCIA_NUEVA_SUCURSAL',
+    'AJUSTE_POSITIVO', 'AJUSTE_NEGATIVO', 'AJUSTE_SIN_CAMBIO', 'AJUSTE_STOCK_A_CERO',
+    'CONTROL_VEN_INSERT', 'CONTROL_VEN_UPSERT', 'ACCION_DESDE_VEN'
   ];
   const ACC_TYPES = [
-    'ACC_TRANSFER_SALIDA','ACC_TRANSFERENCIA_SALIDA',
-    'ACC_TRANSFER_NUEVO_REGISTRO','ACC_TRANSFER_ENTRADA_EXISTENTE',
+    'ACC_TRANSFER_SALIDA', 'ACC_TRANSFERENCIA_SALIDA',
+    'ACC_TRANSFER_NUEVO_REGISTRO', 'ACC_TRANSFER_ENTRADA_EXISTENTE',
     'ACC_MARCADO_VENDIDO',
-    'ACC_AJUSTE_POSITIVO','ACC_AJUSTE_NEGATIVO','ACC_AJUSTE_A_CERO','ACC_AJUSTE_SIN_CAMBIO',
-    'DEVOLUCION_CON_DESCUENTO_VEN','DEVOLUCION_VINCULACION_MANUAL',
-    'VYC_INSERT','VYC_CON_DESCUENTO_VEN',
-    'ACCION_DESDE_VEN','REGISTRO_VENCIMIENTO_MANUAL','AUTO_VENCIMIENTO_DIARIO'
+    'ACC_AJUSTE_POSITIVO', 'ACC_AJUSTE_NEGATIVO', 'ACC_AJUSTE_A_CERO', 'ACC_AJUSTE_SIN_CAMBIO',
+    'DEVOLUCION_CON_DESCUENTO_VEN', 'DEVOLUCION_VINCULACION_MANUAL',
+    'VYC_INSERT', 'VYC_CON_DESCUENTO_VEN',
+    'ACCION_DESDE_VEN', 'REGISTRO_VENCIMIENTO_MANUAL', 'AUTO_VENCIMIENTO_DIARIO'
   ];
   const venCnt = today.filter(r => VEN_TYPES.includes(r.tipo)).length;
   const accCnt = today.filter(r => ACC_TYPES.includes(r.tipo)).length;
@@ -350,7 +350,7 @@ function _renderHistAcc() {
   const today = venLogs.filter(r => _isToday(r.timestamp));
 
   const ACC_TRANSFER_TYPES = ['ACC_TRANSFER_SALIDA', 'ACC_TRANSFERENCIA_SALIDA'];
-  const ACC_AJUSTE_TYPES   = ['ACC_AJUSTE_POSITIVO','ACC_AJUSTE_NEGATIVO','ACC_AJUSTE_A_CERO','ACC_AJUSTE_SIN_CAMBIO'];
+  const ACC_AJUSTE_TYPES = ['ACC_AJUSTE_POSITIVO', 'ACC_AJUSTE_NEGATIVO', 'ACC_AJUSTE_A_CERO', 'ACC_AJUSTE_SIN_CAMBIO'];
 
   // ── Registros del día ─────────────────────────────────────
   const ACC_REG_TYPES = [
@@ -362,8 +362,8 @@ function _renderHistAcc() {
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   document.getElementById('histAccTabBadgeReg').textContent = accRegistros.length;
-  document.getElementById('histAccTabBadgeT').textContent   = accTransfers.length + accAjustes.length;
-  document.getElementById('histAccTabBadgeV').textContent   = ventasDedup.length;
+  document.getElementById('histAccTabBadgeT').textContent = accTransfers.length + accAjustes.length;
+  document.getElementById('histAccTabBadgeV').textContent = ventasDedup.length;
 
   if (_histAccActiveTab === 'registros') {
     if (!accRegistros.length) {
@@ -372,18 +372,18 @@ function _renderHistAcc() {
     }
     el.innerHTML = accRegistros.map(r => {
       const _prod = devData.find(d => String(d.ean || '').trim() === r.ean)
-                 || venData.find(v => String(v.ean || '').trim() === r.ean) || {};
-      const gramaje   = _prod.gramaje   || '';
+        || venData.find(v => String(v.ean || '').trim() === r.ean) || {};
+      const gramaje = _prod.gramaje || '';
       const proveedor = _prod.proveedor || '';
 
       const tipoLabel = {
-        'DEVOLUCION_CON_DESCUENTO_VEN':   '📦 Devolución',
-        'DEVOLUCION_VINCULACION_MANUAL':  '📦 Devolución manual',
-        'VYC_INSERT':                     '💰 Venta / Consumo',
-        'VYC_CON_DESCUENTO_VEN':          '💰 Venta / Consumo',
-        'ACCION_DESDE_VEN':               '⚡ Acción desde vencimientos',
-        'REGISTRO_VENCIMIENTO_MANUAL':    '🚨 Vencimiento manual',
-        'AUTO_VENCIMIENTO_DIARIO':        '🤖 Auto-vencimiento',
+        'DEVOLUCION_CON_DESCUENTO_VEN': '📦 Devolución',
+        'DEVOLUCION_VINCULACION_MANUAL': '📦 Devolución manual',
+        'VYC_INSERT': '💰 Venta / Consumo',
+        'VYC_CON_DESCUENTO_VEN': '💰 Venta / Consumo',
+        'ACCION_DESDE_VEN': '⚡ Acción desde vencimientos',
+        'REGISTRO_VENCIMIENTO_MANUAL': '🚨 Vencimiento manual',
+        'AUTO_VENCIMIENTO_DIARIO': '🤖 Auto-vencimiento',
       }[r.tipo] || r.tipo;
 
       const motivoMatch = r.notas ? r.notas.match(/Motivo[^:]*:\s*([^·\|]+)/) : null;
@@ -399,11 +399,11 @@ function _renderHistAcc() {
         <div class="hist-op-meta">
           <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
           <span class="hist-chip suc-orig">🏪 ${esc(r.sucursal)}</span>
-          ${gramaje   ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>`   : ''}
+          ${gramaje ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>` : ''}
           ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
-          ${motivo    ? `<span class="hist-chip motivo">${esc(motivo)}</span>` : ''}
+          ${motivo ? `<span class="hist-chip motivo">${esc(motivo)}</span>` : ''}
           ${!isNaN(r.cantAnterior) ? `<span class="hist-chip">Antes: ${r.cantAnterior}</span>` : ''}
-          ${!isNaN(r.cantNueva)    ? `<span class="hist-chip qty">Ahora: ${r.cantNueva}</span>` : ''}
+          ${!isNaN(r.cantNueva) ? `<span class="hist-chip qty">Ahora: ${r.cantNueva}</span>` : ''}
           ${r.idDev ? `<span class="hist-chip" style="color:var(--purple);border-color:rgba(166,124,255,.25);background:rgba(166,124,255,.07)">📋 ${esc(r.idDev)}</span>` : ''}
           ${r.idVen ? `<span class="hist-chip" style="color:var(--cyan);border-color:rgba(34,212,232,.2);background:rgba(34,212,232,.06)">📦 ${esc(r.idVen)}</span>` : ''}
           ${r.usuario ? `<span class="hist-chip" style="color:var(--text3)">👤 ${esc(r.usuario)}</span>` : ''}
@@ -414,8 +414,8 @@ function _renderHistAcc() {
   }
 
   const accTransfers = today.filter(r => ACC_TRANSFER_TYPES.includes(r.tipo));
-  const accVentas    = today.filter(r => r.tipo === 'ACC_MARCADO_VENDIDO');
-  const accAjustes   = today.filter(r => ACC_AJUSTE_TYPES.includes(r.tipo));
+  const accVentas = today.filter(r => r.tipo === 'ACC_MARCADO_VENDIDO');
+  const accAjustes = today.filter(r => ACC_AJUSTE_TYPES.includes(r.tipo));
 
   // Dedup ventas
   const ventaMap = new Map();
@@ -423,8 +423,8 @@ function _renderHistAcc() {
   const ventasDedup = [...ventaMap.values()].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   const totalTransfers = accTransfers.length + accAjustes.length;
-  document.getElementById('histAccTabBadgeT').textContent  = totalTransfers;
-  document.getElementById('histAccTabBadgeV').textContent  = ventasDedup.length;
+  document.getElementById('histAccTabBadgeT').textContent = totalTransfers;
+  document.getElementById('histAccTabBadgeV').textContent = ventasDedup.length;
 
   const el = document.getElementById('histAccContent');
 
@@ -438,8 +438,8 @@ function _renderHistAcc() {
 
     el.innerHTML = todos.map(r => {
       const _prod = devData.find(d => String(d.ean || '').trim() === r.ean)
-                 || venData.find(v => String(v.ean || '').trim() === r.ean) || {};
-      const gramaje   = _prod.gramaje   || '';
+        || venData.find(v => String(v.ean || '').trim() === r.ean) || {};
+      const gramaje = _prod.gramaje || '';
       const proveedor = _prod.proveedor || '';
 
       const esAjuste = ACC_AJUSTE_TYPES.includes(r.tipo);
@@ -455,10 +455,10 @@ function _renderHistAcc() {
 
       if (esAjuste) {
         const tipoLabel = {
-          ACC_AJUSTE_POSITIVO:  '＋ Ajuste positivo',
-          ACC_AJUSTE_NEGATIVO:  '－ Ajuste negativo',
-          ACC_AJUSTE_A_CERO:    '⬛ A cero',
-          ACC_AJUSTE_SIN_CAMBIO:'＝ Sin cambio',
+          ACC_AJUSTE_POSITIVO: '＋ Ajuste positivo',
+          ACC_AJUSTE_NEGATIVO: '－ Ajuste negativo',
+          ACC_AJUSTE_A_CERO: '⬛ A cero',
+          ACC_AJUSTE_SIN_CAMBIO: '＝ Sin cambio',
         }[r.tipo] || r.tipo;
         const isPos = r.tipo === 'ACC_AJUSTE_POSITIVO';
         const isNeg = r.tipo === 'ACC_AJUSTE_NEGATIVO' || r.tipo === 'ACC_AJUSTE_A_CERO';
@@ -473,7 +473,7 @@ function _renderHistAcc() {
             <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
             <span class="hist-chip suc-orig">🏪 ${esc(r.sucursal)}</span>
             <span class="hist-chip ${chipCls}">${tipoLabel}</span>
-            ${gramaje   ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>`   : ''}
+            ${gramaje ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>` : ''}
             ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
             <span class="hist-chip">Antes: ${isNaN(r.cantAnterior) ? '—' : r.cantAnterior}</span>
             <span class="hist-chip qty">Ahora: ${isNaN(r.cantNueva) ? '—' : r.cantNueva}</span>
@@ -495,7 +495,7 @@ function _renderHistAcc() {
           <span class="hist-arrow">→</span>
           <span class="hist-chip suc-dest">📥 ${esc(r.destino || '—')}</span>
           <span class="hist-chip qty">Cant: ${qty} u.</span>
-          ${gramaje   ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>`   : ''}
+          ${gramaje ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>` : ''}
           ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
           ${motivo ? `<span class="hist-chip">${esc(motivo)}</span>` : ''}
           ${r.idDev ? `<span class="hist-chip" style="color:var(--purple);border-color:rgba(166,124,255,.25);background:rgba(166,124,255,.07)">📋 ${esc(r.idDev)}</span>` : ''}
@@ -512,16 +512,16 @@ function _renderHistAcc() {
 
     el.innerHTML = ventasDedup.map(r => {
       const _prod = devData.find(d => String(d.ean || '').trim() === r.ean)
-                 || venData.find(v => String(v.ean || '').trim() === r.ean) || {};
-      const gramaje   = _prod.gramaje   || '';
+        || venData.find(v => String(v.ean || '').trim() === r.ean) || {};
+      const gramaje = _prod.gramaje || '';
       const proveedor = _prod.proveedor || '';
 
-      const vendMatch  = r.notas ? r.notas.match(/Vendidas:\s*(\d+)/)           : null;
-      const vencMatch  = r.notas ? r.notas.match(/Vencidas en gondola:\s*(\d+)/) : null;
-      const motivoMatch = r.notas ? r.notas.match(/Motivo[^:]*:\s*([^|]+)/)     : null;
-      const vendidas = vendMatch  ? vendMatch[1]  : '—';
-      const vencidas = vencMatch  ? vencMatch[1]  : '—';
-      const motivo   = motivoMatch ? motivoMatch[1].trim() : '';
+      const vendMatch = r.notas ? r.notas.match(/Vendidas:\s*(\d+)/) : null;
+      const vencMatch = r.notas ? r.notas.match(/Vencidas en gondola:\s*(\d+)/) : null;
+      const motivoMatch = r.notas ? r.notas.match(/Motivo[^:]*:\s*([^|]+)/) : null;
+      const vendidas = vendMatch ? vendMatch[1] : '—';
+      const vencidas = vencMatch ? vencMatch[1] : '—';
+      const motivo = motivoMatch ? motivoMatch[1].trim() : '';
       const base = isNaN(r.cantAnterior) ? '—' : r.cantAnterior;
 
       return `<div class="hist-op-card venta">
@@ -532,7 +532,7 @@ function _renderHistAcc() {
         <div class="hist-op-meta">
           <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
           <span class="hist-chip suc-orig">🏪 ${esc(r.sucursal)}</span>
-          ${gramaje   ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>`   : ''}
+          ${gramaje ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>` : ''}
           ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
           ${motivo ? `<span class="hist-chip">${esc(motivo)}</span>` : ''}
           <span class="hist-chip">Base: ${base}</span>
@@ -568,8 +568,8 @@ function abrirModalReplicar(idVen, desc, ean, sucOrigen, fechaVenc, gramaje) {
   const infoEl = document.getElementById('repRegInfo');
   if (infoEl) {
     infoEl.innerHTML = [
-      ean      ? `<span>EAN: <strong>${esc(ean)}</strong></span>`       : '',
-      gramaje  ? `<span>⚖️ ${esc(gramaje)}</span>`                      : '',
+      ean ? `<span>EAN: <strong>${esc(ean)}</strong></span>` : '',
+      gramaje ? `<span>⚖️ ${esc(gramaje)}</span>` : '',
       fechaVenc ? `<span>📅 Vence: <strong>${fechaVenc}</strong></span>` : '',
       sucOrigen ? `<span class="hist-chip origen-suc">Origen: ${esc(sucOrigen)}</span>` : '',
     ].filter(Boolean).join('<span style="color:var(--text3)"> · </span>');
@@ -579,20 +579,20 @@ function abrirModalReplicar(idVen, desc, ean, sucOrigen, fechaVenc, gramaje) {
   if (dateEl) dateEl.textContent = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
 
   // Reset campos
-  const sucEl   = document.getElementById('repRegSuc');
-  const cantEl  = document.getElementById('repRegCant');
-  const nombEl  = document.getElementById('repRegNombre');
-  const loteEl  = document.getElementById('repRegLote');
-  const unitEl  = document.getElementById('repRegCantUnit');
+  const sucEl = document.getElementById('repRegSuc');
+  const cantEl = document.getElementById('repRegCant');
+  const nombEl = document.getElementById('repRegNombre');
+  const loteEl = document.getElementById('repRegLote');
+  const unitEl = document.getElementById('repRegCantUnit');
 
-  if (sucEl)   sucEl.value   = '';
-  if (cantEl)  cantEl.value  = '';
-  if (nombEl)  nombEl.value  = '';
-  if (loteEl)  loteEl.value  = '';
-  if (unitEl)  unitEl.textContent = gramaje ? `(kg)` : `(unidades)`;
+  if (sucEl) sucEl.value = '';
+  if (cantEl) cantEl.value = '';
+  if (nombEl) nombEl.value = '';
+  if (loteEl) loteEl.value = '';
+  if (unitEl) unitEl.textContent = gramaje ? `(kg)` : `(unidades)`;
 
   // Ocultar errores
-  ['repRegSucErr','repRegCantErr','repRegNombreErr'].forEach(id => {
+  ['repRegSucErr', 'repRegCantErr', 'repRegNombreErr'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -611,13 +611,13 @@ async function ejecutarReplicar() {
   if (!_currentReplicarData) return;
   const { idVen, desc, ean, fechaVenc, gramaje } = _currentReplicarData;
 
-  const sucEl   = document.getElementById('repRegSuc');
-  const cantEl  = document.getElementById('repRegCant');
-  const nombEl  = document.getElementById('repRegNombre');
-  const loteEl  = document.getElementById('repRegLote');
+  const sucEl = document.getElementById('repRegSuc');
+  const cantEl = document.getElementById('repRegCant');
+  const nombEl = document.getElementById('repRegNombre');
+  const loteEl = document.getElementById('repRegLote');
 
-  const suc    = sucEl?.value  || '';
-  const cant   = parseFloat((cantEl?.value || '').replace(',', '.'));
+  const suc = sucEl?.value || '';
+  const cant = parseFloat((cantEl?.value || '').replace(',', '.'));
   const nombre = (nombEl?.value || '').trim().toUpperCase();
 
   // Validaciones
@@ -657,30 +657,31 @@ async function ejecutarReplicar() {
     const venOrig = venData.find(v => v.id === idVen) || {};
 
     const body = {
-      action:      'submitForm',
+      action: 'submitForm',
       tipoRegistro: 'CONTROL DE VENCIMIENTO',
-      sucursal:    suc,
-      usuario:     nombre,
-      ean:         ean,
-      fechaVenc:   fechaVenc,
+      sucursal: suc,
+      usuario: nombre,
+      ean: ean,
+      fechaVenc: fechaVenc,
       descripcion: desc,
-      gramaje:     gramaje || venOrig.gramaje || '',
-      codInterno:  venOrig.codInterno || '',
-      sector:      venOrig.sector     || '',
-      seccion:     venOrig.seccion    || '',
-      proveedor:   venOrig.proveedor  || '',
-      cantidad:    cant,
-      lote:        loteEl?.value?.trim() || venOrig.lote || '',
+      gramaje: gramaje || venOrig.gramaje || '',
+      codInterno: venOrig.codInterno || '',
+      sector: venOrig.sector || '',
+      seccion: venOrig.seccion || '',
+      proveedor: venOrig.proveedor || '',
+      cantidad: cant,
+      lote: loteEl?.value?.trim() || venOrig.lote || '',
+      esReplica: true,
     };
 
-    const res  = await fetch(SCRIPT_URL, {
-      method:  'POST',
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body:    JSON.stringify(body),
+      body: JSON.stringify(body),
     });
     const json = await res.json();
 
-      if (json.success) {
+    if (json.success) {
       // Cerrar ambos modales
       document.getElementById('modalReplicarReg').classList.remove('open');
       document.getElementById('histVenModal').classList.remove('open');
@@ -689,7 +690,7 @@ async function ejecutarReplicar() {
 
       showToast(true, `✓ Replicado en ${suc} · ${cant} u. · ${json.action === 'updated' ? 'Sumado a stock existente' : 'Nuevo registro creado'}`);
       await loadData();
-    
+
     } else if (json.limitReached) {
       showToast(false, json.message || 'Límite diario alcanzado para esta sucursal.');
     } else {
