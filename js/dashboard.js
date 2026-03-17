@@ -168,14 +168,14 @@ function closeHistVenModal(e) {
     document.getElementById('histVenModal').classList.remove('open');
 }
 function openHistAcc() {
-  _histAccActiveTab = 'registros';
+  _histAccActiveTab = 'transfers';
   const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
   const el = document.getElementById('histAccDate');
   if (el) el.textContent = today.toUpperCase();
 
   // Forzar pestaña activa visualmente
   document.querySelectorAll('#histAccModal .hist-tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.tab === 'registros');
+    t.classList.toggle('active', t.dataset.tab === 'transfers');
   });
 
   document.getElementById('histAccModal').classList.add('open');
@@ -352,21 +352,14 @@ function _renderHistAcc() {
   const ACC_TRANSFER_TYPES = ['ACC_TRANSFER_SALIDA', 'ACC_TRANSFERENCIA_SALIDA'];
   const ACC_AJUSTE_TYPES   = ['ACC_AJUSTE_POSITIVO','ACC_AJUSTE_NEGATIVO','ACC_AJUSTE_A_CERO','ACC_AJUSTE_SIN_CAMBIO'];
 
-  // ── Registros del día: se lee de devData (hoja Acciones) filtrado por fecha de hoy ─────────
-  const accRegistros = devData
-    .filter(r => _isToday(r.fecha))
-    .sort((a, b) => (b.fecha || 0) - (a.fecha || 0));
-
-  // Declarar todas las variables necesarias antes de usarlas
-  const accTransfers = today.filter(r => ACC_TRANSFER_TYPES.includes(r.tipo));
-  const accVentas    = today.filter(r => r.tipo === 'ACC_MARCADO_VENDIDO');
-  const accAjustes   = today.filter(r => ACC_AJUSTE_TYPES.includes(r.tipo));
-
-  const ventaMap = new Map();
-  accVentas.forEach(r => ventaMap.set((r.idDev || '') + '|' + r.sucursal, r));
-  const ventasDedup = [...ventaMap.values()].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-  const el = document.getElementById('histAccContent');
+  // ── Registros del día ─────────────────────────────────────
+  const ACC_REG_TYPES = [
+    'DEVOLUCION_CON_DESCUENTO_VEN', 'DEVOLUCION_VINCULACION_MANUAL',
+    'VYC_INSERT', 'VYC_CON_DESCUENTO_VEN',
+    'ACCION_DESDE_VEN', 'REGISTRO_VENCIMIENTO_MANUAL', 'AUTO_VENCIMIENTO_DIARIO'
+  ];
+  const accRegistros = today.filter(r => ACC_REG_TYPES.includes(r.tipo))
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   document.getElementById('histAccTabBadgeReg').textContent = accRegistros.length;
   document.getElementById('histAccTabBadgeT').textContent   = accTransfers.length + accAjustes.length;
@@ -378,31 +371,62 @@ function _renderHistAcc() {
       return;
     }
     el.innerHTML = accRegistros.map(r => {
-      const estadoCls = { 'VENDIDO': 'pos', 'N/C RECIBIDA': 'pos', 'RECHAZADA': 'neg' }[r.estado] || '';
-      const estadoIcon = {
-        'VENDIDO': '✅', 'PENDIENTE': '⏳', 'EN GESTION': '🔄',
-        'N/C RECIBIDA': '📄', 'RECHAZADA': '❌',
-      }[r.estado] || '📋';
+      const _prod = devData.find(d => String(d.ean || '').trim() === r.ean)
+                 || venData.find(v => String(v.ean || '').trim() === r.ean) || {};
+      const gramaje   = _prod.gramaje   || '';
+      const proveedor = _prod.proveedor || '';
+
+      const tipoLabel = {
+        'DEVOLUCION_CON_DESCUENTO_VEN':   '📦 Devolución',
+        'DEVOLUCION_VINCULACION_MANUAL':  '📦 Devolución manual',
+        'VYC_INSERT':                     '💰 Venta / Consumo',
+        'VYC_CON_DESCUENTO_VEN':          '💰 Venta / Consumo',
+        'ACCION_DESDE_VEN':               '⚡ Acción desde vencimientos',
+        'REGISTRO_VENCIMIENTO_MANUAL':    '🚨 Vencimiento manual',
+        'AUTO_VENCIMIENTO_DIARIO':        '🤖 Auto-vencimiento',
+      }[r.tipo] || r.tipo;
+
+      const motivoMatch = r.notas ? r.notas.match(/Motivo[^:]*:\s*([^·\|]+)/) : null;
+      const motivo = motivoMatch ? motivoMatch[1].trim() : '';
+      const isAuto = r.tipo === 'AUTO_VENCIMIENTO_DIARIO';
+
       return `<div class="hist-op-card registro-acc">
         <div class="hist-op-row">
+          <span class="hist-op-time">${_fmtTime(r.timestamp)}</span>
           <div class="hist-op-desc">${esc(r.descripcion)}</div>
-          <span class="hist-chip ${estadoCls}">${estadoIcon} ${esc(r.estado)}</span>
+          <span class="hist-chip ${isAuto ? '' : 'pos'}" style="${isAuto ? 'color:var(--text3)' : ''}">${tipoLabel}</span>
         </div>
         <div class="hist-op-meta">
+          <span class="hist-chip ean">🔖 ${esc(r.ean)}</span>
           <span class="hist-chip suc-orig">🏪 ${esc(r.sucursal)}</span>
-          ${r.motivo    ? `<span class="hist-chip motivo">🏷 ${esc(r.motivo)}</span>` : ''}
-          ${r.cantidad  ? `<span class="hist-chip qty">Cant: ${r.cantidad}</span>` : ''}
-          ${r.fechaVenc ? `<span class="hist-chip neg">📅 Venc: ${esc(r.fechaVenc)}</span>` : ''}
-          ${r.gramaje   ? `<span class="hist-chip">⚖️ ${esc(r.gramaje)}</span>` : ''}
-          ${r.proveedor ? `<span class="hist-chip">🏢 ${esc(r.proveedor)}</span>` : ''}
-          ${r.lote      ? `<span class="hist-chip">🔢 Lote: ${esc(r.lote)}</span>` : ''}
-          ${r.usuario   ? `<span class="hist-chip" style="color:var(--text3)">👤 ${esc(r.usuario)}</span>` : ''}
-          ${r.id        ? `<span class="hist-chip" style="color:var(--purple);border-color:rgba(166,124,255,.25);background:rgba(166,124,255,.07)">📋 ${esc(r.id)}</span>` : ''}
+          ${gramaje   ? `<span class="hist-chip">⚖️ ${esc(gramaje)}</span>`   : ''}
+          ${proveedor ? `<span class="hist-chip">🏢 ${esc(proveedor)}</span>` : ''}
+          ${motivo    ? `<span class="hist-chip motivo">${esc(motivo)}</span>` : ''}
+          ${!isNaN(r.cantAnterior) ? `<span class="hist-chip">Antes: ${r.cantAnterior}</span>` : ''}
+          ${!isNaN(r.cantNueva)    ? `<span class="hist-chip qty">Ahora: ${r.cantNueva}</span>` : ''}
+          ${r.idDev ? `<span class="hist-chip" style="color:var(--purple);border-color:rgba(166,124,255,.25);background:rgba(166,124,255,.07)">📋 ${esc(r.idDev)}</span>` : ''}
+          ${r.idVen ? `<span class="hist-chip" style="color:var(--cyan);border-color:rgba(34,212,232,.2);background:rgba(34,212,232,.06)">📦 ${esc(r.idVen)}</span>` : ''}
+          ${r.usuario ? `<span class="hist-chip" style="color:var(--text3)">👤 ${esc(r.usuario)}</span>` : ''}
         </div>
       </div>`;
-    }).join('')
+    }).join('');
     return;
   }
+
+  const accTransfers = today.filter(r => ACC_TRANSFER_TYPES.includes(r.tipo));
+  const accVentas    = today.filter(r => r.tipo === 'ACC_MARCADO_VENDIDO');
+  const accAjustes   = today.filter(r => ACC_AJUSTE_TYPES.includes(r.tipo));
+
+  // Dedup ventas
+  const ventaMap = new Map();
+  accVentas.forEach(r => ventaMap.set((r.idDev || '') + '|' + r.sucursal, r));
+  const ventasDedup = [...ventaMap.values()].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  const totalTransfers = accTransfers.length + accAjustes.length;
+  document.getElementById('histAccTabBadgeT').textContent  = totalTransfers;
+  document.getElementById('histAccTabBadgeV').textContent  = ventasDedup.length;
+
+  const el = document.getElementById('histAccContent');
 
   if (_histAccActiveTab === 'transfers') {
     const todos = [...accTransfers, ...accAjustes].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -612,7 +636,20 @@ async function ejecutarReplicar() {
   }
   if (!ok) return;
 
-  document.getElementById('modalReplicarReg').classList.remove('open');
+  // Cerrar todos los modales abiertos antes de mostrar el loader
+  [
+    'modalReplicarReg',
+    'histVenModal',
+    'histAccModal',
+    'devDetailModal',
+    'configModal',
+    'confirmModal'
+  ].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('open');
+    if (el && el.style.display) el.style.display = '';
+  });
+  document.body.style.overflow = '';
   showSpinner('Replicando registro…');
 
   try {
@@ -1419,6 +1456,13 @@ function renderVencTable() {
             style="cursor:pointer;accent-color:#60a5fa;width:14px;height:14px;flex-shrink:0">
         ` : '';
 
+        const btnRegistrarVencimiento = (!loteMode && g.urg === 'VENCIDO' && cantActualSuc > 0)
+          ? `<button onclick="registrarVencimientoManual(event,'${esc(f.id)}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}')"
+               class="btn-action" style="background:#3d0000;color:#ff4444;border:1px solid #9b1c1c;font-weight:800;padding:6px 12px;font-size:11px">
+               🚨 Registrar Vencimiento
+             </button>`
+          : '';
+
         tableHtml += `
         <tr class="suc-row${showRow ? ' visible' : ''}${isSucOpen ? ' suc-open' : ''}"
             data-suc-key="${esc(sucKey)}" data-prod-ean="${esc(prod.ean)}" data-grupo-key="${esc(g.key)}">
@@ -1450,6 +1494,7 @@ function renderVencTable() {
     <button onclick="ajustarStock(event,'${f.id}',1)"  class="btn-action btn-adj-pos">＋ Ajuste</button>
     <button onclick="ajustarStock(event,'${f.id}',-1)" class="btn-action btn-adj-neg">－ Ajuste</button>
     ${cantActualSuc > 0 && est !== 'ACCIONADO-TOTAL' ? `<button onclick="abrirModalAccionVen(event,'${f.id}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}')" class="btn-action" style="background:rgba(204, 116, 255, 0.46);color:white;border:1px solid rgb(110, 0, 173)">📦 Acción</button>` : ''}
+    ${btnRegistrarVencimiento}
   </div>
 </div>` : `<div class="sf"><div class="sf-lbl">Modo Lote</div><div class="sf-val" style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:10px;margin-top:3px">☑ Seleccionado</div></div>`}
                 <div class="sf wide"><div class="sf-lbl">Acción${linkedDevs.length > 1 ? 'es' : ''} vinculada${linkedDevs.length > 1 ? 's' : ''} (${linkedDevs.length || 'sin acción'})</div><div class="sf-val" style="margin-top:2px">${devChip}</div></div>
@@ -1636,6 +1681,10 @@ function renderVencTable() {
           (d.sucursal || '').toUpperCase().trim() === _sucF
         );
 
+        const btnRegistrar = (!loteMode && g.urg === 'VENCIDO' && cantActualSuc > 0)
+          ? `<button onclick="registrarVencimientoManual(event,'${esc(f.id)}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}')"
+                       class="vmc-btn vmc-btn-venc">🚨 Registrar Vencido</button>` : '';
+
         const loteCheck = loteMode ? `
                   <input type="checkbox" ${loteSeleccionados.has(sucKey) ? 'checked' : ''}
                     onclick="event.stopPropagation();toggleLoteRow('${esc(sucKey)}','${esc(f.id)}','${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}','${esc(f.sucursal || '')}',${cantActualSuc},this)"
@@ -1665,6 +1714,7 @@ function renderVencTable() {
                       <button onclick="ajustarStock(event,'${f.id}',1)"  class="vmc-btn vmc-btn-pos">＋ Ajuste</button>
                       <button onclick="ajustarStock(event,'${f.id}',-1)" class="vmc-btn vmc-btn-neg">－ Ajuste</button>
                       ${cantActualSuc > 0 && est !== 'ACCIONADO-TOTAL' ? `<button onclick="abrirModalAccionVen(event,'${f.id}','${esc(f.sucursal)}',${cantActualSuc},'${esc(f.descripcion || '')}','${esc(f.ean || '')}','${esc(f.fechaVenc || '')}')" class="vmc-btn" style="background:rgba(204, 116, 255, 0.46);color:white;border:1px solid rgb(110, 0, 173)">📦 Acción</button>` : ''}
+                      ${btnRegistrar}
                     </div>` : ''}
 
                     ${linkedDevs.length > 0 ? `
@@ -2143,10 +2193,7 @@ function renderAccTable() {
                 <span class="suc-b ${getSucClass(r.sucursal)}">${esc(r.sucursal || '—')}</span>
                 ${esHijo ? `<br><span class="transfer-origin-badge" style="font-size:9px">⇄ de ${esc(r.sucOrigenTransfer || '?')}</span>` : ''}
               </td>
-              <td class="c-main">
-                ${esc(r.descripcion || '—')}
-                ${r.gramaje ? `<div style="font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:2px;letter-spacing:.04em">${esc(r.gramaje)}</div>` : ''}
-              </td>
+              <td class="c-main">${esc(r.descripcion || '—')}</td>
               <td class="c-mono" style="font-size:11px">${r.ean || '—'}</td>
               <td class="c-right c-mono">${cantDisp}</td>
               <td>${vencBadge(r.fechaVenc)}</td>
@@ -2358,27 +2405,13 @@ function calcVentaAjuste() {
   if (!currentVentaAjusteData) return;
   const { cantTotal, pesable } = currentVentaAjusteData;
   const raw = (document.getElementById('vaQty').value || '0').replace(',', '.');
-  // vaQty = lo que quedó en góndola sin vender
-  const gondola = Math.max(0, Math.min(parseFloat(raw) || 0, cantTotal));
-  const vendida = Math.max(0, cantTotal - gondola);
+  const vendida = Math.max(0, Math.min(parseFloat(raw) || 0, cantTotal));
+  const vencida = Math.max(0, cantTotal - vendida);
   const dec = pesable ? 3 : 0;
   document.getElementById('vaResultVendida').textContent = vendida.toFixed(dec) + (pesable ? ' kg' : ' u.');
-  document.getElementById('vaResultVencida').textContent = gondola.toFixed(dec) + (pesable ? ' kg' : ' u.');
+  document.getElementById('vaResultVencida').textContent = vencida.toFixed(dec) + (pesable ? ' kg' : ' u.');
   document.getElementById('vaResultVendida').style.color = vendida > 0 ? '#4ade80' : 'var(--text3)';
-  document.getElementById('vaResultVencida').style.color = gondola > 0 ? '#f87171' : 'var(--text3)';
-  // Sync slider
-  const slider = document.getElementById('vaSlider');
-  if (slider) slider.value = cantTotal > 0 ? (gondola / cantTotal) * 100 : 0;
-}
-
-function syncVaSlider(val) {
-  if (!currentVentaAjusteData) return;
-  const { cantTotal, pesable } = currentVentaAjusteData;
-  // slider 0 = nada en góndola, 100 = todo en góndola
-  const gondola = (parseFloat(val) / 100) * cantTotal;
-  const inp = document.getElementById('vaQty');
-  inp.value = pesable ? gondola.toFixed(3) : Math.round(gondola);
-  calcVentaAjuste();
+  document.getElementById('vaResultVencida').style.color = vencida > 0 ? '#f87171' : 'var(--text3)';
 }
 
 function cerrarModalVentaAjuste() {
@@ -2390,16 +2423,15 @@ async function ejecutarVentaAjuste() {
   if (!currentVentaAjusteData) return;
   const { id, cantTotal, pesable } = currentVentaAjusteData;
   const raw = (document.getElementById('vaQty').value || '0').replace(',', '.');
-  const gondola = parseFloat(raw) || 0;
-  if (gondola < 0 || gondola > cantTotal) {
-    showToast(false, 'La cantidad en góndola debe estar entre 0 y ' + cantTotal);
+  const cantVendida = parseFloat(raw) || 0;
+  if (cantVendida < 0 || cantVendida > cantTotal) {
+    showToast(false, 'La cantidad vendida debe estar entre 0 y ' + cantTotal);
     return;
   }
-  if (!pesable && !Number.isInteger(gondola)) {
+  if (!pesable && !Number.isInteger(cantVendida)) {
     showToast(false, 'Solo se aceptan cantidades enteras para productos no pesables.');
     return;
   }
-  const cantVendida = cantTotal - gondola;
   cerrarModalVentaAjuste();
   showSpinner('Registrando venta/ajuste...');
   try {
