@@ -3364,9 +3364,9 @@ function abrirModalAccionVen(evt, venId, sucursal, cantActual, desc, ean, fechaV
     const _mins = _ahora.getHours() * 60 + _ahora.getMinutes();
     const _diasValidos = [1, 2, 3, 4, 5, 6]; // Lun-Sáb
     const _ini = 9 * 60; // 09:00
-    const _fin = 12 * 60; // 12:00
+    const _fin = 16 * 60; // 12:00
     if (!_diasValidos.includes(_dia) || _mins < _ini || _mins >= _fin) {
-      showToast(false, 'El registro de acciones está disponible lunes a sábado, de 09:00 a 12:00 hs.', 6000);
+      showToast(false, 'El registro de acciones está disponible lunes a sábado, de 09:00 a 16:00 hs.', 6000);
       return;
     }
   }
