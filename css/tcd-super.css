@@ -273,6 +273,7 @@ input[type="number"] {
   color: var(--text);
   outline: none;
   transition: border-color 0.18s, background 0.25s;
+  appearance: none;
   -webkit-appearance: none;
 }
 
@@ -1039,7 +1040,10 @@ tbody tr:hover {
 
 .s-overlay--dialog .s-modal {
   border-radius: 16px;
-  max-width: 520px;
+  width: 95vw;
+  max-width: 95vw;
+  height: 90vh;
+  max-height: 90vh;
   padding-bottom: 0;
   transform: scale(0.96) translateY(8px);
   transition: transform 0.24s cubic-bezier(.32, 1.1, .6, 1), opacity 0.22s, background 0.25s;
@@ -1464,9 +1468,10 @@ tbody tr:hover {
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  line-height: 1.35;
+  word-break: break-word;
+  padding-right: 4px;
 }
 
 .sr-meta {
@@ -1480,10 +1485,9 @@ tbody tr:hover {
 .sr-prov {
   font-size: 11.5px;
   color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 140px;
+  white-space: normal;
+  line-height: 1.25;
+  word-break: break-word;
 }
 
 .sr-ean {
@@ -1745,6 +1749,85 @@ select option {
   color: var(--danger);
   display: none;
   font-family: var(--mono);
+}
+
+/* ══════════════════════════════════════════════
+   ACTIVE FILTERS TAGS (PRODUCTOS)
+   ══════════════════════════════════════════════ */
+.active-sf-tags {
+  margin-top: 10px;
+  flex-shrink: 0;
+}
+
+.aft-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.aft-hint {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.aft-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: var(--accent-bg);
+  border: 1px solid rgba(108, 99, 255, 0.25);
+  border-radius: 8px;
+  font-family: var(--sans);
+  font-size: 11px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.aft-tag:hover {
+  background: rgba(108, 99, 255, 0.22);
+  border-color: var(--accent);
+}
+
+.aft-label {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.aft-tag strong {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.aft-x {
+  font-size: 12px;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.aft-tag:hover .aft-x {
+  opacity: 1;
+}
+
+.aft-clear-all {
+  background: none;
+  border: none;
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.aft-clear-all:hover {
+  background: rgba(248, 113, 113, 0.08);
 }
 
 .ferr.show {

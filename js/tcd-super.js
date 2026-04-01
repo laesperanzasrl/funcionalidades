@@ -6,7 +6,7 @@ const state = {
   scannerActive: false,
   html5QrCode: null,
   productos: [],
-  searchField: 'all',
+  activeFilters: {},
   searchTimer: null,
   inputMode: 'cam',    // 'cam' | 'ext'
   extDebounce: null,     // timer for external scanner debounce
@@ -130,13 +130,56 @@ async function init() {
     els.searchInput.focus();
   });
 
-  // Chips de filtro
+  // ── Chips PRODUCTOS (multi-filtro AND) ──
   document.querySelectorAll('.sf-chip').forEach(chip => {
     chip.addEventListener('click', () => {
-      document.querySelectorAll('.sf-chip').forEach(c => c.classList.remove('sf-chip--active'));
+      const field = chip.dataset.field;
+
+      // "Todo" → limpiar todos los filtros fijados
+      if (field === 'all') {
+        state.activeFilters = {};
+        els.searchInput.value = '';
+        els.btnClearSearch.style.display = 'none';
+        document.querySelectorAll('.sf-chip').forEach(c => {
+          c.classList.remove('sf-chip--active');
+          c.textContent = c.dataset.label;
+        });
+        chip.classList.add('sf-chip--active');
+        renderSfTags();
+        renderSearchResults();
+        return;
+      }
+
+      // Si el chip ya tiene filtro activo → desengancharlo
+      if (state.activeFilters[field] !== undefined) {
+        delete state.activeFilters[field];
+        chip.classList.remove('sf-chip--active');
+        chip.textContent = chip.dataset.label;
+        if (!Object.keys(state.activeFilters).length && !els.searchInput.value.trim()) {
+          document.querySelector('.sf-chip[data-field="all"]').classList.add('sf-chip--active');
+        }
+        renderSfTags();
+        renderSearchResults();
+        return;
+      }
+
+      // Fijar el texto del input para este campo
+      const val = els.searchInput.value.trim();
+      if (!val) {
+        showToast('wrn', `Escribí un valor y presioná "${chip.dataset.label}" para fijar el filtro`);
+        return;
+      }
+      state.activeFilters[field] = val;
       chip.classList.add('sf-chip--active');
-      state.searchField = chip.dataset.field;
-      onSearchInput();
+      chip.textContent = `${chip.dataset.label}: ${val}`;
+      document.querySelector('.sf-chip[data-field="all"]').classList.remove('sf-chip--active');
+
+      // Limpiar input y esperar próximo término
+      els.searchInput.value = '';
+      els.btnClearSearch.style.display = 'none';
+      els.searchInput.focus();
+      renderSfTags();
+      renderSearchResults();
     });
   });
 
@@ -400,15 +443,24 @@ function closeSearchModal() {
 function onSearchInput() {
   const query = els.searchInput.value;
   els.btnClearSearch.style.display = query.length ? 'flex' : 'none';
+  // Si el input tiene texto, desactivamos visualmente el indicador de "Todo"
+  if (query.trim()) {
+    document.querySelector('.sf-chip[data-field="all"]').classList.remove('sf-chip--active');
+  } else if (!Object.keys(state.activeFilters).length) {
+    document.querySelector('.sf-chip[data-field="all"]').classList.add('sf-chip--active');
+  }
   clearTimeout(state.searchTimer);
-  state.searchTimer = setTimeout(() => renderSearchResults(query), 150);
+  state.searchTimer = setTimeout(() => renderSearchResults(), 150);
 }
 
-function renderSearchResults(query) {
-  const q = normalize(query);
-  const field = state.searchField;
+function renderSearchResults() {
+  const inputQuery   = normalize(els.searchInput.value.trim());
+  const activeFields = Object.entries(state.activeFilters);
+  const hasAny       = activeFields.length > 0 || inputQuery.length >= 2;
 
-  if (q.length < 2) {
+  renderSfTags();
+
+  if (!hasAny) {
     els.searchStateEmpty.style.display = 'flex';
     els.searchStateNone.style.display = 'none';
     els.searchResults.style.display = 'none';
@@ -417,30 +469,33 @@ function renderSearchResults(query) {
   }
 
   const matches = state.productos.filter(p => {
-    if (field === 'all') {
+    // 1. Filtros fijados (AND)
+    for (const [field, val] of activeFields) {
+      const q = normalize(val);
+      const pass = field === 'EAN'
+        ? normalize(String(p.EAN ?? '')).includes(q) || normalize(String(p.INTERNO ?? '')).includes(q)
+        : normalize(String(p[field] ?? '')).includes(q);
+      if (!pass) return false;
+    }
+    // 2. Texto libre del input (Búsqueda en todos los campos relevantes)
+    if (inputQuery.length >= 2) {
       return (
-        normalize(p.DESCRIPCION).includes(q) ||
-        normalize(p.PROVEEDOR).includes(q) ||
-        normalize(p.SECTOR).includes(q) ||
-        normalize(p.SECCION).includes(q) ||
-        normalize(String(p.EAN ?? '')).includes(q) ||
-        normalize(String(p.INTERNO ?? '')).includes(q)
+        normalize(p.DESCRIPCION).includes(inputQuery) ||
+        normalize(p.PROVEEDOR).includes(inputQuery) ||
+        normalize(p.SECTOR || '').includes(inputQuery) ||
+        normalize(p.SECCION || '').includes(inputQuery) ||
+        normalize(String(p.EAN ?? '')).includes(inputQuery) ||
+        normalize(String(p.INTERNO ?? '')).includes(inputQuery)
       );
     }
-    if (field === 'EAN') {
-      return (
-        normalize(String(p.EAN ?? '')).includes(q) ||
-        normalize(String(p.INTERNO ?? '')).includes(q)
-      );
-    }
-    return normalize(String(p[field] ?? '')).includes(q);
+    return true;
   });
 
   els.searchStateEmpty.style.display = 'none';
 
   if (matches.length === 0) {
     els.searchStateNone.style.display = 'flex';
-    els.searchTermDisplay.textContent = `"${query}"`;
+    els.searchTermDisplay.textContent = buildFilterDescription();
     els.searchResults.style.display = 'none';
     els.searchCount.textContent = 'Sin resultados';
     return;
@@ -460,12 +515,12 @@ function renderSearchResults(query) {
     const inCart = state.searchCart.has(key);
     const qtyVal = inCart ? (state.searchCart.get(key).qty || '') : '';
 
-    const desc = highlight(p.DESCRIPCION || '—', q);
-    const prov = highlight(p.PROVEEDOR || '—', q);
+    const desc = highlight(p.DESCRIPCION || '—', inputQuery);
+    const prov = highlight(p.PROVEEDOR || '—', inputQuery);
     const eanRaw = String(p.EAN ?? '');
     const intRaw = String(p.INTERNO ?? '');
-    const eanHL = highlight(eanRaw, q);
-    const intHL = highlight(intRaw, q);
+    const eanHL = highlight(eanRaw, inputQuery);
+    const intHL = highlight(intRaw, inputQuery);
 
     const eanBadge = eanRaw ? `<span class="sr-ean">EAN ${eanHL}</span>` : '';
     const intBadge = intRaw && intRaw !== eanRaw ? `<span class="sr-ean sr-ean--int">INT ${intHL}</span>` : '';
@@ -606,6 +661,66 @@ function btnCommitHTML(label) {
       <line x1="12" y1="5" x2="12" y2="19"/>
       <line x1="5" y1="12" x2="19" y2="12"/>
     </svg>`;
+}
+
+// ── Tags removibles de filtros activos en el buscador ──
+function renderSfTags() {
+  const tagsEl = document.getElementById('activeSfTags');
+  if (!tagsEl) return;
+  const entries = Object.entries(state.activeFilters);
+  if (!entries.length) { tagsEl.innerHTML = ''; return; }
+
+  const LABELS = { DESCRIPCION: 'Descripción', PROVEEDOR: 'Proveedor', EAN: 'EAN / Código', SECTOR: 'Sector', SECCION: 'Sección' };
+
+  tagsEl.innerHTML = `
+    <div class="aft-row">
+      <span class="aft-hint">Filtros activos:</span>
+      ${entries.map(([field, val]) => `
+        <button class="aft-tag" data-field="${esc(field)}">
+          <span class="aft-label">${esc(LABELS[field] || field)}:</span>
+          <strong>${esc(val)}</strong>
+          <span class="aft-x">✕</span>
+        </button>`).join('')}
+      <button class="aft-clear-all" id="btnSfcClearAll">Limpiar todo</button>
+    </div>`;
+
+  tagsEl.querySelectorAll('.aft-tag').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const f = btn.dataset.field;
+      delete state.activeFilters[f];
+      const chip = document.querySelector(`.sf-chip[data-field="${f}"]`);
+      if (chip) {
+        chip.classList.remove('sf-chip--active');
+        chip.textContent = chip.dataset.label;
+      }
+      if (!Object.keys(state.activeFilters).length && !els.searchInput.value.trim()) {
+        document.querySelector('.sf-chip[data-field="all"]').classList.add('sf-chip--active');
+      }
+      renderSfTags();
+      renderSearchResults();
+    });
+  });
+
+  tagsEl.querySelector('#btnSfcClearAll')?.addEventListener('click', () => {
+    state.activeFilters = {};
+    els.searchInput.value = '';
+    els.btnClearSearch.style.display = 'none';
+    document.querySelectorAll('.sf-chip').forEach(c => {
+      c.classList.remove('sf-chip--active');
+      c.textContent = c.dataset.label;
+    });
+    document.querySelector('.sf-chip[data-field="all"]').classList.add('sf-chip--active');
+    renderSfTags();
+    renderSearchResults();
+  });
+}
+
+function buildFilterDescription() {
+  const inputQuery = els.searchInput.value.trim();
+  const LABELS = { DESCRIPCION: 'Descripción', PROVEEDOR: 'Proveedor', EAN: 'EAN / Código', SECTOR: 'Sector', SECCION: 'Sección' };
+  const parts = Object.entries(state.activeFilters).map(([f, v]) => `${LABELS[f] || f}="${v}"`);
+  if (inputQuery) parts.push(`"${inputQuery}"`);
+  return parts.join(' + ');
 }
 
 // Confirma el carrito: envía todos los items con qty > 0 al pedido principal
