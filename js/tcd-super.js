@@ -11,6 +11,7 @@ const state = {
   inputMode: 'cam',    // 'cam' | 'ext'
   extDebounce: null,     // timer for external scanner debounce
   searchCart: new Map(),
+  editingId: null,       // id del item que se está editando (si aplica)
 };
 
 // ── DOM ──
@@ -73,6 +74,19 @@ const els = {
   extStatus: $('extStatus'),
   extStatusDot: $('extStatusDot'),
   extStatusText: $('extStatusText'),
+  // manual modal
+  manualOverlay: $('manualOverlay'),
+  btnOpenManual: $('btnOpenManual'),
+  btnCloseManual: $('btnCloseManual'),
+  fManDesc: $('fManDesc'),
+  fManEan: $('fManEan'),
+  fManProv: $('fManProv'),
+  fManGram: $('fManGram'),
+  fManUxb: $('fManUxb'),
+  fManCant: $('fManCant'),
+  eManDesc: $('eManDesc'),
+  eManCant: $('eManCant'),
+  btnSubmitManual: $('btnSubmitManual'),
 };
 
 // ── Init ──
@@ -114,6 +128,21 @@ async function init() {
   els.btnOpenScanner.addEventListener('click', openScanner);
   els.btnCloseScanner.addEventListener('click', closeScanner);
   els.btnManualEntry.addEventListener('click', closeScanner);
+
+  // Modal Manual
+  els.btnOpenManual.addEventListener('click', openManualModal);
+  els.btnCloseManual.addEventListener('click', closeManualModal);
+  els.manualOverlay.addEventListener('click', (e) => {
+    if (e.target === els.manualOverlay) closeManualModal();
+  });
+  els.btnSubmitManual.addEventListener('click', commitManual);
+  
+  els.fManDesc.addEventListener('input', () => els.eManDesc.classList.remove('show'));
+  els.fManCant.addEventListener('input', () => els.eManCant.classList.remove('show'));
+  
+  els.fManCant.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commitManual(); }
+  });
 
   els.btnOpenSearch.addEventListener('click', openSearchModal);
   els.btnCloseSearch.addEventListener('click', closeSearchModal);
@@ -250,14 +279,22 @@ async function init() {
     if (e.key === 'Escape') {
       if (els.searchOverlay.classList.contains('open')) closeSearchModal();
       if (els.scanOverlay.classList.contains('open')) closeScanner();
+      if (els.manualOverlay.classList.contains('open')) closeManualModal();
     }
     // If ext mode is active and user isn't focused on qty or ext input,
     // redirect any printable key to the ext input automatically
     if (state.inputMode === 'ext'
       && !els.searchOverlay.classList.contains('open')
       && !els.scanOverlay.classList.contains('open')
+      && !els.manualOverlay.classList.contains('open')
       && document.activeElement !== els.extInput
       && document.activeElement !== els.fQty
+      && document.activeElement !== els.fManDesc
+      && document.activeElement !== els.fManEan
+      && document.activeElement !== els.fManProv
+      && document.activeElement !== els.fManGram
+      && document.activeElement !== els.fManUxb
+      && document.activeElement !== els.fManCant
       && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
       els.extInput.focus();
     }
@@ -438,6 +475,99 @@ function openSearchModal() {
 function closeSearchModal() {
   els.searchOverlay.classList.remove('open');
   document.body.style.overflow = '';
+}
+
+// ══════════════════════════════════════════════
+// ── Manual / Edit Modal
+// ══════════════════════════════════════════════
+
+function openManualModal() {
+  state.editingId = null;
+  els.manualOverlay.querySelector('.s-title').textContent = 'Registro Manual';
+  els.manualOverlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  els.fManDesc.value = '';
+  els.fManEan.value = '';
+  els.fManProv.value = '';
+  els.fManGram.value = '';
+  els.fManUxb.value = '';
+  els.fManCant.value = '';
+  els.eManDesc.classList.remove('show');
+  els.eManCant.classList.remove('show');
+  setTimeout(() => els.fManDesc.focus(), 120);
+}
+
+function editItem(id) {
+  const item = state.order.find(i => i.id === id);
+  if (!item) return;
+
+  state.editingId = id;
+  els.manualOverlay.querySelector('.s-title').textContent = 'Editar Producto';
+  
+  els.fManDesc.value = item.descripcion || '';
+  els.fManEan.value = item.ean || '';
+  els.fManProv.value = item.proveedor && item.proveedor !== '——' ? item.proveedor : '';
+  els.fManGram.value = item.gramaje || '';
+  els.fManUxb.value = item.uxb || '';
+  els.fManCant.value = item.cantidad || '';
+  
+  els.eManDesc.classList.remove('show');
+  els.eManCant.classList.remove('show');
+  
+  els.manualOverlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => els.fManDesc.focus(), 120);
+}
+
+function closeManualModal() {
+  state.editingId = null;
+  els.manualOverlay.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function commitManual() {
+  const desc = els.fManDesc.value.trim().toUpperCase();
+  const cantStr = els.fManCant.value.replace(',', '.');
+  const cant = parseFloat(cantStr);
+
+  let hasError = false;
+  if (!desc) { els.eManDesc.classList.add('show'); els.fManDesc.focus(); hasError = true; }
+  if (isNaN(cant) || cant <= 0) { els.eManCant.classList.add('show'); if (!hasError) els.fManCant.focus(); hasError = true; }
+  if (hasError) return;
+
+  if (state.editingId) {
+    // Modo Edición
+    const item = state.order.find(i => i.id === state.editingId);
+    if (item) {
+      item.descripcion = desc;
+      item.ean = els.fManEan.value.trim();
+      item.proveedor = els.fManProv.value.trim().toUpperCase() || '——';
+      item.gramaje = els.fManGram.value.trim().toLowerCase();
+      item.uxb = els.fManUxb.value.trim() !== '' ? els.fManUxb.value.trim() : '';
+      item.cantidad = cant;
+    }
+    showToast('ok', `"${desc}" fue actualizado`);
+  } else {
+    // Modo Nuevo
+    state.order.push({
+      id: Date.now() + Math.random(),
+      ean: els.fManEan.value.trim(),
+      interno: '',
+      descripcion: desc,
+      proveedor: els.fManProv.value.trim().toUpperCase() || '——',
+      gramaje: els.fManGram.value.trim().toLowerCase(),
+      uxb: els.fManUxb.value.trim() !== '' ? els.fManUxb.value.trim() : '',
+      cantidad: cant,
+      isManual: true
+    });
+    showToast('ok', `"${desc}" agregado manualmente (×${cant})`);
+  }
+
+  renderTable();
+  updateBadge();
+  if (navigator.vibrate) navigator.vibrate([60, 30, 60]);
+
+  closeManualModal();
 }
 
 function onSearchInput() {
@@ -862,7 +992,12 @@ function renderTable() {
   els.orderBody.innerHTML = state.order.map(item => `
     <tr>
       <td class="td-code">${esc(String(item.ean || '—'))}</td>
-      <td class="td-desc">${esc(item.descripcion)}</td>
+      <td class="td-desc">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <span>${esc(item.descripcion)}</span>
+          <button class="btn-edit" onclick="editItem(${item.id})" title="Editar producto" aria-label="Editar">✏️</button>
+        </div>
+      </td>
       <td class="td-prov">${esc(String(item.gramaje || '—'))}</td>
       <td class="td-prov">${item.uxb !== '' ? item.uxb + ' u.' : '—'}</td>
       <td class="td-qty">${item.cantidad}</td>
